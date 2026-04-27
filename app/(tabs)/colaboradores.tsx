@@ -6,6 +6,7 @@ import {
 } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
+import { useAuth } from '../../contexts/AuthContext';
 import { Ionicons } from '@expo/vector-icons';
 import { getEmployees, createEmployee } from '../../services/employees';
 import { Employee, EmployeeStatus, LegalArea, STATUS_LABELS, CreateEmployeeData } from '../../types';
@@ -60,6 +61,8 @@ const EMPTY_FORM = {
 
 export default function ColaboradoresScreen() {
   const router = useRouter();
+  const { user } = useAuth();
+  const canManageEmployees = ['super_admin','admin','rh','adm'].includes(user?.role ?? '');
   const [employees,  setEmployees]  = useState<Employee[]>([]);
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -214,10 +217,12 @@ export default function ColaboradoresScreen() {
         <View style={{ height: 80 }} />
       </ScrollView>
 
-      {/* FAB */}
-      <TouchableOpacity style={styles.fab} onPress={() => setShowModal(true)} activeOpacity={0.85}>
-        <Ionicons name="add" size={26} color="#000" />
-      </TouchableOpacity>
+      {/* FAB — só para quem pode gerenciar colaboradores */}
+      {canManageEmployees && (
+        <TouchableOpacity style={styles.fab} onPress={() => setShowModal(true)} activeOpacity={0.85}>
+          <Ionicons name="add" size={26} color="#000" />
+        </TouchableOpacity>
+      )}
 
       {/* Modal de cadastro */}
       <Modal visible={showModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowModal(false)}>

@@ -3,7 +3,7 @@
 // ============================================================
 
 import type { Request as VercelRequest, Response as VercelResponse } from 'express';
-import { sql, cors, authenticate, err } from '../_lib';
+import { sql, cors, authenticate, err, CAN_MANAGE_EMPLOYEES } from '../_lib';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   cors(res);
@@ -17,7 +17,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // ── DELETE ────────────────────────────────────────────────
   if (req.method === 'DELETE') {
-    if (!['super_admin','admin','rh'].includes(ctx.role)) {
+    if (!CAN_MANAGE_EMPLOYEES.includes(ctx.role)) {
       return err(res, 403, 'Sem permissão');
     }
     await sql`

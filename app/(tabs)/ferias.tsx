@@ -54,7 +54,7 @@ const EMPTY_FORM = {
 
 export default function FeriasScreen() {
   const { user } = useAuth();
-  const canApprove = user?.role === 'admin' || user?.role === 'super_admin' || user?.role === 'rh';
+  const canApprove = ['super_admin','admin','rh','adm','gestor'].includes(user?.role ?? '');
 
   const [absences,   setAbsences]   = useState<Absence[]>([]);
   const [employees,  setEmployees]  = useState<Employee[]>([]);

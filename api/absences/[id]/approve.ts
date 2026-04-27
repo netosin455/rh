@@ -3,7 +3,7 @@
 // ============================================================
 
 import type { Request as VercelRequest, Response as VercelResponse } from 'express';
-import { sql, cors, authenticate, err } from '../../_lib';
+import { sql, cors, authenticate, err, CAN_APPROVE_ABSENCES } from '../../_lib';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   cors(res);
@@ -13,7 +13,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   let ctx;
   try { ctx = authenticate(req); } catch (e: any) { return err(res, e.status ?? 401, e.message); }
 
-  if (!['super_admin','admin','rh','gestor'].includes(ctx.role)) {
+  if (!CAN_APPROVE_ABSENCES.includes(ctx.role)) {
     return err(res, 403, 'Sem permissão para aprovar/recusar ausências');
   }
 

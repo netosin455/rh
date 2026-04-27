@@ -4,7 +4,7 @@
 // ============================================================
 
 // ── Usuário e Auth ──────────────────────────────────────────
-export type UserRole = 'super_admin' | 'admin' | 'rh' | 'gestor' | 'colaborador';
+export type UserRole = 'super_admin' | 'admin' | 'rh' | 'gestor' | 'colaborador' | 'financeiro' | 'juridico' | 'ti' | 'adm';
 
 export interface User {
   id: number;

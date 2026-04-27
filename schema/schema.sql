@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS users (
   email         text NOT NULL UNIQUE,
   password_hash text NOT NULL,
   role          text NOT NULL DEFAULT 'colaborador'
-                  CHECK (role IN ('super_admin', 'admin', 'rh', 'gestor', 'colaborador')),
+                  CHECK (role IN ('super_admin', 'admin', 'rh', 'gestor', 'colaborador', 'financeiro', 'juridico', 'ti', 'adm')),
   created_at    timestamptz NOT NULL DEFAULT now()
 );
 

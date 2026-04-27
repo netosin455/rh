@@ -7,6 +7,7 @@ import {
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { getCases, createCase } from '../../services/cases';
+import { useAuth } from '../../contexts/AuthContext';
 import { LegalCase, CaseStatus, LegalArea, CATEGORY_COLORS, CreateCaseData } from '../../types';
 import { theme } from '../../theme';
 import { formatDateShort } from '../../utils/dateUtils';
@@ -76,6 +77,8 @@ const EMPTY_FORM = {
 };
 
 export default function ProcessosScreen() {
+  const { user } = useAuth();
+  const canManageCases = ['super_admin','admin','juridico'].includes(user?.role ?? '');
   const [cases,      setCases]      = useState<LegalCase[]>([]);
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -251,10 +254,12 @@ export default function ProcessosScreen() {
         <View style={{ height: 80 }} />
       </ScrollView>
 
-      {/* FAB */}
-      <TouchableOpacity style={styles.fab} onPress={() => setShowModal(true)} activeOpacity={0.85}>
-        <Ionicons name="add" size={26} color="#000" />
-      </TouchableOpacity>
+      {/* FAB — só para quem pode gerenciar processos */}
+      {canManageCases && (
+        <TouchableOpacity style={styles.fab} onPress={() => setShowModal(true)} activeOpacity={0.85}>
+          <Ionicons name="add" size={26} color="#000" />
+        </TouchableOpacity>
+      )}
 
       {/* Modal de cadastro */}
       <Modal visible={showModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowModal(false)}>
