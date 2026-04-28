@@ -31,7 +31,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       FROM events
       WHERE company_id = ${ctx.company_id}
         AND user_id    = ${ctx.sub}
-        AND date       >= current_date
+        AND date       >= to_char(current_date, 'YYYY-MM-DD')
       ORDER BY date ASC, start_time ASC
       LIMIT 10
     `,
