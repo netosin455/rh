@@ -4,7 +4,11 @@ import ws from 'ws';
 
 neonConfig.webSocketConstructor = ws;
 
-const DATABASE_URL = 'process.env.DATABASE_URL';
+const DATABASE_URL = process.env.DATABASE_URL;
+if (!DATABASE_URL) {
+  console.error('Erro: variável DATABASE_URL não definida. Crie um arquivo .env.local e defina DATABASE_URL.');
+  process.exit(1);
+}
 
 const pool = new Pool({ connectionString: DATABASE_URL });
 

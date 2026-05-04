@@ -3,7 +3,7 @@
 // ============================================================
 
 import type { Request as VercelRequest, Response as VercelResponse } from 'express';
-import { sql, cors, authenticate, err } from '../_lib';
+import { sql, cors, authenticate, err, CAN_MANAGE_CASES, IS_ADMIN } from '../_lib';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   cors(res);
@@ -29,7 +29,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // ── PUT ───────────────────────────────────────────────────
   if (req.method === 'PUT') {
-    if (!['super_admin','admin','rh'].includes(ctx.role)) {
+    if (!CAN_MANAGE_CASES.includes(ctx.role)) {
       return err(res, 403, 'Sem permissão');
     }
     const {
@@ -57,7 +57,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // ── DELETE ────────────────────────────────────────────────
   if (req.method === 'DELETE') {
-    if (!['super_admin','admin'].includes(ctx.role)) {
+    if (!IS_ADMIN.includes(ctx.role)) {
       return err(res, 403, 'Sem permissão');
     }
     await sql`

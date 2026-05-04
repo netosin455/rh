@@ -9,7 +9,10 @@ import type { Request as VercelRequest, Response as VercelResponse } from 'expre
 
 export const sql = neon(process.env.DATABASE_URL!);
 
-export const JWT_SECRET = process.env.JWT_SECRET || 'change-me-in-production';
+if (!process.env.JWT_SECRET) {
+  throw new Error('JWT_SECRET environment variable is required');
+}
+export const JWT_SECRET = process.env.JWT_SECRET;
 
 export interface JWTPayload {
   sub: number;         // user.id
@@ -21,7 +24,8 @@ export interface JWTPayload {
 
 /** Adiciona headers CORS em todas as respostas */
 export function cors(res: VercelResponse) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  const origin = process.env.CORS_ORIGIN ?? '';
+  if (origin) res.setHeader('Access-Control-Allow-Origin', origin);
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization');
 }
