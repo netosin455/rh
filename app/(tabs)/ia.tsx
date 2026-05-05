@@ -16,10 +16,10 @@ import { useAuth } from '../../contexts/AuthContext';
 import { theme } from '../../theme';
 
 const SUGGESTIONS = [
-  'Quais processos estão urgentes?',
   'Quem tem férias pendentes?',
   'Quais eventos tenho hoje?',
   'Mostre os colaboradores ativos',
+  'Quem faz aniversário essa semana?',
 ];
 
 let msgId = 0;
@@ -31,7 +31,7 @@ export default function IAScreen() {
     {
       id: nextId(),
       role: 'assistant',
-      content: `Olá, ${user?.name?.split(' ')[0] || 'advogado'}! Sou o assistente do SuperRH. Posso ajudar com informações sobre colaboradores, processos, agenda e muito mais. Como posso ajudar?`,
+      content: `Olá, ${user?.name?.split(' ')[0] || 'usuário'}! Sou o assistente do SuperRH. Posso ajudar com informações sobre colaboradores, férias, agenda e muito mais. Como posso ajudar?`,
       timestamp: new Date(),
     },
   ]);

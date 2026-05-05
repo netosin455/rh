@@ -12,10 +12,9 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { getEmployees } from '../../services/employees';
-import { getCases } from '../../services/cases';
 import { getUpcomingEvents } from '../../services/events';
 import { getAbsences } from '../../services/absences';
-import { Employee, LegalCase, Event, Absence } from '../../types';
+import { Employee, Event, Absence } from '../../types';
 import { theme } from '../../theme';
 import { formatDateDisplay, getTodayString } from '../../utils/dateUtils';
 
@@ -49,25 +48,11 @@ function SectionHeader({ title, onPress }: { title: string; onPress?: () => void
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  ativo:      theme.success,
-  ferias:     theme.info,
-  licenca:    theme.warning,
-  afastado:   theme.warning,
-  desligado:  theme.textMuted,
-  urgente:    theme.danger,
-  andamento:  theme.gold,
-  encerrado:  theme.textMuted,
-  suspenso:   theme.textMuted,
-};
-
-const AREA_LABELS: Record<string, string> = {
-  civel:       'Cível',
-  trabalhista: 'Trabalhista',
-  tributario:  'Tributário',
-  familia:     'Família',
-  criminal:    'Criminal',
-  empresarial: 'Empresarial',
-  outro:       'Outro',
+  ativo:     theme.success,
+  ferias:    theme.info,
+  licenca:   theme.warning,
+  afastado:  theme.warning,
+  desligado: theme.textMuted,
 };
 
 export default function DashboardScreen() {
@@ -75,7 +60,6 @@ export default function DashboardScreen() {
   const { user } = useAuth();
 
   const [employees,  setEmployees]  = useState<Employee[]>([]);
-  const [cases,      setCases]      = useState<LegalCase[]>([]);
   const [events,     setEvents]     = useState<Event[]>([]);
   const [absences,   setAbsences]   = useState<Absence[]>([]);
   const [loading,    setLoading]    = useState(true);
@@ -83,14 +67,12 @@ export default function DashboardScreen() {
 
   const load = useCallback(async () => {
     try {
-      const [emp, cas, evt, abs] = await Promise.all([
+      const [emp, evt, abs] = await Promise.all([
         getEmployees(),
-        getCases(),
         getUpcomingEvents(5),
         getAbsences('pendente'),
       ]);
       setEmployees(emp);
-      setCases(cas);
       setEvents(evt);
       setAbsences(abs);
     } catch (err) {
@@ -109,8 +91,6 @@ export default function DashboardScreen() {
   }, [load]);
 
   const activeEmployees = employees.filter(e => e.status === 'ativo').length;
-  const urgentCases     = cases.filter(c => c.status === 'urgente').length;
-  const activeCases     = cases.filter(c => ['ativo','andamento','urgente'].includes(c.status)).length;
   const pendingAbsences = absences.length;
 
   const today = getTodayString();
@@ -145,11 +125,7 @@ export default function DashboardScreen() {
 
       <View style={styles.metricsGrid}>
         <MetricCard label="COLABORADORES" value={activeEmployees} sub="ativos" delay={0} />
-        <MetricCard
-          label="PROCESSOS" value={activeCases}
-          sub={urgentCases > 0 ? `${urgentCases} urgentes` : 'ativos'}
-          accent={urgentCases > 0 ? theme.danger : undefined} delay={80}
-        />
+        <MetricCard label="EM FÉRIAS" value={employees.filter(e => e.status === 'ferias').length} sub="colaboradores" delay={80} />
         <MetricCard label="EVENTOS HOJE" value={events.filter(e => e.date === today).length} sub="agendados" delay={160} />
         <MetricCard
           label="FÉRIAS PEND." value={pendingAbsences} sub="aguardando"
@@ -189,27 +165,6 @@ export default function DashboardScreen() {
       </Animated.View>
 
       <Animated.View entering={FadeInDown.delay(360).duration(350)} style={styles.card}>
-        <SectionHeader title="Processos" onPress={() => router.push('/(tabs)/processos')} />
-        {cases.length === 0 ? (
-          <Text style={styles.empty}>Nenhum processo ativo</Text>
-        ) : (
-          cases.slice(0, 4).map(c => (
-            <TouchableOpacity key={c.id} style={styles.caseRow}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.caseNumber}>{c.case_number}</Text>
-                <Text style={styles.caseName}>{c.client_name} — {AREA_LABELS[c.area] || c.area}</Text>
-              </View>
-              <View style={[styles.statusPill, { backgroundColor: `${STATUS_COLORS[c.status] || theme.gold}20` }]}>
-                <Text style={[styles.statusText, { color: STATUS_COLORS[c.status] || theme.gold }]}>
-                  {c.status.charAt(0).toUpperCase() + c.status.slice(1)}
-                </Text>
-              </View>
-            </TouchableOpacity>
-          ))
-        )}
-      </Animated.View>
-
-      <Animated.View entering={FadeInDown.delay(420).duration(350)} style={styles.card}>
         <SectionHeader title="Colaboradores" onPress={() => router.push('/(tabs)/colaboradores')} />
         {employees.slice(0, 4).map(emp => (
           <TouchableOpacity key={emp.id} style={styles.empRow}>
@@ -274,9 +229,6 @@ const styles = StyleSheet.create({
   eventDot: { width: 8, height: 8, borderRadius: 4, marginTop: 3 },
   eventName: { fontSize: 13, color: theme.text, fontWeight: '500' },
   eventMeta: { fontSize: 11, color: theme.textMuted, marginTop: 2 },
-  caseRow: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.03)' },
-  caseNumber: { fontSize: 10, color: theme.gold, fontFamily: 'monospace', marginBottom: 2 },
-  caseName: { fontSize: 12, color: theme.textLight },
   empRow: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.03)' },
   empAvatar: { width: 32, height: 32, borderRadius: 16, backgroundColor: theme.goldDim, borderWidth: 1, borderColor: theme.border2, alignItems: 'center', justifyContent: 'center' },
   empInitials: { fontSize: 11, fontWeight: '600', color: theme.goldLight },
