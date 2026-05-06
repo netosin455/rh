@@ -11,6 +11,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { getEmployees, createEmployee } from '../../conexoes/colaboradores';
 import { Employee, EmployeeStatus, LegalArea, STATUS_LABELS, CreateEmployeeData } from '../../tipos/modelos';
 import { theme } from '../../estilo/cores';
+import { brToIso, maskDate, todayBr } from '../../helpers/datas';
 
 const STATUS_COLORS: Record<EmployeeStatus, string> = {
   ativo:     theme.success,
@@ -49,7 +50,7 @@ const STATUS_OPTIONS: { key: EmployeeStatus; label: string }[] = [
 const EMPTY_FORM = {
   name: '',
   role_title: '',
-  hire_date: new Date().toISOString().slice(0, 10),
+  hire_date: todayBr(),
   status: 'ativo' as EmployeeStatus,
   phone: '',
   cpf: '',
@@ -104,16 +105,21 @@ export default function ColaboradoresScreen() {
     if (!form.role_title.trim()) return Alert.alert('Campo obrigatório', 'Informe o cargo.');
     if (!form.hire_date)         return Alert.alert('Campo obrigatório', 'Informe a data de admissão.');
 
+    const hireDateIso  = brToIso(form.hire_date);
+    const birthDateIso = form.birth_date ? brToIso(form.birth_date) : '';
+    if (!hireDateIso) return Alert.alert('Data inválida', 'Informe a admissão no formato DD/MM/AAAA.');
+    if (form.birth_date && !birthDateIso) return Alert.alert('Data inválida', 'Informe o nascimento no formato DD/MM/AAAA.');
+
     setSaving(true);
     try {
       const data: CreateEmployeeData = {
         name:         form.name.trim(),
         role_title:   form.role_title.trim(),
-        hire_date:    form.hire_date,
+        hire_date:    hireDateIso,
         status:       form.status,
         phone:        form.phone.trim() || undefined,
         cpf:          form.cpf.trim() || undefined,
-        birth_date:   form.birth_date || undefined,
+        birth_date:   birthDateIso || undefined,
         legal_area:   form.legal_area,
         oab_number:   form.oab_number.trim() || undefined,
         vacation_days: form.vacation_days,
@@ -241,8 +247,8 @@ export default function ColaboradoresScreen() {
             <Text style={styles.label}>Cargo *</Text>
             <TextInput style={styles.input} placeholder="Ex: Advogado Pleno, Estagiário" placeholderTextColor={theme.textMuted} value={form.role_title} onChangeText={v => set('role_title', v)} />
 
-            <Text style={styles.label}>Data de Admissão * (AAAA-MM-DD)</Text>
-            <TextInput style={styles.input} placeholder="2024-01-15" placeholderTextColor={theme.textMuted} value={form.hire_date} onChangeText={v => set('hire_date', v)} />
+            <Text style={styles.label}>Data de Admissão * (DD/MM/AAAA)</Text>
+            <TextInput style={styles.input} placeholder="07/05/2024" placeholderTextColor={theme.textMuted} value={form.hire_date} onChangeText={v => set('hire_date', maskDate(v))} keyboardType="numeric" maxLength={10} />
 
             <Text style={styles.label}>Status</Text>
             <View style={styles.chipGroup}>
@@ -279,8 +285,8 @@ export default function ColaboradoresScreen() {
             <Text style={styles.label}>CPF</Text>
             <TextInput style={styles.input} placeholder="000.000.000-00" placeholderTextColor={theme.textMuted} value={form.cpf} onChangeText={v => set('cpf', v)} />
 
-            <Text style={styles.label}>Data de Nascimento (AAAA-MM-DD)</Text>
-            <TextInput style={styles.input} placeholder="1990-05-20" placeholderTextColor={theme.textMuted} value={form.birth_date} onChangeText={v => set('birth_date', v)} />
+            <Text style={styles.label}>Data de Nascimento (DD/MM/AAAA)</Text>
+            <TextInput style={styles.input} placeholder="07/05/1990" placeholderTextColor={theme.textMuted} value={form.birth_date} onChangeText={v => set('birth_date', maskDate(v))} keyboardType="numeric" maxLength={10} />
 
             <View style={{ height: 20 }} />
           </ScrollView>

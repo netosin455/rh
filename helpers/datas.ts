@@ -2,6 +2,28 @@ export function ymd(s: string): string {
   return s ? s.slice(0, 10) : '';
 }
 
+export function brToIso(br: string): string {
+  const p = br.replace(/\D/g, '');
+  if (p.length !== 8) return '';
+  return `${p.slice(4, 8)}-${p.slice(2, 4)}-${p.slice(0, 2)}`;
+}
+
+export function isoToBr(iso: string): string {
+  const [y, m, d] = ymd(iso).split('-');
+  return d && m && y ? `${d}/${m}/${y}` : '';
+}
+
+export function maskDate(v: string): string {
+  const digits = v.replace(/\D/g, '').slice(0, 8);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+}
+
+export function todayBr(): string {
+  return isoToBr(getTodayString());
+}
+
 export function getTodayString(): string {
   return toDateString(new Date());
 }

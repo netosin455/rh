@@ -10,6 +10,7 @@ import { apiFetch } from '../../conexoes/http';
 import { Employee, EmployeeStatus, LegalArea, STATUS_LABELS, Absence, ABSENCE_TYPE_LABELS } from '../../tipos/modelos';
 import { useAuth } from '../../contextos/Autenticacao';
 import { theme } from '../../estilo/cores';
+import { ymd, brToIso, isoToBr, maskDate } from '../../helpers/datas';
 
 const STATUS_OPTIONS: { key: EmployeeStatus; label: string }[] = [
   { key: 'ativo',     label: 'Ativo' },
@@ -43,10 +44,6 @@ const ABSENCE_STATUS_COLORS: Record<string, string> = {
   recusado:  theme.danger,
   cancelado: theme.textMuted,
 };
-
-function ymd(s: string): string {
-  return s ? s.slice(0, 10) : '';
-}
 
 function formatDate(s: string): string {
   const [y, m, d] = ymd(s).split('-');
@@ -105,11 +102,11 @@ export default function ColaboradorScreen() {
       setForm({
         name:          emp.name,
         role_title:    emp.role_title,
-        hire_date:     emp.hire_date,
+        hire_date:     isoToBr(emp.hire_date),
         status:        emp.status,
         phone:         emp.phone ?? '',
         cpf:           emp.cpf ?? '',
-        birth_date:    emp.birth_date ?? '',
+        birth_date:    emp.birth_date ? isoToBr(emp.birth_date) : '',
         legal_area:    emp.legal_area,
         oab_number:    emp.oab_number ?? '',
         vacation_days: emp.vacation_days,
@@ -145,14 +142,19 @@ export default function ColaboradorScreen() {
 
     setSaving(true);
     try {
+      const hireDateIso  = brToIso(form.hire_date ?? '');
+      const birthDateIso = form.birth_date ? brToIso(form.birth_date) : '';
+      if (!hireDateIso)  return Alert.alert('Data inválida', 'Informe a admissão no formato DD/MM/AAAA.');
+      if (form.birth_date && !birthDateIso) return Alert.alert('Data inválida', 'Informe o nascimento no formato DD/MM/AAAA.');
+
       const updated = await updateEmployee(Number(id), {
         name:          form.name?.trim(),
         role_title:    form.role_title?.trim(),
-        hire_date:     form.hire_date,
+        hire_date:     hireDateIso,
         status:        form.status,
         phone:         form.phone?.trim() || undefined,
         cpf:           form.cpf?.trim() || undefined,
-        birth_date:    form.birth_date || undefined,
+        birth_date:    birthDateIso || undefined,
         legal_area:    form.legal_area,
         oab_number:    form.oab_number?.trim() || undefined,
         vacation_days: form.vacation_days,
@@ -304,11 +306,27 @@ export default function ColaboradorScreen() {
             <Text style={styles.label}>CPF</Text>
             <TextInput style={styles.input} value={form.cpf} onChangeText={v => set('cpf', v)} placeholder="000.000.000-00" placeholderTextColor={theme.textMuted} />
 
-            <Text style={styles.label}>Data de Admissão (AAAA-MM-DD)</Text>
-            <TextInput style={styles.input} value={form.hire_date} onChangeText={v => set('hire_date', v)} placeholderTextColor={theme.textMuted} />
+            <Text style={styles.label}>Data de Admissão (DD/MM/AAAA)</Text>
+            <TextInput
+              style={styles.input}
+              value={form.hire_date}
+              onChangeText={v => set('hire_date', maskDate(v))}
+              placeholder="07/05/1990"
+              placeholderTextColor={theme.textMuted}
+              keyboardType="numeric"
+              maxLength={10}
+            />
 
-            <Text style={styles.label}>Data de Nascimento (AAAA-MM-DD)</Text>
-            <TextInput style={styles.input} value={form.birth_date} onChangeText={v => set('birth_date', v)} placeholder="1990-05-20" placeholderTextColor={theme.textMuted} />
+            <Text style={styles.label}>Data de Nascimento (DD/MM/AAAA)</Text>
+            <TextInput
+              style={styles.input}
+              value={form.birth_date}
+              onChangeText={v => set('birth_date', maskDate(v))}
+              placeholder="07/05/1990"
+              placeholderTextColor={theme.textMuted}
+              keyboardType="numeric"
+              maxLength={10}
+            />
 
             <View style={{ height: 20 }} />
           </View>
