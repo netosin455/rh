@@ -1,12 +1,13 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, ScrollView, TextInput, TouchableOpacity,
-  StyleSheet, ActivityIndicator, Alert, KeyboardAvoidingView, Platform,
+  StyleSheet, ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Linking,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { getEmployeeById, updateEmployee, deleteEmployee } from '../../services/employees';
-import { Employee, EmployeeStatus, LegalArea, STATUS_LABELS } from '../../types';
+import { apiFetch } from '../../services/api';
+import { Employee, EmployeeStatus, LegalArea, STATUS_LABELS, Absence, ABSENCE_TYPE_LABELS } from '../../types';
 import { useAuth } from '../../contexts/AuthContext';
 import { theme } from '../../theme';
 
@@ -36,6 +37,24 @@ const STATUS_COLORS: Record<EmployeeStatus, string> = {
   desligado: theme.textMuted,
 };
 
+const ABSENCE_STATUS_COLORS: Record<string, string> = {
+  pendente:  theme.warning,
+  aprovado:  theme.success,
+  recusado:  theme.danger,
+  cancelado: theme.textMuted,
+};
+
+function getTenure(hireDate: string): string {
+  const start = new Date(hireDate + 'T00:00:00');
+  const now = new Date();
+  let years = now.getFullYear() - start.getFullYear();
+  let months = now.getMonth() - start.getMonth();
+  if (months < 0) { years--; months += 12; }
+  if (years > 0 && months > 0) return `${years} ano${years > 1 ? 's' : ''} e ${months} mês${months > 1 ? 'es' : ''}`;
+  if (years > 0) return `${years} ano${years > 1 ? 's' : ''}`;
+  return `${months} mês${months !== 1 ? 'es' : ''}`;
+}
+
 export default function ColaboradorScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
@@ -44,26 +63,28 @@ export default function ColaboradorScreen() {
   const canEdit   = ['super_admin','admin','rh','adm'].includes(user?.role ?? '');
   const canDelete = ['super_admin','admin'].includes(user?.role ?? '');
 
-  const [employee, setEmployee] = useState<Employee | null>(null);
-  const [loading,  setLoading]  = useState(true);
-  const [saving,   setSaving]   = useState(false);
-  const [editing,  setEditing]  = useState(false);
-  const [form,     setForm]     = useState<Partial<Employee>>({});
+  const [employee,  setEmployee]  = useState<Employee | null>(null);
+  const [absences,  setAbsences]  = useState<Absence[]>([]);
+  const [loading,   setLoading]   = useState(true);
+  const [absLoading, setAbsLoading] = useState(true);
+  const [saving,    setSaving]    = useState(false);
+  const [editing,   setEditing]   = useState(false);
+  const [form,      setForm]      = useState<Partial<Employee>>({});
 
   const load = useCallback(async () => {
     try {
       const emp = await getEmployeeById(Number(id));
       setEmployee(emp);
       setForm({
-        name:         emp.name,
-        role_title:   emp.role_title,
-        hire_date:    emp.hire_date,
-        status:       emp.status,
-        phone:        emp.phone ?? '',
-        cpf:          emp.cpf ?? '',
-        birth_date:   emp.birth_date ?? '',
-        legal_area:   emp.legal_area,
-        oab_number:   emp.oab_number ?? '',
+        name:          emp.name,
+        role_title:    emp.role_title,
+        hire_date:     emp.hire_date,
+        status:        emp.status,
+        phone:         emp.phone ?? '',
+        cpf:           emp.cpf ?? '',
+        birth_date:    emp.birth_date ?? '',
+        legal_area:    emp.legal_area,
+        oab_number:    emp.oab_number ?? '',
         vacation_days: emp.vacation_days,
       });
     } catch (e: any) {
@@ -74,7 +95,18 @@ export default function ColaboradorScreen() {
     }
   }, [id]);
 
-  useEffect(() => { load(); }, [load]);
+  const loadAbsences = useCallback(async () => {
+    try {
+      const data = await apiFetch<Absence[]>(`/api/absences?employee_id=${id}`);
+      setAbsences(data);
+    } catch {
+      setAbsences([]);
+    } finally {
+      setAbsLoading(false);
+    }
+  }, [id]);
+
+  useEffect(() => { load(); loadAbsences(); }, [load, loadAbsences]);
 
   function set(field: string, value: any) {
     setForm(f => ({ ...f, [field]: value }));
@@ -87,15 +119,15 @@ export default function ColaboradorScreen() {
     setSaving(true);
     try {
       const updated = await updateEmployee(Number(id), {
-        name:         form.name?.trim(),
-        role_title:   form.role_title?.trim(),
-        hire_date:    form.hire_date,
-        status:       form.status,
-        phone:        form.phone?.trim() || undefined,
-        cpf:          form.cpf?.trim() || undefined,
-        birth_date:   form.birth_date || undefined,
-        legal_area:   form.legal_area,
-        oab_number:   form.oab_number?.trim() || undefined,
+        name:          form.name?.trim(),
+        role_title:    form.role_title?.trim(),
+        hire_date:     form.hire_date,
+        status:        form.status,
+        phone:         form.phone?.trim() || undefined,
+        cpf:           form.cpf?.trim() || undefined,
+        birth_date:    form.birth_date || undefined,
+        legal_area:    form.legal_area,
+        oab_number:    form.oab_number?.trim() || undefined,
         vacation_days: form.vacation_days,
       });
       setEmployee(updated);
@@ -234,11 +266,58 @@ export default function ColaboradorScreen() {
         ) : (
           <View style={styles.infoSection}>
             <InfoRow icon="calendar-outline"  label="Admissão"    value={employee.hire_date} />
-            <InfoRow icon="call-outline"      label="Telefone"    value={employee.phone} />
+            {employee.hire_date && (
+              <InfoRow icon="time-outline" label="Tempo de casa" value={getTenure(employee.hire_date)} />
+            )}
+            {employee.phone ? (
+              <TouchableOpacity
+                style={styles.infoRow}
+                onPress={() => Linking.openURL(`tel:${employee.phone}`)}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="call-outline" size={16} color={theme.gold} style={styles.infoIcon} />
+                <View style={styles.infoContent}>
+                  <Text style={styles.infoLabel}>Telefone</Text>
+                  <Text style={[styles.infoValue, { color: theme.gold }]}>{employee.phone}</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={14} color={theme.gold} />
+              </TouchableOpacity>
+            ) : null}
             <InfoRow icon="card-outline"      label="CPF"         value={employee.cpf} />
             <InfoRow icon="gift-outline"      label="Nascimento"  value={employee.birth_date} />
             <InfoRow icon="briefcase-outline" label="Área"        value={employee.legal_area} />
             <InfoRow icon="umbrella-outline"  label="Dias férias" value={String(employee.vacation_days)} />
+          </View>
+        )}
+
+        {/* Histórico de ausências */}
+        {!editing && (
+          <View style={styles.absenceSection}>
+            <View style={styles.absenceHeader}>
+              <Ionicons name="calendar-outline" size={16} color={theme.gold} />
+              <Text style={styles.absenceTitle}>Histórico de ausências</Text>
+            </View>
+            {absLoading ? (
+              <ActivityIndicator color={theme.gold} size="small" style={{ margin: 16 }} />
+            ) : absences.length === 0 ? (
+              <Text style={styles.absenceEmpty}>Nenhuma ausência registrada</Text>
+            ) : (
+              absences.map(a => (
+                <View key={a.id} style={styles.absenceRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.absenceType}>{ABSENCE_TYPE_LABELS[a.type]}</Text>
+                    <Text style={styles.absenceDates}>
+                      {a.start_date} → {a.end_date} · {a.days_count} dia{a.days_count !== 1 ? 's' : ''}
+                    </Text>
+                  </View>
+                  <View style={[styles.absenceBadge, { backgroundColor: `${ABSENCE_STATUS_COLORS[a.status]}20` }]}>
+                    <Text style={[styles.absenceBadgeText, { color: ABSENCE_STATUS_COLORS[a.status] }]}>
+                      {a.status.charAt(0).toUpperCase() + a.status.slice(1)}
+                    </Text>
+                  </View>
+                </View>
+              ))
+            )}
           </View>
         )}
 
@@ -319,11 +398,32 @@ const styles = StyleSheet.create({
   divider: { height: 1, backgroundColor: theme.border },
 
   infoSection: { padding: 20, gap: 4 },
-  infoRow:     { flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: theme.border },
-  infoIcon:    { marginRight: 14, marginTop: 2 },
+  infoRow:     { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: theme.border },
+  infoIcon:    { marginRight: 14 },
   infoContent: { flex: 1 },
   infoLabel:   { fontSize: 10, color: theme.textMuted, letterSpacing: 0.8, marginBottom: 2, textTransform: 'uppercase' },
   infoValue:   { fontSize: 14, color: theme.text },
+
+  absenceSection: {
+    marginHorizontal: 16, marginTop: 16,
+    backgroundColor: theme.surface, borderRadius: 10,
+    borderWidth: 1, borderColor: theme.border, overflow: 'hidden',
+  },
+  absenceHeader: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    padding: 14, borderBottomWidth: 1, borderBottomColor: theme.border,
+  },
+  absenceTitle: { fontSize: 13, fontWeight: '600', color: theme.white },
+  absenceEmpty: { fontSize: 13, color: theme.textMuted, padding: 14 },
+  absenceRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    paddingVertical: 10, paddingHorizontal: 14,
+    borderBottomWidth: 1, borderBottomColor: theme.border,
+  },
+  absenceType:      { fontSize: 13, color: theme.text, fontWeight: '500', marginBottom: 2 },
+  absenceDates:     { fontSize: 11, color: theme.textMuted },
+  absenceBadge:     { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 4 },
+  absenceBadgeText: { fontSize: 10, fontWeight: '600' },
 
   formSection: { padding: 20 },
   label: { fontSize: 11, color: theme.textMuted, fontWeight: '600', letterSpacing: 0.5, marginBottom: 6, marginTop: 14, textTransform: 'uppercase' },
@@ -354,7 +454,7 @@ const styles = StyleSheet.create({
 
   btnDelete: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    marginHorizontal: 20, marginTop: 8, paddingVertical: 12,
+    marginHorizontal: 20, marginTop: 16, paddingVertical: 12,
     borderRadius: 8, borderWidth: 1, borderColor: `${theme.danger}40`,
   },
   btnDeleteText: { fontSize: 14, color: theme.danger, fontWeight: '600' },

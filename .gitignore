@@ -24,3 +24,5 @@ dist/
 .aws-sam/
 backend/dist/
 samconfig.toml
+
+.vercel

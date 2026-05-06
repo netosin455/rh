@@ -94,10 +94,29 @@ export default function DashboardScreen() {
   const pendingAbsences = absences.length;
 
   const today = getTodayString();
-  const todayMMDD = today.slice(5);
-  const birthdays = employees.filter(e =>
-    e.birth_date && e.birth_date.slice(5) === todayMMDD
-  );
+
+  const upcomingBirthdays = (() => {
+    const DAYS = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
+    const base = new Date(today + 'T00:00:00');
+    const window: { mmdd: string; label: string }[] = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(base);
+      d.setDate(base.getDate() + i);
+      const mmdd = `${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      window.push({ mmdd, label: i === 0 ? 'Hoje' : DAYS[d.getDay()] });
+    }
+    return employees
+      .filter(e => e.birth_date && window.some(w => e.birth_date!.slice(5) === w.mmdd))
+      .map(e => ({
+        ...e,
+        birthdayLabel: window.find(w => e.birth_date!.slice(5) === w.mmdd)!.label,
+      }))
+      .sort((a, b) => {
+        const ai = window.findIndex(w => a.birth_date!.slice(5) === w.mmdd);
+        const bi = window.findIndex(w => b.birth_date!.slice(5) === w.mmdd);
+        return ai - bi;
+      });
+  })();
 
   if (loading) {
     return (
@@ -133,12 +152,19 @@ export default function DashboardScreen() {
         />
       </View>
 
-      {birthdays.length > 0 && (
+      {upcomingBirthdays.length > 0 && (
         <Animated.View entering={FadeInDown.delay(280).duration(350)} style={styles.birthdayCard}>
           <Text style={styles.birthdayIcon}>🎂</Text>
           <View style={{ flex: 1 }}>
-            <Text style={styles.birthdayTitle}>Aniversários hoje</Text>
-            <Text style={styles.birthdayNames}>{birthdays.map(e => e.name).join(', ')}</Text>
+            <Text style={styles.birthdayTitle}>Aniversários próximos</Text>
+            {upcomingBirthdays.slice(0, 5).map(e => (
+              <Text key={e.id} style={styles.birthdayNames}>
+                <Text style={styles.birthdayDay}>{e.birthdayLabel}: </Text>{e.name}
+              </Text>
+            ))}
+            {upcomingBirthdays.length > 5 && (
+              <Text style={styles.birthdayMore}>+{upcomingBirthdays.length - 5} mais</Text>
+            )}
           </View>
         </Animated.View>
       )}
@@ -217,8 +243,10 @@ const styles = StyleSheet.create({
     borderRadius: 10, padding: 14, marginBottom: 14,
   },
   birthdayIcon: { fontSize: 24 },
-  birthdayTitle: { fontSize: 12, color: theme.gold, fontWeight: '600', marginBottom: 2 },
-  birthdayNames: { fontSize: 13, color: theme.text },
+  birthdayTitle: { fontSize: 12, color: theme.gold, fontWeight: '600', marginBottom: 4 },
+  birthdayNames: { fontSize: 13, color: theme.text, marginBottom: 1 },
+  birthdayDay:   { color: theme.gold, fontWeight: '600' },
+  birthdayMore:  { fontSize: 11, color: theme.textMuted, marginTop: 2 },
   card: { backgroundColor: theme.surface, borderRadius: 10, borderWidth: 1, borderColor: theme.border, marginBottom: 14, overflow: 'hidden' },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 14, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: theme.border },
   sectionDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: theme.gold },

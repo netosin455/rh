@@ -216,6 +216,24 @@ CREATE TRIGGER set_updated_at_cases
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
 -- ──────────────────────────────────────────────────────────
+-- MURAL DE AVISOS
+-- ──────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS notices (
+  id          serial PRIMARY KEY,
+  company_id  integer NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  author_id   integer NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  title       text NOT NULL,
+  body        text NOT NULL,
+  priority    text NOT NULL DEFAULT 'normal'
+                CHECK (priority IN ('normal', 'importante', 'urgente')),
+  pinned      boolean NOT NULL DEFAULT false,
+  expires_at  date,
+  created_at  timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS notices_company_idx ON notices (company_id, created_at DESC);
+
+-- ──────────────────────────────────────────────────────────
 -- SEED: empresa e usuário admin iniciais
 -- ──────────────────────────────────────────────────────────
 -- INSERT INTO companies (name, cnpj, plan)

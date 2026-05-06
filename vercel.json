@@ -3,6 +3,13 @@
   "buildCommand": "npx expo export --platform web",
   "outputDirectory": "dist",
   "rewrites": [
-    { "source": "/(.*)", "destination": "/index.html" }
+    { "source": "/api/auth/:path*",      "destination": "/api/auth/:path*" },
+    { "source": "/api/employees/:path*", "destination": "/api/employees/:path*" },
+    { "source": "/api/cases/:path*",     "destination": "/api/cases/:path*" },
+    { "source": "/api/events/:path*",    "destination": "/api/events/:path*" },
+    { "source": "/api/absences/:path*",  "destination": "/api/absences/:path*" },
+    { "source": "/api/notices/:path*",   "destination": "/api/notices/:path*" },
+    { "source": "/api/chat",             "destination": "/api/chat" },
+    { "source": "/(.*)",                 "destination": "/index.html" }
   ]
 }

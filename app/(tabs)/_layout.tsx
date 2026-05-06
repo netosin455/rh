@@ -10,6 +10,7 @@ import { theme } from '../../theme';
 const TABS = [
   { name: 'index',         title: 'Dashboard',  icon: 'grid' },
   { name: 'colaboradores', title: 'Equipe',      icon: 'people' },
+  { name: 'avisos',        title: 'Avisos',      icon: 'megaphone' },
   { name: 'agenda',        title: 'Agenda',      icon: 'calendar' },
   { name: 'ferias',        title: 'Férias',      icon: 'umbrella' },
   { name: 'ia',            title: 'Assistente',  icon: 'sparkles' },

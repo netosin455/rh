@@ -14,23 +14,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // ── GET ───────────────────────────────────────────────────
   if (req.method === 'GET') {
-    const { status } = req.query;
+    const { status, employee_id } = req.query;
+    const empId = employee_id ? Number(employee_id) : null;
 
-    const rows = status
-      ? await sql`
-          SELECT a.*, e.name AS employee_name, e.role_title
-          FROM absences a
-          JOIN employees e ON e.id = a.employee_id
-          WHERE a.company_id = ${ctx.company_id} AND a.status = ${String(status)}
-          ORDER BY a.created_at DESC
-        `
-      : await sql`
-          SELECT a.*, e.name AS employee_name, e.role_title
-          FROM absences a
-          JOIN employees e ON e.id = a.employee_id
-          WHERE a.company_id = ${ctx.company_id}
-          ORDER BY a.created_at DESC
-        `;
+    const rows = await sql`
+      SELECT a.*, e.name AS employee_name, e.role_title
+      FROM absences a
+      JOIN employees e ON e.id = a.employee_id
+      WHERE a.company_id = ${ctx.company_id}
+        AND (${empId}::int IS NULL OR a.employee_id = ${empId})
+        AND (${status ?? null}::text IS NULL OR a.status = ${String(status ?? '')})
+      ORDER BY a.created_at DESC
+    `;
 
     return res.json(rows);
   }

@@ -118,7 +118,7 @@ export async function createAbsence(data: CreateAbsenceData): Promise<Absence> {
 }
 
 export async function approveAbsence(id: number, approved: boolean): Promise<Absence> {
-  return fetch4(`/api/absences/${id}/approve`, {
+  return fetch4(`/api/absences/${id}`, {
     method: 'PATCH',
     body: JSON.stringify({ approved }),
   });
