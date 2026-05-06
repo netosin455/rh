@@ -5,7 +5,7 @@
 import { Slot, useRouter, useSegments } from 'expo-router';
 import { useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { AuthProvider, useAuth } from '../../contextos/Autenticacao';
+import { AuthProvider, useAuth } from '../contextos/Autenticacao';
 
 function AuthGuard() {
   const { user, loading } = useAuth();
