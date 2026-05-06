@@ -44,8 +44,17 @@ const ABSENCE_STATUS_COLORS: Record<string, string> = {
   cancelado: theme.textMuted,
 };
 
+function ymd(s: string): string {
+  return s ? s.slice(0, 10) : '';
+}
+
+function formatDate(s: string): string {
+  const [y, m, d] = ymd(s).split('-');
+  return d && m && y ? `${d}/${m}/${y}` : s;
+}
+
 function getTenure(hireDate: string): string {
-  const start = new Date(hireDate + 'T00:00:00');
+  const start = new Date(ymd(hireDate) + 'T00:00:00');
   const now = new Date();
   let years = now.getFullYear() - start.getFullYear();
   let months = now.getMonth() - start.getMonth();
@@ -56,7 +65,7 @@ function getTenure(hireDate: string): string {
 }
 
 function getAge(birthDate: string): number {
-  const birth = new Date(birthDate + 'T00:00:00');
+  const birth = new Date(ymd(birthDate) + 'T00:00:00');
   const now = new Date();
   let age = now.getFullYear() - birth.getFullYear();
   const m = now.getMonth() - birth.getMonth();
@@ -66,16 +75,11 @@ function getAge(birthDate: string): number {
 
 function getDaysUntilBirthday(birthDate: string): number {
   const now = new Date();
-  const birth = new Date(birthDate + 'T00:00:00');
+  const birth = new Date(ymd(birthDate) + 'T00:00:00');
   const next = new Date(now.getFullYear(), birth.getMonth(), birth.getDate());
   if (next < now) next.setFullYear(now.getFullYear() + 1);
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   return Math.round((next.getTime() - today.getTime()) / 86400000);
-}
-
-function formatBirthDate(birthDate: string): string {
-  const [y, m, d] = birthDate.split('-');
-  return `${d}/${m}/${y}`;
 }
 
 export default function ColaboradorScreen() {
@@ -310,7 +314,7 @@ export default function ColaboradorScreen() {
           </View>
         ) : (
           <View style={styles.infoSection}>
-            <InfoRow icon="calendar-outline"  label="Admissão"    value={employee.hire_date} />
+            <InfoRow icon="calendar-outline"  label="Admissão"    value={formatDate(employee.hire_date)} />
             {employee.hire_date && (
               <InfoRow icon="time-outline" label="Tempo de casa" value={getTenure(employee.hire_date)} />
             )}
@@ -333,7 +337,7 @@ export default function ColaboradorScreen() {
               <InfoRow
                 icon="gift-outline"
                 label="Nascimento"
-                value={`${formatBirthDate(employee.birth_date)} · ${getAge(employee.birth_date)} anos`}
+                value={`${formatDate(employee.birth_date)} · ${getAge(employee.birth_date)} anos`}
               />
             )}
             <InfoRow icon="briefcase-outline" label="Área"        value={employee.legal_area} />
@@ -358,7 +362,7 @@ export default function ColaboradorScreen() {
                   <View style={{ flex: 1 }}>
                     <Text style={styles.absenceType}>{ABSENCE_TYPE_LABELS[a.type]}</Text>
                     <Text style={styles.absenceDates}>
-                      {a.start_date} → {a.end_date} · {a.days_count} dia{a.days_count !== 1 ? 's' : ''}
+                      {formatDate(a.start_date)} → {formatDate(a.end_date)} · {a.days_count} dia{a.days_count !== 1 ? 's' : ''}
                     </Text>
                   </View>
                   <View style={[styles.absenceBadge, { backgroundColor: `${ABSENCE_STATUS_COLORS[a.status]}20` }]}>
