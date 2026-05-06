@@ -51,9 +51,6 @@ export function err(res: VercelResponse, status: number, message: string) {
 /** Papéis com permissão de gerenciar colaboradores */
 export const CAN_MANAGE_EMPLOYEES = ['super_admin', 'admin', 'rh', 'adm'];
 
-/** Papéis com permissão de gerenciar processos jurídicos */
-export const CAN_MANAGE_CASES = ['super_admin', 'admin', 'juridico'];
-
 /** Papéis com permissão de aprovar férias/ausências */
 export const CAN_APPROVE_ABSENCES = ['super_admin', 'admin', 'rh', 'adm', 'gestor'];
 

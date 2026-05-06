@@ -72,27 +72,6 @@ export interface Department {
   manager_id?: number;
 }
 
-// ── Processo Jurídico ────────────────────────────────────────
-export type CaseStatus = 'ativo' | 'andamento' | 'suspenso' | 'encerrado' | 'urgente';
-
-export interface LegalCase {
-  id: number;
-  company_id: number;
-  case_number: string;
-  title: string;
-  area: LegalArea;
-  status: CaseStatus;
-  client_name: string;
-  responsible_id?: number;
-  court?: string;
-  deadline?: string;
-  description?: string;
-  created_at: string;
-  updated_at: string;
-}
-
-export type CreateCaseData = Omit<LegalCase, 'id' | 'company_id' | 'created_at' | 'updated_at'>;
-
 // ── Evento da Agenda ─────────────────────────────────────────
 export type EventCategory = 'audiencia' | 'reuniao' | 'prazo' | 'pericia' | 'outro';
 
@@ -107,7 +86,6 @@ export interface Event {
   end_time?: string;
   color: string;
   category: EventCategory;
-  case_id?: number;
   location?: string;
   is_all_day: boolean;
   created_at: string;
@@ -175,7 +153,6 @@ export type AIActionType =
   | 'listar_eventos'
   | 'buscar_eventos'
   | 'criar_rotina'
-  | 'consultar_processo'
   | 'resposta';
 
 export interface AIResponse {
