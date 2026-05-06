@@ -16,7 +16,7 @@ import { getUpcomingEvents } from '../../conexoes/eventos';
 import { getAbsences } from '../../conexoes/ausencias';
 import { Employee, Event, Absence } from '../../tipos/modelos';
 import { theme } from '../../estilo/cores';
-import { formatDateDisplay, getTodayString } from '../../helpers/datas';
+import { formatDateDisplay, getTodayString, ymd } from '../../helpers/datas';
 
 function MetricCard({
   label, value, sub, accent, delay,
@@ -106,10 +106,10 @@ export default function DashboardScreen() {
       window.push({ mmdd, label: i === 0 ? 'Hoje' : DAYS[d.getDay()] });
     }
     return employees
-      .filter(e => e.birth_date && window.some(w => e.birth_date!.slice(5) === w.mmdd))
+      .filter(e => e.birth_date && window.some(w => ymd(e.birth_date!).slice(5) === w.mmdd))
       .map(e => ({
         ...e,
-        birthdayLabel: window.find(w => e.birth_date!.slice(5) === w.mmdd)!.label,
+        birthdayLabel: window.find(w => ymd(e.birth_date!).slice(5) === w.mmdd)!.label,
       }))
       .sort((a, b) => {
         const ai = window.findIndex(w => a.birth_date!.slice(5) === w.mmdd);

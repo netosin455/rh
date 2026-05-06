@@ -7,9 +7,10 @@ import {
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { getEventsByMonth, createEvent } from '../../conexoes/eventos';
-import { Event, EventCategory, EVENT_CATEGORY_COLORS, CreateEventData } from '../../tipos/modelos';
+import { getEmployees } from '../../conexoes/colaboradores';
+import { Event, EventCategory, EVENT_CATEGORY_COLORS, CreateEventData, Employee } from '../../tipos/modelos';
 import { theme } from '../../estilo/cores';
-import { getTodayString, toDateString, formatDateDisplay } from '../../helpers/datas';
+import { getTodayString, toDateString, formatDateDisplay, ymd } from '../../helpers/datas';
 
 const WEEKDAYS = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
 const MONTH_NAMES = [
@@ -55,6 +56,7 @@ export default function AgendaScreen() {
   const [month,      setMonth]      = useState(new Date().getMonth());
   const [selected,   setSelected]   = useState(today);
   const [events,     setEvents]     = useState<Event[]>([]);
+  const [employees,  setEmployees]  = useState<Employee[]>([]);
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showModal,  setShowModal]  = useState(false);
@@ -74,7 +76,12 @@ export default function AgendaScreen() {
 
   const load = useCallback(async () => {
     try {
-      setEvents(await getEventsByMonth(monthKey));
+      const [evts, emps] = await Promise.all([
+        getEventsByMonth(monthKey),
+        employees.length === 0 ? getEmployees() : Promise.resolve(employees),
+      ]);
+      setEvents(evts);
+      if (employees.length === 0) setEmployees(emps);
     } catch (e) {
       console.error('[Agenda]', e);
     } finally {
@@ -104,7 +111,20 @@ export default function AgendaScreen() {
     return map;
   }, [events]);
 
-  const selectedEvents = eventsByDate[selected] ?? [];
+  const birthdaysByDate = useMemo(() => {
+    const map: Record<string, Employee[]> = {};
+    for (const emp of employees) {
+      if (!emp.birth_date) continue;
+      const mmdd = ymd(emp.birth_date).slice(5);
+      const dateStr = `${year}-${mmdd}`;
+      if (!map[dateStr]) map[dateStr] = [];
+      map[dateStr].push(emp);
+    }
+    return map;
+  }, [employees, year]);
+
+  const selectedEvents    = eventsByDate[selected]    ?? [];
+  const selectedBirthdays = birthdaysByDate[selected] ?? [];
   const weeks = buildCalendar(year, month);
 
   function set(field: string, value: any) {
@@ -177,7 +197,8 @@ export default function AgendaScreen() {
                 if (!dateStr) return <View key={di} style={styles.dayCell} />;
                 const isToday    = dateStr === today;
                 const isSelected = dateStr === selected;
-                const dots       = (eventsByDate[dateStr] || []).slice(0, 3);
+                const dots       = (eventsByDate[dateStr] || []).slice(0, 2);
+                const hasBirthday = (birthdaysByDate[dateStr] || []).length > 0;
                 return (
                   <TouchableOpacity
                     key={di}
@@ -188,8 +209,11 @@ export default function AgendaScreen() {
                     <Text style={[styles.dayText, isSelected && styles.dayTextSelected, isToday && !isSelected && styles.dayTextToday]}>
                       {Number(dateStr.slice(8))}
                     </Text>
-                    {dots.length > 0 && (
+                    {(dots.length > 0 || hasBirthday) && (
                       <View style={styles.dotsRow}>
+                        {hasBirthday && (
+                          <View style={[styles.dot, { backgroundColor: theme.gold }]} />
+                        )}
                         {dots.map((e, idx) => (
                           <View key={idx} style={[styles.dot, { backgroundColor: e.color }]} />
                         ))}
@@ -212,6 +236,7 @@ export default function AgendaScreen() {
         </Text>
         <Text style={styles.eventsCount}>
           {selectedEvents.length} evento{selectedEvents.length !== 1 ? 's' : ''}
+          {selectedBirthdays.length > 0 ? ` · ${selectedBirthdays.length} 🎂` : ''}
         </Text>
       </View>
 
@@ -219,12 +244,25 @@ export default function AgendaScreen() {
         style={styles.eventsList}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.gold} />}
       >
-        {selectedEvents.length === 0 ? (
+        {selectedBirthdays.length > 0 && (
+          <View style={styles.birthdaySection}>
+            {selectedBirthdays.map(emp => (
+              <View key={emp.id} style={styles.birthdayRow}>
+                <Text style={styles.birthdayEmoji}>🎂</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.birthdayName}>{emp.name}</Text>
+                  <Text style={styles.birthdayRole}>{emp.role_title} · Aniversário</Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
+        {selectedEvents.length === 0 && selectedBirthdays.length === 0 ? (
           <View style={styles.empty}>
             <Ionicons name="calendar-outline" size={36} color={theme.textMuted} />
             <Text style={styles.emptyText}>Nenhum evento neste dia</Text>
           </View>
-        ) : (
+        ) : selectedEvents.length > 0 ? (
           selectedEvents
             .sort((a, b) => (a.start_time ?? '').localeCompare(b.start_time ?? ''))
             .map((evt, i) => (
@@ -251,7 +289,7 @@ export default function AgendaScreen() {
                 </TouchableOpacity>
               </Animated.View>
             ))
-        )}
+        ) : null}
         <View style={{ height: 80 }} />
       </ScrollView>
 
@@ -374,6 +412,18 @@ const styles = StyleSheet.create({
   empty:      { alignItems: 'center', paddingTop: 40, gap: 10 },
   emptyText:  { fontSize: 13, color: theme.textMuted },
 
+  birthdaySection: {
+    backgroundColor: theme.goldDim,
+    borderBottomWidth: 1, borderBottomColor: theme.border2,
+  },
+  birthdayRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    paddingHorizontal: 16, paddingVertical: 10,
+    borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.04)',
+  },
+  birthdayEmoji: { fontSize: 22 },
+  birthdayName:  { fontSize: 14, fontWeight: '600', color: theme.white },
+  birthdayRole:  { fontSize: 11, color: theme.gold, marginTop: 1 },
   eventRow: { flexDirection: 'row', gap: 12, padding: 14, borderBottomWidth: 1, borderBottomColor: theme.border },
   eventColor:    { width: 3, borderRadius: 2, minHeight: 40 },
   eventInfo:     { flex: 1 },

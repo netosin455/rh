@@ -1,3 +1,7 @@
+export function ymd(s: string): string {
+  return s ? s.slice(0, 10) : '';
+}
+
 export function getTodayString(): string {
   return toDateString(new Date());
 }
