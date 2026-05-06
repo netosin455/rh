@@ -1,8 +1,8 @@
 // ============================================================
 // services/employees.ts
 // ============================================================
-import { apiFetch } from './api';
-import { Employee, CreateEmployeeData, UpdateEmployeeData } from '../types';
+import { apiFetch } from './http';
+import { Employee, CreateEmployeeData, UpdateEmployeeData } from '../../tipos/modelos';
 
 export async function getEmployees(): Promise<Employee[]> {
   return apiFetch('/api/employees');
@@ -33,8 +33,8 @@ export async function deleteEmployee(id: number): Promise<void> {
 // ============================================================
 // services/events.ts
 // ============================================================
-import { apiFetch as fetch3 } from './api';
-import { Event, CreateEventData } from '../types';
+import { apiFetch as fetch3 } from './http';
+import { Event, CreateEventData } from '../../tipos/modelos';
 
 export async function getEventsByMonth(month: string): Promise<Event[]> {
   return fetch3(`/api/events?month=${month}`);
@@ -69,8 +69,8 @@ export async function deleteEvent(id: string): Promise<void> {
 // ============================================================
 // services/absences.ts
 // ============================================================
-import { apiFetch as fetch4 } from './api';
-import { Absence, CreateAbsenceData } from '../types';
+import { apiFetch as fetch4 } from './http';
+import { Absence, CreateAbsenceData } from '../../tipos/modelos';
 
 export async function getAbsences(status?: string): Promise<Absence[]> {
   const q = status ? `?status=${status}` : '';

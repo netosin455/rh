@@ -10,8 +10,8 @@ import {
   Platform, ScrollView,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useAuth } from '../contexts/AuthContext';
-import { theme } from '../theme';
+import { useAuth } from '../../contextos/Autenticacao';
+import { theme } from '../../estilo/cores';
 
 export default function LoginScreen() {
   const { login } = useAuth();

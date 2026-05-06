@@ -1,5 +1,5 @@
-import { apiFetch } from './api';
-import { Employee, CreateEmployeeData, UpdateEmployeeData } from '../types';
+import { apiFetch } from './http';
+import { Employee, CreateEmployeeData, UpdateEmployeeData } from '../../tipos/modelos';
 
 export async function getEmployees(): Promise<Employee[]> {
   return apiFetch('/api/employees');

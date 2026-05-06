@@ -10,13 +10,13 @@ import {
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from '../../contexts/AuthContext';
-import { getEmployees } from '../../services/employees';
-import { getUpcomingEvents } from '../../services/events';
-import { getAbsences } from '../../services/absences';
-import { Employee, Event, Absence } from '../../types';
-import { theme } from '../../theme';
-import { formatDateDisplay, getTodayString } from '../../utils/dateUtils';
+import { useAuth } from '../../contextos/Autenticacao';
+import { getEmployees } from '../../conexoes/colaboradores';
+import { getUpcomingEvents } from '../../conexoes/eventos';
+import { getAbsences } from '../../conexoes/ausencias';
+import { Employee, Event, Absence } from '../../tipos/modelos';
+import { theme } from '../../estilo/cores';
+import { formatDateDisplay, getTodayString } from '../../helpers/datas';
 
 function MetricCard({
   label, value, sub, accent, delay,

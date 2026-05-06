@@ -5,11 +5,11 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { getEmployeeById, updateEmployee, deleteEmployee } from '../../services/employees';
-import { apiFetch } from '../../services/api';
-import { Employee, EmployeeStatus, LegalArea, STATUS_LABELS, Absence, ABSENCE_TYPE_LABELS } from '../../types';
-import { useAuth } from '../../contexts/AuthContext';
-import { theme } from '../../theme';
+import { getEmployeeById, updateEmployee, deleteEmployee } from '../../conexoes/colaboradores';
+import { apiFetch } from '../../conexoes/http';
+import { Employee, EmployeeStatus, LegalArea, STATUS_LABELS, Absence, ABSENCE_TYPE_LABELS } from '../../tipos/modelos';
+import { useAuth } from '../../contextos/Autenticacao';
+import { theme } from '../../estilo/cores';
 
 const STATUS_OPTIONS: { key: EmployeeStatus; label: string }[] = [
   { key: 'ativo',     label: 'Ativo' },

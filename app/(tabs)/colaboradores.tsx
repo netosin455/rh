@@ -6,11 +6,11 @@ import {
 } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth } from '../../contextos/Autenticacao';
 import { Ionicons } from '@expo/vector-icons';
-import { getEmployees, createEmployee } from '../../services/employees';
-import { Employee, EmployeeStatus, LegalArea, STATUS_LABELS, CreateEmployeeData } from '../../types';
-import { theme } from '../../theme';
+import { getEmployees, createEmployee } from '../../conexoes/colaboradores';
+import { Employee, EmployeeStatus, LegalArea, STATUS_LABELS, CreateEmployeeData } from '../../tipos/modelos';
+import { theme } from '../../estilo/cores';
 
 const STATUS_COLORS: Record<EmployeeStatus, string> = {
   ativo:     theme.success,

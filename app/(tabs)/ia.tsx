@@ -10,10 +10,10 @@ import {
 } from 'react-native';
 import Animated, { FadeInUp } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
-import { apiFetch } from '../../services/api';
-import { ChatMessage } from '../../types';
-import { useAuth } from '../../contexts/AuthContext';
-import { theme } from '../../theme';
+import { apiFetch } from '../../conexoes/http';
+import { ChatMessage } from '../../tipos/modelos';
+import { useAuth } from '../../contextos/Autenticacao';
+import { theme } from '../../estilo/cores';
 
 const SUGGESTIONS = [
   'Quem tem férias pendentes?',

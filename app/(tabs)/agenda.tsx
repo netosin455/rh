@@ -6,10 +6,10 @@ import {
 } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
-import { getEventsByMonth, createEvent } from '../../services/events';
-import { Event, EventCategory, EVENT_CATEGORY_COLORS, CreateEventData } from '../../types';
-import { theme } from '../../theme';
-import { getTodayString, toDateString, formatDateDisplay } from '../../utils/dateUtils';
+import { getEventsByMonth, createEvent } from '../../conexoes/eventos';
+import { Event, EventCategory, EVENT_CATEGORY_COLORS, CreateEventData } from '../../tipos/modelos';
+import { theme } from '../../estilo/cores';
+import { getTodayString, toDateString, formatDateDisplay } from '../../helpers/datas';
 
 const WEEKDAYS = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
 const MONTH_NAMES = [

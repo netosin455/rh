@@ -1,5 +1,5 @@
-import { apiFetch } from './api';
-import { Absence, CreateAbsenceData } from '../types';
+import { apiFetch } from './http';
+import { Absence, CreateAbsenceData } from '../../tipos/modelos';
 
 export async function getAbsences(status?: string): Promise<Absence[]> {
   const q = status ? `?status=${status}` : '';

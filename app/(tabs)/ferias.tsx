@@ -6,12 +6,12 @@ import {
 } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
-import { getAbsences, approveAbsence, createAbsence } from '../../services/absences';
-import { getEmployees } from '../../services/employees';
-import { Absence, AbsenceStatus, AbsenceType, ABSENCE_TYPE_LABELS, CreateAbsenceData, Employee } from '../../types';
-import { useAuth } from '../../contexts/AuthContext';
-import { theme } from '../../theme';
-import { formatDateShort } from '../../utils/dateUtils';
+import { getAbsences, approveAbsence, createAbsence } from '../../conexoes/ausencias';
+import { getEmployees } from '../../conexoes/colaboradores';
+import { Absence, AbsenceStatus, AbsenceType, ABSENCE_TYPE_LABELS, CreateAbsenceData, Employee } from '../../tipos/modelos';
+import { useAuth } from '../../contextos/Autenticacao';
+import { theme } from '../../estilo/cores';
+import { formatDateShort } from '../../helpers/datas';
 
 const STATUS_COLORS: Record<AbsenceStatus, string> = {
   pendente:  theme.warning,

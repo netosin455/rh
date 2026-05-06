@@ -4,7 +4,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { User, AuthState } from '../types';
+import { User, AuthState } from '../../tipos/modelos';
 
 const TOKEN_KEY = '@superrh:token';
 const USER_KEY  = '@superrh:user';
