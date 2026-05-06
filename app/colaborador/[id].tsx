@@ -55,6 +55,29 @@ function getTenure(hireDate: string): string {
   return `${months} mês${months !== 1 ? 'es' : ''}`;
 }
 
+function getAge(birthDate: string): number {
+  const birth = new Date(birthDate + 'T00:00:00');
+  const now = new Date();
+  let age = now.getFullYear() - birth.getFullYear();
+  const m = now.getMonth() - birth.getMonth();
+  if (m < 0 || (m === 0 && now.getDate() < birth.getDate())) age--;
+  return age;
+}
+
+function getDaysUntilBirthday(birthDate: string): number {
+  const now = new Date();
+  const birth = new Date(birthDate + 'T00:00:00');
+  const next = new Date(now.getFullYear(), birth.getMonth(), birth.getDate());
+  if (next < now) next.setFullYear(now.getFullYear() + 1);
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  return Math.round((next.getTime() - today.getTime()) / 86400000);
+}
+
+function formatBirthDate(birthDate: string): string {
+  const [y, m, d] = birthDate.split('-');
+  return `${d}/${m}/${y}`;
+}
+
 export default function ColaboradorScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
@@ -211,6 +234,28 @@ export default function ColaboradorScreen() {
 
         <View style={styles.divider} />
 
+        {/* Banner de aniversário */}
+        {!editing && employee.birth_date && (() => {
+          const days = getDaysUntilBirthday(employee.birth_date!);
+          if (days > 7) return null;
+          const isToday = days === 0;
+          return (
+            <View style={[styles.birthdayBanner, isToday && styles.birthdayBannerToday]}>
+              <Text style={styles.birthdayBannerIcon}>{isToday ? '🎂' : '🎁'}</Text>
+              <View>
+                <Text style={[styles.birthdayBannerTitle, isToday && { color: theme.gold }]}>
+                  {isToday
+                    ? `Aniversário hoje! ${getAge(employee.birth_date!)} anos`
+                    : `Aniversário em ${days} dia${days > 1 ? 's' : ''}`}
+                </Text>
+                {isToday && (
+                  <Text style={styles.birthdayBannerSub}>Não esqueça de parabenizar 🎉</Text>
+                )}
+              </View>
+            </View>
+          );
+        })()}
+
         {/* Campos */}
         {editing ? (
           <View style={styles.formSection}>
@@ -284,7 +329,13 @@ export default function ColaboradorScreen() {
               </TouchableOpacity>
             ) : null}
             <InfoRow icon="card-outline"      label="CPF"         value={employee.cpf} />
-            <InfoRow icon="gift-outline"      label="Nascimento"  value={employee.birth_date} />
+            {employee.birth_date && (
+              <InfoRow
+                icon="gift-outline"
+                label="Nascimento"
+                value={`${formatBirthDate(employee.birth_date)} · ${getAge(employee.birth_date)} anos`}
+              />
+            )}
             <InfoRow icon="briefcase-outline" label="Área"        value={employee.legal_area} />
             <InfoRow icon="umbrella-outline"  label="Dias férias" value={String(employee.vacation_days)} />
           </View>
@@ -396,6 +447,21 @@ const styles = StyleSheet.create({
   statusBadgeText: { fontSize: 11, fontWeight: '600' },
 
   divider: { height: 1, backgroundColor: theme.border },
+
+  birthdayBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    marginHorizontal: 16, marginTop: 16,
+    backgroundColor: theme.surface,
+    borderWidth: 1, borderColor: theme.border,
+    borderRadius: 10, padding: 14,
+  },
+  birthdayBannerToday: {
+    backgroundColor: theme.goldDim,
+    borderColor: theme.border2,
+  },
+  birthdayBannerIcon:  { fontSize: 28 },
+  birthdayBannerTitle: { fontSize: 14, fontWeight: '600', color: theme.text },
+  birthdayBannerSub:   { fontSize: 12, color: theme.textMuted, marginTop: 2 },
 
   infoSection: { padding: 20, gap: 4 },
   infoRow:     { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: theme.border },
