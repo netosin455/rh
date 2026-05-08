@@ -2,7 +2,7 @@
 // app/(tabs)/_layout.tsx — SuperRH
 // ============================================================
 import { Tabs } from 'expo-router';
-import { Platform } from 'react-native';
+import { Platform, TouchableOpacity, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contextos/Autenticacao';
 import { theme } from '../../estilo/cores';
@@ -18,8 +18,15 @@ const TABS = [
 ] as const;
 
 export default function TabLayout() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const isSuperAdmin = user?.role === 'super_admin';
+
+  function handleLogout() {
+    Alert.alert('Sair', 'Deseja sair da conta?', [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Sair', style: 'destructive', onPress: logout },
+    ]);
+  }
 
   return (
     <Tabs
@@ -42,6 +49,11 @@ export default function TabLayout() {
         },
         headerShadowVisible: false,
         headerLeft: () => null,
+        headerRight: () => (
+          <TouchableOpacity onPress={handleLogout} style={{ marginRight: 16 }}>
+            <Ionicons name="log-out-outline" size={22} color={theme.textMuted} />
+          </TouchableOpacity>
+        ),
       }}
     >
       {TABS.map(tab => (
