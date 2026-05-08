@@ -18,13 +18,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // ── GET ───────────────────────────────────────────────────
   if (req.method === 'GET') {
-    const rows = await sql`
-      SELECT id, company_id, name, email, role, created_at
-      FROM users
-      WHERE company_id = ${ctx.company_id}
-      ORDER BY name
-    `;
-    return res.json(rows);
+    const page  = Math.max(1, Number(req.query.page)  || 1);
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 50));
+    const offset = (page - 1) * limit;
+
+    const [countRow, rows] = await Promise.all([
+      sql`SELECT COUNT(*)::int AS total FROM users WHERE company_id = ${ctx.company_id}`,
+      sql`
+        SELECT id, company_id, name, email, role, created_at
+        FROM users
+        WHERE company_id = ${ctx.company_id}
+        ORDER BY name
+        LIMIT ${limit} OFFSET ${offset}
+      `,
+    ]);
+
+    const total = countRow[0]?.total ?? 0;
+    return res.json({ data: rows, total, page, limit, totalPages: Math.ceil(total / limit) });
   }
 
   // ── POST ──────────────────────────────────────────────────

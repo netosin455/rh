@@ -23,8 +23,9 @@ export interface UpdateUserData {
   role?: string;
 }
 
-export async function getUsers(): Promise<SystemUser[]> {
-  return apiFetch('/api/users');
+export async function getUsers(page = 1, limit = 50): Promise<SystemUser[]> {
+  const res = await apiFetch(`/api/users?page=${page}&limit=${limit}`);
+  return res?.data ?? res;
 }
 
 export async function createUser(data: CreateUserData): Promise<SystemUser> {

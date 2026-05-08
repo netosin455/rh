@@ -1,9 +1,11 @@
 import { apiFetch } from './http';
 import { Absence, CreateAbsenceData } from '../../tipos/modelos';
 
-export async function getAbsences(status?: string): Promise<Absence[]> {
-  const q = status ? `?status=${status}` : '';
-  return apiFetch(`/api/absences${q}`);
+export async function getAbsences(status?: string, page = 1, limit = 50): Promise<Absence[]> {
+  const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+  if (status) params.set('status', status);
+  const res = await apiFetch(`/api/absences?${params}`);
+  return res?.data ?? res;
 }
 
 export async function createAbsence(data: CreateAbsenceData): Promise<Absence> {

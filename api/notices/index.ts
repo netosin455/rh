@@ -14,15 +14,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // ── GET ───────────────────────────────────────────────────
   if (req.method === 'GET') {
-    const rows = await sql`
-      SELECT n.*, u.name AS author_name
-      FROM notices n
-      JOIN users u ON u.id = n.author_id
-      WHERE n.company_id = ${ctx.company_id}
-        AND (n.expires_at IS NULL OR n.expires_at >= CURRENT_DATE)
-      ORDER BY n.pinned DESC, n.created_at DESC
-    `;
-    return res.json(rows);
+    const page  = Math.max(1, Number(req.query.page)  || 1);
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 50));
+    const offset = (page - 1) * limit;
+
+    const [countRow, rows] = await Promise.all([
+      sql`
+        SELECT COUNT(*)::int AS total
+        FROM notices n
+        WHERE n.company_id = ${ctx.company_id}
+          AND (n.expires_at IS NULL OR n.expires_at >= CURRENT_DATE)
+      `,
+      sql`
+        SELECT n.*, u.name AS author_name
+        FROM notices n
+        JOIN users u ON u.id = n.author_id
+        WHERE n.company_id = ${ctx.company_id}
+          AND (n.expires_at IS NULL OR n.expires_at >= CURRENT_DATE)
+        ORDER BY n.pinned DESC, n.created_at DESC
+        LIMIT ${limit} OFFSET ${offset}
+      `,
+    ]);
+
+    const total = countRow[0]?.total ?? 0;
+    return res.json({ data: rows, total, page, limit, totalPages: Math.ceil(total / limit) });
   }
 
   // ── POST ──────────────────────────────────────────────────

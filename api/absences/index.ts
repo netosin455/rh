@@ -16,18 +16,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === 'GET') {
     const { status, employee_id } = req.query;
     const empId = employee_id ? Number(employee_id) : null;
+    const page  = Math.max(1, Number(req.query.page)  || 1);
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 50));
+    const offset = (page - 1) * limit;
 
-    const rows = await sql`
-      SELECT a.*, e.name AS employee_name, e.role_title
-      FROM absences a
-      JOIN employees e ON e.id = a.employee_id
-      WHERE a.company_id = ${ctx.company_id}
-        AND (${empId}::int IS NULL OR a.employee_id = ${empId})
-        AND (${status ?? null}::text IS NULL OR a.status = ${String(status ?? '')})
-      ORDER BY a.created_at DESC
-    `;
+    const [countRow, rows] = await Promise.all([
+      sql`
+        SELECT COUNT(*)::int AS total
+        FROM absences a
+        WHERE a.company_id = ${ctx.company_id}
+          AND (${empId}::int IS NULL OR a.employee_id = ${empId})
+          AND (${status ?? null}::text IS NULL OR a.status = ${String(status ?? '')})
+      `,
+      sql`
+        SELECT a.*, e.name AS employee_name, e.role_title
+        FROM absences a
+        JOIN employees e ON e.id = a.employee_id
+        WHERE a.company_id = ${ctx.company_id}
+          AND (${empId}::int IS NULL OR a.employee_id = ${empId})
+          AND (${status ?? null}::text IS NULL OR a.status = ${String(status ?? '')})
+        ORDER BY a.created_at DESC
+        LIMIT ${limit} OFFSET ${offset}
+      `,
+    ]);
 
-    return res.json(rows);
+    const total = countRow[0]?.total ?? 0;
+    return res.json({ data: rows, total, page, limit, totalPages: Math.ceil(total / limit) });
   }
 
   // ── POST ──────────────────────────────────────────────────

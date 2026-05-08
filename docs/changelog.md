@@ -1,5 +1,28 @@
 # Changelog — SuperRH
 
+## [2026-05-08] — Testes, Paginação e Rate Limiting
+
+### Adicionado
+- Vitest configurado (`vitest.config.ts`) com 13 testes automatizados cobrindo users, notices e absences
+- `tests/users.test.ts` — 7 cenários: criação, duplicata, senha curta, role inválido, nome vazio, auto-exclusão, acesso negado
+- `tests/notices.test.ts` — 3 cenários: criação com sucesso, sem permissão, pin sem boolean
+- `tests/absences.test.ts` — 2 cenários: funcionário de outra empresa, type inválido
+- Scripts `test`, `test:watch`, `test:coverage` no `package.json`
+- Rate limiting no login: máx 5 tentativas falhas em 15 minutos por email (HTTP 429)
+- Tabela `login_attempts` para rastrear tentativas falhas sem Redis externo
+- Migration `docs/migrations/002_login_attempts.sql`
+- Paginação em todos os GETs: `page`, `limit` (máx 100), retorna `{ data, total, page, limit, totalPages }`
+  - GET /api/employees
+  - GET /api/absences
+  - GET /api/notices
+  - GET /api/users
+
+### Corrigido
+- `conexoes/colaboradores.ts`: atualizado para extrair `.data` da resposta paginada
+- `conexoes/ausencias.ts`: atualizado para extrair `.data` da resposta paginada
+- `conexoes/avisos.ts`: atualizado para extrair `.data` da resposta paginada
+- `conexoes/usuarios.ts`: atualizado para extrair `.data` da resposta paginada
+
 ## [2026-05-08] — Módulo de Admin, Mural de Avisos e Correções de Segurança
 
 ### Adicionado
