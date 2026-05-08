@@ -3,6 +3,7 @@
 // ============================================================
 import { Tabs } from 'expo-router';
 import { Platform, TouchableOpacity, Alert } from 'react-native';
+
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contextos/Autenticacao';
 import { theme } from '../../estilo/cores';
@@ -22,10 +23,14 @@ export default function TabLayout() {
   const isSuperAdmin = user?.role === 'super_admin';
 
   function handleLogout() {
-    Alert.alert('Sair', 'Deseja sair da conta?', [
-      { text: 'Cancelar', style: 'cancel' },
-      { text: 'Sair', style: 'destructive', onPress: logout },
-    ]);
+    if (Platform.OS === 'web') {
+      if (window.confirm('Deseja sair da conta?')) logout();
+    } else {
+      Alert.alert('Sair', 'Deseja sair da conta?', [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Sair', style: 'destructive', onPress: logout },
+      ]);
+    }
   }
 
   return (
