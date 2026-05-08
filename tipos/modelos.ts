@@ -141,48 +141,6 @@ export interface Routine {
 
 export type CreateRoutineData = Omit<Routine, 'id' | 'company_id' | 'user_id' | 'created_at'>;
 
-// ── Processo Jurídico ────────────────────────────────────────
-export type CaseArea = 'civel' | 'trabalhista' | 'tributario' | 'familia' | 'criminal' | 'empresarial' | 'outro';
-export type CaseStatus = 'ativo' | 'andamento' | 'suspenso' | 'encerrado' | 'urgente';
-
-export interface LegalCase {
-  id: number;
-  company_id: number;
-  case_number: string;
-  title: string;
-  area: CaseArea;
-  status: CaseStatus;
-  client_name: string;
-  responsible_id?: number;
-  court?: string;
-  deadline?: string;
-  description?: string;
-  created_at: string;
-  updated_at: string;
-  responsible_name?: string;
-}
-
-export type CreateCaseData = Omit<LegalCase, 'id' | 'company_id' | 'created_at' | 'updated_at' | 'responsible_name'>;
-export type UpdateCaseData = Partial<CreateCaseData>;
-
-export const CASE_STATUS_LABELS: Record<CaseStatus, string> = {
-  ativo:      'Ativo',
-  andamento:  'Em andamento',
-  suspenso:   'Suspenso',
-  encerrado:  'Encerrado',
-  urgente:    'Urgente',
-};
-
-export const CASE_AREA_LABELS: Record<CaseArea, string> = {
-  civel:       'Cível',
-  trabalhista: 'Trabalhista',
-  tributario:  'Tributário',
-  familia:     'Família',
-  criminal:    'Criminal',
-  empresarial: 'Empresarial',
-  outro:       'Outro',
-};
-
 // ── Aviso (Mural) ────────────────────────────────────────────
 export type NoticePriority = 'normal' | 'importante' | 'urgente';
 

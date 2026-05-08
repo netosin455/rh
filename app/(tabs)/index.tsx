@@ -14,9 +14,8 @@ import { useAuth } from '../../contextos/Autenticacao';
 import { getEmployees } from '../../conexoes/colaboradores';
 import { getUpcomingEvents } from '../../conexoes/eventos';
 import { getAbsences } from '../../conexoes/ausencias';
-import { getCases } from '../../conexoes/casos';
 import { getNotices } from '../../conexoes/avisos';
-import { Employee, Event, Absence, LegalCase, Notice } from '../../tipos/modelos';
+import { Employee, Event, Absence, Notice } from '../../tipos/modelos';
 import { theme } from '../../estilo/cores';
 import { formatDateDisplay, getTodayString, ymd } from '../../helpers/datas';
 
@@ -64,24 +63,21 @@ export default function DashboardScreen() {
   const [employees,  setEmployees]  = useState<Employee[]>([]);
   const [events,     setEvents]     = useState<Event[]>([]);
   const [absences,   setAbsences]   = useState<Absence[]>([]);
-  const [cases,      setCases]      = useState<LegalCase[]>([]);
   const [notices,    setNotices]    = useState<Notice[]>([]);
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
     try {
-      const [emp, evt, abs, cas, ntc] = await Promise.all([
+      const [emp, evt, abs, ntc] = await Promise.all([
         getEmployees(),
         getUpcomingEvents(5),
         getAbsences('pendente'),
-        getCases().catch(() => [] as LegalCase[]),
         getNotices().catch(() => [] as Notice[]),
       ]);
       setEmployees(emp);
       setEvents(evt);
       setAbsences(abs);
-      setCases(cas);
       setNotices(ntc);
     } catch (err) {
       console.error('[Dashboard] Erro ao carregar dados:', err);
@@ -157,11 +153,6 @@ export default function DashboardScreen() {
         <MetricCard
           label="FÉRIAS PEND." value={pendingAbsences} sub="aguardando"
           accent={pendingAbsences > 0 ? theme.warning : undefined} delay={240}
-        />
-        <MetricCard label="PROCESSOS" value={cases.filter(c => c.status !== 'encerrado').length} sub="ativos" delay={320} />
-        <MetricCard
-          label="URGENTES" value={cases.filter(c => c.status === 'urgente').length} sub="processos"
-          accent={cases.some(c => c.status === 'urgente') ? theme.danger : undefined} delay={400}
         />
       </View>
 
