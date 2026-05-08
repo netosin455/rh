@@ -84,6 +84,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       },
     });
   } catch (e: any) {
-    return err(res, 500, 'Erro interno no servidor');
+    return err(res, 500, e?.message ?? 'Erro interno no servidor');
   }
 }
