@@ -17,17 +17,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method === 'OPTIONS') return res.status(200).end();
     if (req.method !== 'POST') return err(res, 405, 'Método não permitido');
 
-    const { email, password } = req.body ?? {};
-    if (!email || !password) return err(res, 400, 'Email e senha obrigatórios');
+    const { username, password } = req.body ?? {};
+    if (!username || !password) return err(res, 400, 'Usuário e senha obrigatórios');
 
-    const normalizedEmail = String(email).trim().toLowerCase();
+    const normalizedUsername = String(username).trim().toLowerCase();
 
     // Verifica tentativas falhas — ignora erro caso tabela não exista ainda
     try {
       const attempts = await sql`
         SELECT COUNT(*)::int AS count
         FROM login_attempts
-        WHERE email = ${normalizedEmail}
+        WHERE email = ${normalizedUsername}
           AND failed = true
           AND attempted_at >= NOW() - (${WINDOW_MINUTES} * INTERVAL '1 minute')
       `;
@@ -39,7 +39,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const rows = await sql`
       SELECT id, company_id, name, email, password_hash, role
       FROM users
-      WHERE email = ${normalizedEmail}
+      WHERE username = ${normalizedUsername}
       LIMIT 1
     `;
 
@@ -50,7 +50,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       try {
         await sql`
           INSERT INTO login_attempts (email, failed, attempted_at)
-          VALUES (${normalizedEmail}, true, NOW())
+          VALUES (${normalizedUsername}, true, NOW())
         `;
       } catch { /* ignora se tabela não existir */ }
       return err(res, 401, 'Credenciais inválidas');
@@ -58,7 +58,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Login OK: limpa tentativas falhas
     try {
-      await sql`DELETE FROM login_attempts WHERE email = ${normalizedEmail}`;
+      await sql`DELETE FROM login_attempts WHERE email = ${normalizedUsername}`;
     } catch { /* ignora se tabela não existir */ }
 
     const token = jwt.sign(

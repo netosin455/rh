@@ -50,7 +50,8 @@ export async function apiFetch<T>(
   }
 
   if (res.status === 401) {
-    await AsyncStorage.multiRemove(['@superrh:token', '@superrh:user']);
+    await AsyncStorage.removeItem('@superrh:token');
+    await AsyncStorage.removeItem('@superrh:user');
     throw new ApiError(401, 'Sessão expirada. Faça login novamente.');
   }
 

@@ -16,20 +16,20 @@ import { theme } from '../estilo/cores';
 export default function LoginScreen() {
   const { login } = useAuth();
   const router    = useRouter();
-  const [email,    setEmail]    = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading,  setLoading]  = useState(false);
   const [error,    setError]    = useState('');
 
   async function handleLogin() {
-    if (!email.trim() || !password) {
-      setError('Preencha e-mail e senha.');
+    if (!username.trim() || !password) {
+      setError('Preencha usuário e senha.');
       return;
     }
     setLoading(true);
     setError('');
     try {
-      await login(email, password);
+      await login(username, password);
       router.replace('/(tabs)');
     } catch (e: any) {
       setError(e.message || 'Erro ao fazer login.');
@@ -67,14 +67,13 @@ export default function LoginScreen() {
             </View>
           ) : null}
 
-          <Text style={styles.label}>E-MAIL</Text>
+          <Text style={styles.label}>USUÁRIO</Text>
           <TextInput
             style={styles.input}
-            placeholder="seu@escritorio.com"
+            placeholder="seu usuário"
             placeholderTextColor={theme.textMuted}
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
+            value={username}
+            onChangeText={setUsername}
             autoCapitalize="none"
             autoCorrect={false}
           />

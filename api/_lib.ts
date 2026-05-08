@@ -24,8 +24,7 @@ export interface JWTPayload {
 
 /** Adiciona headers CORS em todas as respostas */
 export function cors(res: VercelResponse) {
-  const origin = process.env.CORS_ORIGIN ?? '';
-  if (origin) res.setHeader('Access-Control-Allow-Origin', origin);
+  res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization');
 }

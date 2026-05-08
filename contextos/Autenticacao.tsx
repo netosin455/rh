@@ -11,7 +11,7 @@ const USER_KEY  = '@superrh:user';
 const API_URL   = process.env.EXPO_PUBLIC_API_URL || '';
 
 interface AuthContextData extends AuthState {
-  login:  (email: string, password: string) => Promise<void>;
+  login:  (username: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -42,7 +42,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (storedToken && storedUser) {
         if (isTokenExpired(storedToken)) {
           // Token expirado — limpa
-          await AsyncStorage.removeMany([TOKEN_KEY, USER_KEY]);
+          await AsyncStorage.removeItem(TOKEN_KEY);
+          await AsyncStorage.removeItem(USER_KEY);
         } else {
           setToken(storedToken);
           setUser(JSON.parse(storedUser));
@@ -53,11 +54,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     loadAuth();
   }, []);
 
-  async function login(email: string, password: string) {
+  async function login(username: string, password: string) {
     const res = await fetch(`${API_URL}/api/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
+      body: JSON.stringify({ username: username.trim().toLowerCase(), password }),
     });
 
     const data = await res.json();
@@ -73,7 +74,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function logout() {
-    await AsyncStorage.removeMany([TOKEN_KEY, USER_KEY]);
+    await AsyncStorage.removeItem(TOKEN_KEY);
+    await AsyncStorage.removeItem(USER_KEY);
     setToken(null);
     setUser(null);
   }
