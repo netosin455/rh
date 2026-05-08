@@ -14,7 +14,9 @@ import { useAuth } from '../../contextos/Autenticacao';
 import { getEmployees } from '../../conexoes/colaboradores';
 import { getUpcomingEvents } from '../../conexoes/eventos';
 import { getAbsences } from '../../conexoes/ausencias';
-import { Employee, Event, Absence } from '../../tipos/modelos';
+import { getCases } from '../../conexoes/casos';
+import { getNotices } from '../../conexoes/avisos';
+import { Employee, Event, Absence, LegalCase, Notice } from '../../tipos/modelos';
 import { theme } from '../../estilo/cores';
 import { formatDateDisplay, getTodayString, ymd } from '../../helpers/datas';
 
@@ -62,19 +64,25 @@ export default function DashboardScreen() {
   const [employees,  setEmployees]  = useState<Employee[]>([]);
   const [events,     setEvents]     = useState<Event[]>([]);
   const [absences,   setAbsences]   = useState<Absence[]>([]);
+  const [cases,      setCases]      = useState<LegalCase[]>([]);
+  const [notices,    setNotices]    = useState<Notice[]>([]);
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
     try {
-      const [emp, evt, abs] = await Promise.all([
+      const [emp, evt, abs, cas, ntc] = await Promise.all([
         getEmployees(),
         getUpcomingEvents(5),
         getAbsences('pendente'),
+        getCases().catch(() => [] as LegalCase[]),
+        getNotices().catch(() => [] as Notice[]),
       ]);
       setEmployees(emp);
       setEvents(evt);
       setAbsences(abs);
+      setCases(cas);
+      setNotices(ntc);
     } catch (err) {
       console.error('[Dashboard] Erro ao carregar dados:', err);
     } finally {
@@ -150,6 +158,11 @@ export default function DashboardScreen() {
           label="FÉRIAS PEND." value={pendingAbsences} sub="aguardando"
           accent={pendingAbsences > 0 ? theme.warning : undefined} delay={240}
         />
+        <MetricCard label="PROCESSOS" value={cases.filter(c => c.status !== 'encerrado').length} sub="ativos" delay={320} />
+        <MetricCard
+          label="URGENTES" value={cases.filter(c => c.status === 'urgente').length} sub="processos"
+          accent={cases.some(c => c.status === 'urgente') ? theme.danger : undefined} delay={400}
+        />
       </View>
 
       {upcomingBirthdays.length > 0 && (
@@ -211,6 +224,23 @@ export default function DashboardScreen() {
           </TouchableOpacity>
         ))}
       </Animated.View>
+
+      {notices.length > 0 && (
+        <Animated.View entering={FadeInDown.delay(420).duration(350)} style={styles.card}>
+          <SectionHeader title="Avisos recentes" onPress={() => router.push('/(tabs)/avisos')} />
+          {notices.slice(0, 3).map(n => (
+            <TouchableOpacity key={n.id} style={styles.eventRow} onPress={() => router.push('/(tabs)/avisos')}>
+              <View style={[styles.eventDot, {
+                backgroundColor: n.priority === 'urgente' ? theme.danger : n.priority === 'importante' ? theme.warning : theme.info,
+              }]} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.eventName}>{n.title}</Text>
+                <Text style={styles.eventMeta} numberOfLines={1}>{n.body}</Text>
+              </View>
+            </TouchableOpacity>
+          ))}
+        </Animated.View>
+      )}
 
       <View style={{ height: 32 }} />
     </ScrollView>

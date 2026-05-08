@@ -10,8 +10,10 @@ import { theme } from '../../estilo/cores';
 const TABS = [
   { name: 'index',         title: 'Dashboard',  icon: 'grid' },
   { name: 'colaboradores', title: 'Equipe',      icon: 'people' },
+  { name: 'processos',     title: 'Processos',   icon: 'briefcase' },
   { name: 'agenda',        title: 'Agenda',      icon: 'calendar' },
   { name: 'ferias',        title: 'Férias',      icon: 'umbrella' },
+  { name: 'avisos',        title: 'Avisos',      icon: 'megaphone' },
   { name: 'ia',            title: 'Assistente',  icon: 'sparkles' },
 ] as const;
 

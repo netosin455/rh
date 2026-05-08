@@ -93,7 +93,7 @@ export default function ColaboradorScreen() {
   const [absLoading, setAbsLoading] = useState(true);
   const [saving,    setSaving]    = useState(false);
   const [editing,   setEditing]   = useState(false);
-  const [form,      setForm]      = useState<Partial<Employee>>({});
+  const [form,      setForm]      = useState<Partial<Employee & { salary: string }>>({});
 
   const load = useCallback(async () => {
     try {
@@ -110,6 +110,7 @@ export default function ColaboradorScreen() {
         legal_area:    emp.legal_area,
         oab_number:    emp.oab_number ?? '',
         vacation_days: emp.vacation_days,
+        salary:        emp.salary != null ? String(emp.salary) : '',
       });
     } catch (e: any) {
       Alert.alert('Erro', e.message || 'Colaborador não encontrado.');
@@ -147,6 +148,7 @@ export default function ColaboradorScreen() {
       if (!hireDateIso)  return Alert.alert('Data inválida', 'Informe a admissão no formato DD/MM/AAAA.');
       if (form.birth_date && !birthDateIso) return Alert.alert('Data inválida', 'Informe o nascimento no formato DD/MM/AAAA.');
 
+      const salaryNum = form.salary ? parseFloat(String(form.salary).replace(',', '.')) : undefined;
       const updated = await updateEmployee(Number(id), {
         name:          form.name?.trim(),
         role_title:    form.role_title?.trim(),
@@ -158,6 +160,7 @@ export default function ColaboradorScreen() {
         legal_area:    form.legal_area,
         oab_number:    form.oab_number?.trim() || undefined,
         vacation_days: form.vacation_days,
+        salary:        !isNaN(salaryNum!) ? salaryNum : undefined,
       });
       setEmployee(updated);
       setEditing(false);
@@ -328,6 +331,20 @@ export default function ColaboradorScreen() {
               maxLength={10}
             />
 
+            {['super_admin','admin','rh','adm'].includes(user?.role ?? '') && (
+              <>
+                <Text style={styles.label}>Salário (R$)</Text>
+                <TextInput
+                  style={styles.input}
+                  value={form.salary as string}
+                  onChangeText={v => set('salary', v)}
+                  placeholder="5000.00"
+                  placeholderTextColor={theme.textMuted}
+                  keyboardType="decimal-pad"
+                />
+              </>
+            )}
+
             <View style={{ height: 20 }} />
           </View>
         ) : (
@@ -360,6 +377,13 @@ export default function ColaboradorScreen() {
             )}
             <InfoRow icon="briefcase-outline" label="Área"        value={employee.legal_area} />
             <InfoRow icon="umbrella-outline"  label="Dias férias" value={String(employee.vacation_days)} />
+            {['super_admin','admin','rh','adm'].includes(user?.role ?? '') && employee.salary != null && (
+              <InfoRow
+                icon="cash-outline"
+                label="Salário"
+                value={`R$ ${Number(employee.salary).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+              />
+            )}
           </View>
         )}
 
