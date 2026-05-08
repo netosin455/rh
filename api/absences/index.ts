@@ -41,11 +41,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return err(res, 400, 'employee_id, start_date e end_date são obrigatórios');
     }
 
+    const VALID_TYPES = ['ferias','licenca_medica','licenca_maternidade','licenca_paternidade','folga','outro'];
+    if (!VALID_TYPES.includes(type)) {
+      return err(res, 400, `Tipo inválido. Use: ${VALID_TYPES.join(', ')}`);
+    }
+
+    // Garante que o funcionário pertence à mesma empresa do usuário autenticado
+    const empCheck = await sql`
+      SELECT id FROM employees WHERE id = ${Number(employee_id)} AND company_id = ${ctx.company_id}
+    `;
+    if (!empCheck[0]) return err(res, 404, 'Funcionário não encontrado');
+
     const rows = await sql`
       INSERT INTO absences
         (company_id, employee_id, type, start_date, end_date, reason, attachment_url)
       VALUES
-        (${ctx.company_id}, ${employee_id}, ${type}, ${start_date}, ${end_date},
+        (${ctx.company_id}, ${Number(employee_id)}, ${type}, ${start_date}, ${end_date},
          ${reason ?? null}, ${attachment_url ?? null})
       RETURNING *
     `;

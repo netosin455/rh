@@ -51,11 +51,20 @@ ${eventRows.map(e => `- ${e.date}${e.start_time ? ` ${e.start_time}` : ''} | ${e
 Você pode responder perguntas sobre colaboradores, agenda e RH com base nos dados acima.
 Para ações que criam ou modificam dados, oriente o usuário a usar as telas do app.`;
 
+  const VALID_ROLES = ['user', 'assistant'];
+  const sanitizedMessages = messages
+    .filter((m: any) => VALID_ROLES.includes(m.role) && typeof m.content === 'string')
+    .map((m: any) => ({ role: m.role as 'user' | 'assistant', content: String(m.content).slice(0, 2000) }));
+
+  if (sanitizedMessages.length === 0) {
+    return err(res, 400, 'Nenhuma mensagem válida encontrada');
+  }
+
   const completion = await groq.chat.completions.create({
     model: 'llama-3.3-70b-versatile',
     messages: [
       { role: 'system', content: systemPrompt },
-      ...messages.map((m: any) => ({ role: m.role, content: m.content })),
+      ...sanitizedMessages,
     ],
     temperature: 0.5,
     max_tokens: 800,

@@ -3,7 +3,7 @@
 // ============================================================
 
 import type { Request as VercelRequest, Response as VercelResponse } from 'express';
-import { sql, cors, authenticate, err, IS_ADMIN, CAN_MANAGE_EMPLOYEES } from '../_lib';
+import { sql, cors, authenticate, err, CAN_MANAGE_EMPLOYEES } from '../_lib';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   cors(res);
