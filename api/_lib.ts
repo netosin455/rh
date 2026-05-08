@@ -37,7 +37,7 @@ export function authenticate(req: VercelRequest): JWTPayload {
     throw Object.assign(new Error('Não autorizado'), { status: 401 });
   }
   try {
-    return jwt.verify(auth.slice(7), JWT_SECRET) as JWTPayload;
+    return jwt.verify(auth.slice(7), JWT_SECRET) as unknown as JWTPayload;
   } catch {
     throw Object.assign(new Error('Token inválido ou expirado'), { status: 401 });
   }
