@@ -27,7 +27,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     FROM login_attempts
     WHERE email = ${normalizedEmail}
       AND failed = true
-      AND attempted_at >= NOW() - INTERVAL '${WINDOW_MINUTES} minutes'
+      AND attempted_at >= NOW() - (${WINDOW_MINUTES} * INTERVAL '1 minute')
   `;
 
   if ((attempts[0]?.count ?? 0) >= MAX_ATTEMPTS) {
