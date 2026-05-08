@@ -76,11 +76,37 @@
 
 ---
 
+---
+
+### [MÉDIO] PATCH /api/notices/:id sem validação de boolean
+**Arquivo:** `api/notices/[id].ts`  
+**Descrição:** Campo `pinned` inserido diretamente sem checar se é boolean. Valor `undefined` violaria constraint NOT NULL do banco.  
+**Correção aplicada:** Validação `typeof pinned !== 'boolean'` adicionada.
+
+---
+
+### [BAIXO] Tela admin.tsx acessível por rota direta
+**Arquivo:** `app/(tabs)/admin.tsx`  
+**Descrição:** Tab escondido via `href: null`, mas rota `/admin` ainda acessível navegando diretamente. Usuário sem permissão verá tentativa de carregamento antes do erro 403 da API.  
+**Correção aplicada:** Guard de role na própria tela antes de qualquer renderização.
+
+---
+
+### [BAIXO] COALESCE com string vazia em PUT /api/users/:id
+**Arquivo:** `api/users/[id].ts`  
+**Descrição:** `name: "  "` (espaços) passava check de truthy, virava `""` após trim e era inserido como nome em branco.  
+**Correção aplicada:** Validação explícita após trim antes do COALESCE.
+
+---
+
 ## Correções Aplicadas Neste Report
 1. Cross-tenant injection em absences — CORRIGIDO
 2. Prompt injection no chat — CORRIGIDO
 3. Validação de enum em absences — CORRIGIDO
 4. Import não utilizado em notices — CORRIGIDO
+5. PATCH pin sem validação boolean — CORRIGIDO
+6. Guard de tela no admin — CORRIGIDO
+7. COALESCE com string vazia em users PUT — CORRIGIDO
 
 ## Recomendações Futuras
 - Implementar rate limiting no login (Upstash Redis + Vercel Middleware)

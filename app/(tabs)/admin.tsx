@@ -136,6 +136,15 @@ export default function AdminScreen() {
     );
   }
 
+  if (user?.role !== 'super_admin') {
+    return (
+      <View style={styles.centered}>
+        <Ionicons name="lock-closed" size={40} color={theme.textMuted} />
+        <Text style={{ color: theme.textMuted, marginTop: 12, fontSize: 14 }}>Acesso restrito</Text>
+      </View>
+    );
+  }
+
   if (loading) {
     return (
       <View style={styles.centered}>

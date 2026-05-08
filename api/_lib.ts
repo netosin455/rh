@@ -56,3 +56,7 @@ export const CAN_APPROVE_ABSENCES = ['super_admin', 'admin', 'rh', 'adm', 'gesto
 
 /** Papéis com acesso administrativo geral */
 export const IS_ADMIN = ['super_admin', 'admin'];
+
+/** Todos os cargos válidos do sistema */
+export const VALID_ROLES = ['super_admin','admin','rh','gestor','colaborador','financeiro','juridico','ti','adm'] as const;
+export type SystemRole = typeof VALID_ROLES[number];

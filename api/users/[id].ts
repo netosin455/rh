@@ -5,7 +5,7 @@
 
 import type { Request as VercelRequest, Response as VercelResponse } from 'express';
 import bcrypt from 'bcryptjs';
-import { sql, cors, authenticate, err } from '../_lib';
+import { sql, cors, authenticate, err, VALID_ROLES } from '../_lib';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   cors(res);
@@ -35,8 +35,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const { name, email, password, role } = req.body ?? {};
 
-    const VALID_ROLES = ['super_admin','admin','rh','gestor','colaborador','financeiro','juridico','ti','adm'];
-    if (role && !VALID_ROLES.includes(role)) {
+    if (role && !(VALID_ROLES as readonly string[]).includes(role)) {
       return err(res, 400, `Cargo inválido. Use: ${VALID_ROLES.join(', ')}`);
     }
 
@@ -44,14 +43,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return err(res, 400, 'Senha deve ter no mínimo 6 caracteres');
     }
 
+    const trimmedName  = name  ? String(name).trim()                : null;
+    const trimmedEmail = email ? String(email).toLowerCase().trim() : null;
+
+    if (trimmedName  === '') return err(res, 400, 'Nome não pode ser vazio');
+    if (trimmedEmail === '') return err(res, 400, 'Email não pode ser vazio');
+
     const newHash = password ? await bcrypt.hash(String(password), 10) : null;
 
     const rows = await sql`
       UPDATE users SET
-        name          = COALESCE(${name  ? String(name).trim()                   : null}, name),
-        email         = COALESCE(${email ? String(email).toLowerCase().trim()    : null}, email),
-        password_hash = COALESCE(${newHash}, password_hash),
-        role          = COALESCE(${role  ?? null}, role)
+        name          = COALESCE(${trimmedName},  name),
+        email         = COALESCE(${trimmedEmail}, email),
+        password_hash = COALESCE(${newHash},      password_hash),
+        role          = COALESCE(${role ?? null},  role)
       WHERE id = ${id} AND company_id = ${ctx.company_id}
       RETURNING id, company_id, name, email, role, created_at
     `;

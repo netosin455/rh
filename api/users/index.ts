@@ -5,7 +5,7 @@
 
 import type { Request as VercelRequest, Response as VercelResponse } from 'express';
 import bcrypt from 'bcryptjs';
-import { sql, cors, authenticate, err } from '../_lib';
+import { sql, cors, authenticate, err, VALID_ROLES } from '../_lib';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   cors(res);
@@ -35,8 +35,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return err(res, 400, 'name, email e password são obrigatórios');
     }
 
-    const VALID_ROLES = ['super_admin','admin','rh','gestor','colaborador','financeiro','juridico','ti','adm'];
-    if (!VALID_ROLES.includes(role)) {
+    if (!(VALID_ROLES as readonly string[]).includes(role)) {
       return err(res, 400, `Cargo inválido. Use: ${VALID_ROLES.join(', ')}`);
     }
 

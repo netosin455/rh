@@ -54,6 +54,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return err(res, 403, 'Sem permissão');
     }
     const { pinned } = req.body ?? {};
+    if (typeof pinned !== 'boolean') {
+      return err(res, 400, 'Campo "pinned" deve ser boolean');
+    }
     const rows = await sql`
       UPDATE notices SET pinned = ${pinned}
       WHERE id = ${id} AND company_id = ${ctx.company_id}
