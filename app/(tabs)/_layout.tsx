@@ -8,16 +8,18 @@ import { useAuth } from '../../contextos/Autenticacao';
 import { theme } from '../../estilo/cores';
 
 const TABS = [
-  { name: 'index',         title: 'Dashboard',  icon: 'grid' },
-  { name: 'colaboradores', title: 'Equipe',      icon: 'people' },
-  { name: 'agenda',        title: 'Agenda',      icon: 'calendar' },
-  { name: 'ferias',        title: 'Férias',      icon: 'umbrella' },
-  { name: 'avisos',        title: 'Avisos',      icon: 'megaphone' },
-  { name: 'ia',            title: 'Assistente',  icon: 'sparkles' },
+  { name: 'index',         title: 'Dashboard',  icon: 'grid',           adminOnly: false },
+  { name: 'colaboradores', title: 'Equipe',      icon: 'people',         adminOnly: false },
+  { name: 'agenda',        title: 'Agenda',      icon: 'calendar',       adminOnly: false },
+  { name: 'ferias',        title: 'Férias',      icon: 'umbrella',       adminOnly: false },
+  { name: 'avisos',        title: 'Avisos',      icon: 'megaphone',      adminOnly: false },
+  { name: 'ia',            title: 'Assistente',  icon: 'sparkles',       adminOnly: false },
+  { name: 'admin',         title: 'Admin',       icon: 'shield-checkmark', adminOnly: true },
 ] as const;
 
 export default function TabLayout() {
   const { user } = useAuth();
+  const isSuperAdmin = user?.role === 'super_admin';
 
   return (
     <Tabs
@@ -48,6 +50,7 @@ export default function TabLayout() {
           name={tab.name}
           options={{
             title: tab.title,
+            href: tab.adminOnly && !isSuperAdmin ? null : undefined,
             tabBarIcon: ({ color, focused }) => (
               <Ionicons
                 name={(focused ? tab.icon : `${tab.icon}-outline`) as any}

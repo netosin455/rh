@@ -4,6 +4,7 @@
   "outputDirectory": "dist",
   "rewrites": [
     { "source": "/api/auth/:path*",      "destination": "/api/auth/:path*" },
+    { "source": "/api/users/:path*",     "destination": "/api/users/:path*" },
     { "source": "/api/employees/:path*", "destination": "/api/employees/:path*" },
     { "source": "/api/cases/:path*",     "destination": "/api/cases/:path*" },
     { "source": "/api/events/:path*",    "destination": "/api/events/:path*" },
