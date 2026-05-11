@@ -442,7 +442,7 @@ const styles = StyleSheet.create({
   cardAccent: { width: 4 },
   cardBody:   { flex: 1, padding: 14 },
   cardTop:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 },
-  empName:    { fontSize: 14, fontWeight: '600', color: theme.text },
+  empName:    { fontSize: 14, fontWeight: '700', color: theme.white },
   absenceType: { fontSize: 11, color: theme.textMuted, marginTop: 2 },
 
   statusPill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
@@ -451,7 +451,7 @@ const styles = StyleSheet.create({
   datesRow:  { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },
   dateBlock: { alignItems: 'center' },
   dateLabel: { fontSize: 9, color: theme.textMuted, letterSpacing: 1, marginBottom: 2 },
-  dateValue: { fontSize: 13, fontWeight: '700', color: theme.text },
+  dateValue: { fontSize: 13, fontWeight: '700', color: theme.white },
   daysChip:  { marginLeft: 'auto', backgroundColor: theme.goldDim, borderWidth: 1, borderColor: theme.border2, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
   daysText:  { fontSize: 12, fontWeight: '700', color: theme.gold },
 

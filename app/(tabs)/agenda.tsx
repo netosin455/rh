@@ -471,7 +471,7 @@ const styles = StyleSheet.create({
   },
   eventColor:    { width: 3, borderRadius: 2, minHeight: 40 },
   eventInfo:     { flex: 1 },
-  eventTitle:    { fontSize: 14, fontWeight: '600', color: theme.text, marginBottom: 5 },
+  eventTitle:    { fontSize: 14, fontWeight: '700', color: theme.white, marginBottom: 5 },
   eventMeta:     { flexDirection: 'row', flexWrap: 'wrap', gap: 6, alignItems: 'center' },
   eventMetaText: { fontSize: 11, color: theme.textMuted },
   categoryPill:  { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },

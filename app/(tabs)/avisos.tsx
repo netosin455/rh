@@ -398,8 +398,8 @@ const styles = StyleSheet.create({
   priorityLabel: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
   noticeTime:    { fontSize: 10, color: theme.textMuted, marginLeft: 'auto' },
 
-  noticeTitle:       { fontSize: 14, fontWeight: '700', color: theme.white },
-  noticeBody:        { fontSize: 13, color: theme.text, lineHeight: 20 },
+  noticeTitle:       { fontSize: 14, fontWeight: '800', color: theme.white },
+  noticeBody:        { fontSize: 13, color: theme.white, lineHeight: 20 },
   noticeBodyPreview: { fontSize: 13, color: theme.textLight, lineHeight: 18 },
 
   noticeFooter:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 2 },

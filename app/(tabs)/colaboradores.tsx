@@ -363,7 +363,7 @@ const styles = StyleSheet.create({
   filterTextActive: { color: theme.gold },
 
   countRow:   { paddingHorizontal: 16, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: theme.border },
-  countLabel: { fontSize: 11, color: theme.textMuted },
+  countLabel: { fontSize: 11, color: theme.gold, fontWeight: '600' },
   list: { flex: 1 },
 
   empty: { alignItems: 'center', paddingTop: 64, gap: 8 },
@@ -380,9 +380,9 @@ const styles = StyleSheet.create({
     backgroundColor: theme.goldDim, borderWidth: 1, borderColor: theme.border2,
     alignItems: 'center', justifyContent: 'center',
   },
-  initials:  { fontSize: 14, fontWeight: '800', color: theme.goldLight },
+  initials:  { fontSize: 14, fontWeight: '800', color: theme.gold },
   empInfo:   { flex: 1 },
-  empName:   { fontSize: 14, fontWeight: '600', color: theme.text },
+  empName:   { fontSize: 14, fontWeight: '700', color: theme.white },
   empRole:   { fontSize: 12, color: theme.textMuted, marginTop: 1 },
   empOab:    { fontSize: 10, color: theme.gold, marginTop: 2 },
   empRight:  { alignItems: 'flex-end', gap: 2 },

@@ -11,21 +11,21 @@ export const theme = {
   surface3:     '#1F1F24',   // superfície mais elevada
 
   // ── Dourado ─────────────────────────────────────────────
-  gold:         '#C9A84C',   // dourado principal
-  goldLight:    '#E2C97E',   // dourado claro (texto sobre escuro)
-  goldDim:      'rgba(201,168,76,0.14)', // dourado translúcido (fundo de badges)
-  goldGlow:     'rgba(201,168,76,0.08)', // brilho suave
+  gold:         '#D4AF50',   // dourado principal (ligeiramente mais brilhante)
+  goldLight:    '#EDD98A',   // dourado claro (texto sobre escuro)
+  goldDim:      'rgba(212,175,80,0.18)', // dourado translúcido (fundo de badges)
+  goldGlow:     'rgba(212,175,80,0.12)', // brilho suave
 
   // ── Bordas ──────────────────────────────────────────────
-  border:       'rgba(201,168,76,0.10)', // borda padrão (suave dourado)
-  border2:      'rgba(201,168,76,0.20)', // borda enfatizada
-  borderWhite:  'rgba(255,255,255,0.06)', // borda neutra
+  border:       'rgba(212,175,80,0.22)', // borda padrão (dourado visível)
+  border2:      'rgba(212,175,80,0.42)', // borda enfatizada
+  borderWhite:  'rgba(255,255,255,0.10)', // borda neutra
 
   // ── Textos ──────────────────────────────────────────────
   white:        '#FFFFFF',
-  text:         '#F2F0EA',   // texto principal (off-white quente)
-  textMuted:    '#8A887F',   // texto secundário
-  textLight:    '#B8B5AA',   // texto intermediário
+  text:         '#FFFFFF',   // texto principal — branco puro
+  textMuted:    '#9A9890',   // texto secundário (ligeiramente mais claro)
+  textLight:    '#C8C5BC',   // texto intermediário
 
   // ── Status ──────────────────────────────────────────────
   success:      '#2EBD7C',

@@ -333,8 +333,8 @@ const styles = StyleSheet.create({
     width: 30, height: 30, borderRadius: 8,
     alignItems: 'center', justifyContent: 'center', marginBottom: 10,
   },
-  metricValue: { fontSize: 28, fontWeight: '800', color: theme.white, marginBottom: 2 },
-  metricLabel: { fontSize: 10, color: theme.textMuted, fontWeight: '600', letterSpacing: 0.5, textTransform: 'uppercase' },
+  metricValue: { fontSize: 28, fontWeight: '800', color: theme.gold, marginBottom: 2 },
+  metricLabel: { fontSize: 10, color: theme.textLight, fontWeight: '700', letterSpacing: 0.5, textTransform: 'uppercase' },
   metricSub:   { fontSize: 11, color: theme.textMuted, marginTop: 2 },
 
   birthdayCard: {
@@ -358,10 +358,10 @@ const styles = StyleSheet.create({
     padding: 14, paddingBottom: 12,
     borderBottomWidth: 1, borderBottomColor: theme.border,
   },
-  sectionAccent: { width: 3, height: 14, borderRadius: 2, backgroundColor: theme.gold },
-  sectionTitle:  { fontSize: 13, fontWeight: '700', color: theme.white, flex: 1 },
+  sectionAccent: { width: 3, height: 16, borderRadius: 2, backgroundColor: theme.gold },
+  sectionTitle:  { fontSize: 13, fontWeight: '800', color: theme.gold, flex: 1, letterSpacing: 0.3 },
   sectionLinkBtn: { flexDirection: 'row', alignItems: 'center', gap: 3 },
-  sectionLink:   { fontSize: 11, color: theme.gold },
+  sectionLink:   { fontSize: 11, color: theme.goldLight },
 
   emptyRow: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
@@ -375,7 +375,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.03)',
   },
   eventColorBar: { width: 3, height: 36, borderRadius: 2 },
-  eventName:     { fontSize: 13, color: theme.text, fontWeight: '600', marginBottom: 2 },
+  eventName:     { fontSize: 13, color: theme.white, fontWeight: '600', marginBottom: 2 },
   eventMeta:     { fontSize: 11, color: theme.textMuted },
   categoryDot:   { width: 6, height: 6, borderRadius: 3 },
 
@@ -389,8 +389,8 @@ const styles = StyleSheet.create({
     backgroundColor: theme.goldDim, borderWidth: 1, borderColor: theme.border2,
     alignItems: 'center', justifyContent: 'center',
   },
-  empInitials: { fontSize: 12, fontWeight: '700', color: theme.goldLight },
-  empName:     { fontSize: 13, color: theme.text, fontWeight: '600' },
+  empInitials: { fontSize: 12, fontWeight: '700', color: theme.gold },
+  empName:     { fontSize: 13, color: theme.white, fontWeight: '700' },
   empRole:     { fontSize: 11, color: theme.textMuted, marginTop: 1 },
   statusPill:  { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 5 },
   statusText:  { fontSize: 10, fontWeight: '700', letterSpacing: 0.3 },
