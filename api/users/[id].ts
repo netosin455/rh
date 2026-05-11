@@ -22,7 +22,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // ── GET ───────────────────────────────────────────────────
   if (req.method === 'GET') {
     const rows = await sql`
-      SELECT id, company_id, name, email, role, created_at
+      SELECT id, company_id, name, email, username, role, created_at
       FROM users WHERE id = ${id} AND company_id = ${ctx.company_id}
     `;
     if (!rows[0]) return err(res, 404, 'Usuário não encontrado');
@@ -58,7 +58,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         password_hash = COALESCE(${newHash},      password_hash),
         role          = COALESCE(${role ?? null},  role)
       WHERE id = ${id} AND company_id = ${ctx.company_id}
-      RETURNING id, company_id, name, email, role, created_at
+      RETURNING id, company_id, name, email, username, role, created_at
     `;
     if (!rows[0]) return err(res, 404, 'Usuário não encontrado');
     return res.json(rows[0]);

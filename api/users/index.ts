@@ -25,7 +25,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const [countRow, rows] = await Promise.all([
       sql`SELECT COUNT(*)::int AS total FROM users WHERE company_id = ${ctx.company_id}`,
       sql`
-        SELECT id, company_id, name, email, role, created_at
+        SELECT id, company_id, name, email, username, role, created_at
         FROM users
         WHERE company_id = ${ctx.company_id}
         ORDER BY name
@@ -39,10 +39,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // ── POST ──────────────────────────────────────────────────
   if (req.method === 'POST') {
-    const { name, email, password, role = 'rh' } = req.body ?? {};
+    const { name, email, username, password, role = 'rh' } = req.body ?? {};
 
-    if (!name || !email || !password) {
-      return err(res, 400, 'name, email e password são obrigatórios');
+    if (!name || !email || !username || !password) {
+      return err(res, 400, 'name, email, username e password são obrigatórios');
     }
 
     if (!(VALID_ROLES as readonly string[]).includes(role)) {
@@ -53,15 +53,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return err(res, 400, 'Senha deve ter no mínimo 6 caracteres');
     }
 
-    const existing = await sql`SELECT id FROM users WHERE email = ${String(email).toLowerCase().trim()}`;
-    if (existing[0]) return err(res, 409, 'Este email já está em uso');
+    const normalizedEmail    = String(email).toLowerCase().trim();
+    const normalizedUsername = String(username).toLowerCase().trim();
+
+    const existing = await sql`
+      SELECT id FROM users
+      WHERE email = ${normalizedEmail} OR username = ${normalizedUsername}
+    `;
+    if (existing[0]) return err(res, 409, 'Email ou usuário já está em uso');
 
     const hash = await bcrypt.hash(String(password), 10);
 
     const rows = await sql`
-      INSERT INTO users (company_id, name, email, password_hash, role)
-      VALUES (${ctx.company_id}, ${String(name).trim()}, ${String(email).toLowerCase().trim()}, ${hash}, ${role})
-      RETURNING id, company_id, name, email, role, created_at
+      INSERT INTO users (company_id, name, email, username, password_hash, role)
+      VALUES (${ctx.company_id}, ${String(name).trim()}, ${normalizedEmail}, ${normalizedUsername}, ${hash}, ${role})
+      RETURNING id, company_id, name, email, username, role, created_at
     `;
     return res.status(201).json(rows[0]);
   }

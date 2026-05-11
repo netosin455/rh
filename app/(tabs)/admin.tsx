@@ -19,6 +19,7 @@ const ROLES: { key: string; label: string; color: string }[] = [
   { key: 'admin',       label: 'Admin',       color: theme.danger },
   { key: 'rh',          label: 'RH',          color: theme.info },
   { key: 'gestor',      label: 'Gestor',       color: theme.success },
+  { key: 'juridico',    label: 'Jurídico',     color: '#5AA8C9' },
   { key: 'ti',          label: 'TI',           color: '#9B72CF' },
   { key: 'financeiro',  label: 'Financeiro',   color: '#E8955A' },
   { key: 'adm',         label: 'Administrativo', color: theme.textLight },
@@ -29,7 +30,7 @@ function getRoleInfo(role: string) {
   return ROLES.find(r => r.key === role) ?? { key: role, label: role, color: theme.textMuted };
 }
 
-const EMPTY_FORM = { name: '', email: '', password: '', role: 'rh' };
+const EMPTY_FORM = { name: '', email: '', username: '', password: '', role: 'rh' };
 
 type ModalMode = 'create' | 'edit';
 
@@ -75,14 +76,15 @@ export default function AdminScreen() {
   function openEdit(u: SystemUser) {
     setModalMode('edit');
     setEditTarget(u);
-    setForm({ name: u.name, email: u.email, password: '', role: u.role });
+    setForm({ name: u.name, email: u.email, username: u.username ?? '', password: '', role: u.role });
     setShowPass(false);
     setShowModal(true);
   }
 
   async function handleSave() {
-    if (!form.name.trim())  return Alert.alert('Campo obrigatório', 'Informe o nome.');
-    if (!form.email.trim()) return Alert.alert('Campo obrigatório', 'Informe o email.');
+    if (!form.name.trim())     return Alert.alert('Campo obrigatório', 'Informe o nome.');
+    if (!form.email.trim())    return Alert.alert('Campo obrigatório', 'Informe o email.');
+    if (modalMode === 'create' && !form.username.trim()) return Alert.alert('Campo obrigatório', 'Informe o usuário.');
     if (modalMode === 'create' && !form.password) return Alert.alert('Campo obrigatório', 'Informe a senha.');
 
     setSaving(true);
@@ -91,6 +93,7 @@ export default function AdminScreen() {
         const created = await createUser({
           name:     form.name.trim(),
           email:    form.email.trim(),
+          username: form.username.trim().toLowerCase(),
           password: form.password,
           role:     form.role,
         });
@@ -241,6 +244,21 @@ export default function AdminScreen() {
               keyboardType="email-address"
               autoCapitalize="none"
             />
+
+            {modalMode === 'create' && (
+              <>
+                <Text style={styles.label}>Usuário * (usado no login)</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="ex: joao.silva"
+                  placeholderTextColor={theme.textMuted}
+                  value={form.username}
+                  onChangeText={v => setF('username', v.toLowerCase().replace(/\s/g, ''))}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+              </>
+            )}
 
             <Text style={styles.label}>
               {modalMode === 'create' ? 'Senha *' : 'Nova senha (deixe em branco para manter)'}

@@ -5,6 +5,7 @@ export interface SystemUser {
   company_id: number;
   name: string;
   email: string;
+  username: string;
   role: string;
   created_at: string;
 }
@@ -12,6 +13,7 @@ export interface SystemUser {
 export interface CreateUserData {
   name: string;
   email: string;
+  username: string;
   password: string;
   role: string;
 }

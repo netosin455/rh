@@ -60,15 +60,20 @@ Para ações que criam ou modificam dados, oriente o usuário a usar as telas do
     return err(res, 400, 'Nenhuma mensagem válida encontrada');
   }
 
-  const completion = await groq.chat.completions.create({
-    model: 'llama-3.3-70b-versatile',
-    messages: [
-      { role: 'system', content: systemPrompt },
-      ...sanitizedMessages,
-    ],
-    temperature: 0.5,
-    max_tokens: 800,
-  });
+  let completion;
+  try {
+    completion = await groq.chat.completions.create({
+      model: 'llama-3.3-70b-versatile',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        ...sanitizedMessages,
+      ],
+      temperature: 0.5,
+      max_tokens: 800,
+    });
+  } catch {
+    return err(res, 502, 'Assistente temporariamente indisponível. Tente novamente em instantes.');
+  }
 
   const reply = completion.choices[0]?.message?.content ?? 'Não consegui gerar uma resposta.';
   return res.json({ message: reply });
