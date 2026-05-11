@@ -5,10 +5,10 @@
 
 export const theme = {
   // ── Fundos ──────────────────────────────────────────────
-  bg:           '#09090B',   // preto profundo (fundo das telas)
-  surface:      '#111114',   // superfície principal (cards, sidebar)
-  surface2:     '#18181C',   // superfície elevada (modais, hover)
-  surface3:     '#1F1F24',   // superfície mais elevada
+  bg:           '#141210',   // carvão quente (fundo das telas)
+  surface:      '#1C1916',   // superfície principal (cards, sidebar)
+  surface2:     '#242018',   // superfície elevada (modais, hover)
+  surface3:     '#2C261E',   // superfície mais elevada
 
   // ── Dourado ─────────────────────────────────────────────
   gold:         '#D4AF50',   // dourado principal (ligeiramente mais brilhante)

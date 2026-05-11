@@ -39,14 +39,14 @@ export default function TabLayout() {
         tabBarActiveTintColor:   theme.gold,
         tabBarInactiveTintColor: '#555250',
         tabBarStyle: {
-          backgroundColor: '#0C0C0F',
+          backgroundColor: '#0F0D0B',
           borderTopWidth: 1,
           borderTopColor: theme.border,
           height: Platform.OS === 'ios' ? 80 : 62,
           paddingBottom: Platform.OS === 'ios' ? 20 : 8,
         },
         tabBarLabelStyle: { fontSize: 9, fontWeight: '700', letterSpacing: 0.4 },
-        headerStyle: { backgroundColor: '#0C0C0F', borderBottomWidth: 1, borderBottomColor: theme.border } as any,
+        headerStyle: { backgroundColor: '#0F0D0B', borderBottomWidth: 1, borderBottomColor: theme.border } as any,
         headerTintColor: theme.gold,
         headerTitleStyle: {
           fontWeight: '800', color: theme.white,
