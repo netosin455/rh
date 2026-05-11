@@ -6,7 +6,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
   StyleSheet, ActivityIndicator, RefreshControl, Modal,
-  KeyboardAvoidingView, Platform, Alert,
+  KeyboardAvoidingView, Platform,
 } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
@@ -46,6 +46,7 @@ export default function AdminScreen() {
   const [saving,     setSaving]     = useState(false);
   const [form,       setForm]       = useState(EMPTY_FORM);
   const [showPass,   setShowPass]   = useState(false);
+  const [modalError, setModalError] = useState('');
 
   const load = useCallback(async () => {
     try {
@@ -70,6 +71,7 @@ export default function AdminScreen() {
     setEditTarget(null);
     setForm(EMPTY_FORM);
     setShowPass(false);
+    setModalError('');
     setShowModal(true);
   }
 
@@ -78,14 +80,16 @@ export default function AdminScreen() {
     setEditTarget(u);
     setForm({ name: u.name, email: u.email, username: u.username ?? '', password: '', role: u.role });
     setShowPass(false);
+    setModalError('');
     setShowModal(true);
   }
 
   async function handleSave() {
-    if (!form.name.trim())     return Alert.alert('Campo obrigatório', 'Informe o nome.');
-    if (!form.email.trim())    return Alert.alert('Campo obrigatório', 'Informe o email.');
-    if (modalMode === 'create' && !form.username.trim()) return Alert.alert('Campo obrigatório', 'Informe o usuário.');
-    if (modalMode === 'create' && !form.password) return Alert.alert('Campo obrigatório', 'Informe a senha.');
+    setModalError('');
+    if (!form.name.trim())                                { setModalError('Informe o nome.'); return; }
+    if (!form.email.trim())                               { setModalError('Informe o email.'); return; }
+    if (modalMode === 'create' && !form.username.trim())  { setModalError('Informe o nome de usuário (usado no login).'); return; }
+    if (modalMode === 'create' && !form.password)         { setModalError('Informe a senha.'); return; }
 
     setSaving(true);
     try {
@@ -109,7 +113,7 @@ export default function AdminScreen() {
       }
       setShowModal(false);
     } catch (e: any) {
-      Alert.alert('Erro', e.message || 'Não foi possível salvar.');
+      setModalError(e.message || 'Não foi possível salvar.');
     } finally {
       setSaving(false);
     }
@@ -117,26 +121,14 @@ export default function AdminScreen() {
 
   function handleDelete(u: SystemUser) {
     if (u.id === user?.id) {
-      return Alert.alert('Atenção', 'Você não pode excluir sua própria conta.');
+      setModalError('Você não pode excluir sua própria conta.');
+      return;
     }
-    Alert.alert(
-      'Excluir usuário',
-      `Deseja excluir ${u.name}? O acesso ao sistema será removido.`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Excluir', style: 'destructive',
-          onPress: async () => {
-            try {
-              await deleteUser(u.id);
-              setUsers(prev => prev.filter(x => x.id !== u.id));
-            } catch (e: any) {
-              Alert.alert('Erro', e.message);
-            }
-          },
-        },
-      ],
-    );
+    const confirmed = window.confirm(`Excluir ${u.name}? O acesso ao sistema será removido.`);
+    if (!confirmed) return;
+    deleteUser(u.id)
+      .then(() => setUsers(prev => prev.filter(x => x.id !== u.id)))
+      .catch((e: any) => alert(e.message || 'Erro ao excluir.'));
   }
 
   if (user?.role !== 'super_admin') {
@@ -295,6 +287,12 @@ export default function AdminScreen() {
             <View style={{ height: 20 }} />
           </ScrollView>
 
+          {modalError ? (
+            <View style={styles.modalErrorBox}>
+              <Text style={styles.modalErrorText}>{modalError}</Text>
+            </View>
+          ) : null}
+
           <View style={styles.modalFooter}>
             <TouchableOpacity style={styles.btnCancel} onPress={() => setShowModal(false)}>
               <Text style={styles.btnCancelText}>Cancelar</Text>
@@ -396,4 +394,12 @@ const styles = StyleSheet.create({
   btnCancelText: { fontSize: 14, color: theme.textMuted, fontWeight: '600' },
   btnSave:       { flex: 2, paddingVertical: 12, borderRadius: 8, backgroundColor: theme.gold, alignItems: 'center' },
   btnSaveText:   { fontSize: 14, fontWeight: '700', color: '#000' },
+
+  modalErrorBox: {
+    marginHorizontal: 20, marginBottom: 8,
+    backgroundColor: 'rgba(224,82,82,0.12)',
+    borderWidth: 1, borderColor: 'rgba(224,82,82,0.3)',
+    borderRadius: 8, padding: 10,
+  },
+  modalErrorText: { color: '#E05252', fontSize: 13 },
 });
