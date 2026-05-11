@@ -2,15 +2,22 @@
   "version": 2,
   "buildCommand": "npx expo export --platform web",
   "outputDirectory": "dist",
+  "functions": {
+    "api/**/*.ts": { "runtime": "@vercel/node@4" }
+  },
   "rewrites": [
-    { "source": "/api/auth/:path*",      "destination": "/api/auth/:path*" },
-    { "source": "/api/users/:path*",     "destination": "/api/users/:path*" },
-    { "source": "/api/employees/:path*", "destination": "/api/employees/:path*" },
-    { "source": "/api/cases/:path*",     "destination": "/api/cases/:path*" },
-    { "source": "/api/events/:path*",    "destination": "/api/events/:path*" },
-    { "source": "/api/absences/:path*",  "destination": "/api/absences/:path*" },
-    { "source": "/api/notices/:path*",   "destination": "/api/notices/:path*" },
-    { "source": "/api/chat",             "destination": "/api/chat" },
-    { "source": "/(.*)",                 "destination": "/index.html" }
+    { "source": "/api/auth/login",          "destination": "/api/auth/login" },
+    { "source": "/api/users",               "destination": "/api/users/index" },
+    { "source": "/api/users/:id",           "destination": "/api/users/[id]" },
+    { "source": "/api/employees",           "destination": "/api/employees/index" },
+    { "source": "/api/employees/:id",       "destination": "/api/employees/[id]" },
+    { "source": "/api/absences",            "destination": "/api/absences/index" },
+    { "source": "/api/absences/:id",        "destination": "/api/absences/[id]" },
+    { "source": "/api/events",              "destination": "/api/events/index" },
+    { "source": "/api/events/:id",          "destination": "/api/events/[id]" },
+    { "source": "/api/notices",             "destination": "/api/notices/index" },
+    { "source": "/api/notices/:id",         "destination": "/api/notices/[id]" },
+    { "source": "/api/chat",                "destination": "/api/chat" },
+    { "source": "/(.*)",                    "destination": "/index.html" }
   ]
 }
