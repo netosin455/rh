@@ -325,9 +325,12 @@ const styles = StyleSheet.create({
   metricsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 14 },
   metricCard: {
     flex: 1, minWidth: '44%',
-    backgroundColor: theme.surface, borderRadius: 12,
-    borderWidth: 1, borderColor: theme.border,
+    backgroundColor: 'rgba(24,27,33,0.92)',
+    borderRadius: 14,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
     padding: 14,
+    shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 12, shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
   },
   metricIconWrap: {
     width: 30, height: 30, borderRadius: 8,
@@ -350,13 +353,17 @@ const styles = StyleSheet.create({
   birthdayMore:  { fontSize: 11, color: theme.textMuted, marginTop: 2 },
 
   card: {
-    backgroundColor: theme.surface, borderRadius: 12,
-    borderWidth: 1, borderColor: theme.border, marginBottom: 14, overflow: 'hidden',
+    backgroundColor: 'rgba(24,27,33,0.92)',
+    borderRadius: 14,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
+    marginBottom: 14, overflow: 'hidden',
+    shadowColor: '#000', shadowOpacity: 0.30, shadowRadius: 10, shadowOffset: { width: 0, height: 3 },
+    elevation: 3,
   },
   sectionHeader: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     padding: 14, paddingBottom: 12,
-    borderBottomWidth: 1, borderBottomColor: theme.border,
+    borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.06)',
   },
   sectionAccent: { width: 3, height: 16, borderRadius: 2, backgroundColor: theme.gold },
   sectionTitle:  { fontSize: 13, fontWeight: '800', color: theme.gold, flex: 1, letterSpacing: 0.3 },

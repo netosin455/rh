@@ -383,8 +383,8 @@ const styles = StyleSheet.create({
 
   noticeCard: {
     flexDirection: 'row',
-    backgroundColor: theme.surface,
-    borderBottomWidth: 1, borderBottomColor: theme.border,
+    backgroundColor: 'rgba(24,27,33,0.92)',
+    borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.06)',
   },
   noticePinned:  { backgroundColor: theme.goldGlow },
   priorityBar:   { width: 4 },

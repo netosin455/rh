@@ -1,47 +1,47 @@
 // ============================================================
-// TEMA SUPERRH — Escritório de Advocacia
-// Paleta: Preto Profundo + Dourado + Branco
+// TEMA SUPERRH — Modern Law
+// Paleta: Grafite Profundo + Champagne Gold + Off-White
 // ============================================================
 
 export const theme = {
   // ── Fundos ──────────────────────────────────────────────
-  bg:           '#141210',   // carvão quente (fundo das telas)
-  surface:      '#1C1916',   // superfície principal (cards, sidebar)
-  surface2:     '#242018',   // superfície elevada (modais, hover)
-  surface3:     '#2C261E',   // superfície mais elevada
+  bg:           '#0F1115',   // grafite profundo
+  surface:      '#181B21',   // card glassmorphism base
+  surface2:     '#1F2229',   // superfície elevada (modais)
+  surface3:     '#272B34',   // superfície mais elevada
 
-  // ── Dourado ─────────────────────────────────────────────
-  gold:         '#D4AF50',   // dourado principal (ligeiramente mais brilhante)
-  goldLight:    '#EDD98A',   // dourado claro (texto sobre escuro)
-  goldDim:      'rgba(212,175,80,0.18)', // dourado translúcido (fundo de badges)
-  goldGlow:     'rgba(212,175,80,0.12)', // brilho suave
+  // ── Champagne Gold — metal precioso, uso esparso ─────────
+  gold:         '#D4AF37',   // champagne gold
+  goldLight:    '#E8CB6A',   // gold claro para texto
+  goldDim:      'rgba(212,175,55,0.12)', // toque sutil de gold
+  goldGlow:     'rgba(212,175,55,0.07)', // brilho quase imperceptível
 
-  // ── Bordas ──────────────────────────────────────────────
-  border:       'rgba(212,175,80,0.22)', // borda padrão (dourado visível)
-  border2:      'rgba(212,175,80,0.42)', // borda enfatizada
-  borderWhite:  'rgba(255,255,255,0.10)', // borda neutra
+  // ── Bordas glass ────────────────────────────────────────
+  border:       'rgba(255,255,255,0.07)', // borda glass neutra
+  border2:      'rgba(212,175,55,0.28)',  // borda gold enfatizada
+  borderWhite:  'rgba(255,255,255,0.10)', // borda branca
 
   // ── Textos ──────────────────────────────────────────────
   white:        '#FFFFFF',
-  text:         '#FFFFFF',   // texto principal — branco puro
-  textMuted:    '#9A9890',   // texto secundário (ligeiramente mais claro)
-  textLight:    '#C8C5BC',   // texto intermediário
+  text:         '#E5E7EB',   // off-white principal
+  textMuted:    '#6B7280',   // cinza médio
+  textLight:    '#9CA3AF',   // cinza claro
 
   // ── Status ──────────────────────────────────────────────
-  success:      '#2EBD7C',
-  warning:      '#F59E0B',
-  danger:       '#E05252',
-  info:         '#4A8FD4',
+  success:      '#34D399',
+  warning:      '#FBBF24',
+  danger:       '#F87171',
+  info:         '#60A5FA',
 
   // ── Categorias jurídicas ─────────────────────────────────
   category: {
-    civel:       '#C9A84C', // dourado
-    trabalhista: '#4A8FD4', // azul
-    tributario:  '#E05252', // vermelho
-    familia:     '#9B72CF', // roxo
-    criminal:    '#E8955A', // laranja
-    empresarial: '#2EBD7C', // verde
-    outro:       '#8A887F', // cinza
+    civel:       '#D4AF37', // champagne gold
+    trabalhista: '#60A5FA', // azul
+    tributario:  '#F87171', // vermelho
+    familia:     '#A78BFA', // roxo
+    criminal:    '#FB923C', // laranja
+    empresarial: '#34D399', // verde
+    outro:       '#6B7280', // cinza
   },
 } as const;
 

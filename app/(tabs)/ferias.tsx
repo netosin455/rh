@@ -435,9 +435,11 @@ const styles = StyleSheet.create({
 
   card: {
     flexDirection: 'row',
-    backgroundColor: theme.surface,
-    borderRadius: 10, borderWidth: 1, borderColor: theme.border,
+    backgroundColor: 'rgba(24,27,33,0.92)',
+    borderRadius: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)',
     marginBottom: 10, overflow: 'hidden',
+    shadowColor: '#000', shadowOpacity: 0.28, shadowRadius: 10, shadowOffset: { width: 0, height: 3 },
+    elevation: 3,
   },
   cardAccent: { width: 4 },
   cardBody:   { flex: 1, padding: 14 },
