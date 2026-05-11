@@ -1,6 +1,4 @@
-// ============================================================
-// api/employees/[id].ts — GET PUT DELETE /api/employees/:id
-// ============================================================
+// api/employees/item.ts — GET PUT DELETE /api/employees/:id
 
 import type { Request as VercelRequest, Response as VercelResponse } from 'express';
 import { sql, cors, authenticate, err, CAN_MANAGE_EMPLOYEES } from '../_lib';
@@ -66,10 +64,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!['super_admin','admin'].includes(ctx.role)) {
       return err(res, 403, 'Sem permissão');
     }
-    await sql`
-      DELETE FROM employees
-      WHERE id = ${id} AND company_id = ${ctx.company_id}
-    `;
+    await sql`DELETE FROM employees WHERE id = ${id} AND company_id = ${ctx.company_id}`;
     return res.status(204).end();
   }
 

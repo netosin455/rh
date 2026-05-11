@@ -1,7 +1,4 @@
-// ============================================================
-// api/absences/[id].ts — DELETE /api/absences/:id
-//                        PATCH  /api/absences/:id/approve
-// ============================================================
+// api/absences/item.ts — PATCH DELETE /api/absences/:id
 
 import type { Request as VercelRequest, Response as VercelResponse } from 'express';
 import { sql, cors, authenticate, err, CAN_MANAGE_EMPLOYEES, CAN_APPROVE_ABSENCES } from '../_lib';
@@ -43,10 +40,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!CAN_MANAGE_EMPLOYEES.includes(ctx.role)) {
       return err(res, 403, 'Sem permissão');
     }
-    await sql`
-      DELETE FROM absences
-      WHERE id = ${id} AND company_id = ${ctx.company_id}
-    `;
+    await sql`DELETE FROM absences WHERE id = ${id} AND company_id = ${ctx.company_id}`;
     return res.status(204).end();
   }
 

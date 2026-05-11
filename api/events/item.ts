@@ -1,6 +1,4 @@
-// ============================================================
-// api/events/[id].ts — GET PUT DELETE /api/events/:id
-// ============================================================
+// api/events/item.ts — GET PUT DELETE /api/events/:id
 
 import type { Request as VercelRequest, Response as VercelResponse } from 'express';
 import { sql, cors, authenticate, err } from '../_lib';
@@ -19,9 +17,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === 'GET') {
     const rows = await sql`
       SELECT * FROM events
-      WHERE id = ${id}
-        AND company_id = ${ctx.company_id}
-        AND user_id    = ${ctx.sub}
+      WHERE id = ${id} AND company_id = ${ctx.company_id} AND user_id = ${ctx.sub}
     `;
     if (!rows[0]) return err(res, 404, 'Evento não encontrado');
     return res.json(rows[0]);
@@ -46,9 +42,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         case_id     = COALESCE(${case_id     ?? null}, case_id),
         location    = COALESCE(${location    ?? null}, location),
         is_all_day  = COALESCE(${is_all_day  ?? null}, is_all_day)
-      WHERE id         = ${id}
-        AND company_id = ${ctx.company_id}
-        AND user_id    = ${ctx.sub}
+      WHERE id = ${id} AND company_id = ${ctx.company_id} AND user_id = ${ctx.sub}
       RETURNING *
     `;
     if (!rows[0]) return err(res, 404, 'Evento não encontrado');
@@ -59,9 +53,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === 'DELETE') {
     await sql`
       DELETE FROM events
-      WHERE id         = ${id}
-        AND company_id = ${ctx.company_id}
-        AND user_id    = ${ctx.sub}
+      WHERE id = ${id} AND company_id = ${ctx.company_id} AND user_id = ${ctx.sub}
     `;
     return res.status(204).end();
   }

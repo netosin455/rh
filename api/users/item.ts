@@ -1,7 +1,5 @@
-// ============================================================
-// api/users/[id].ts — GET PUT DELETE /api/users/:id
+// api/users/item.ts — GET PUT DELETE /api/users/:id
 // Apenas super_admin
-// ============================================================
 
 import type { Request as VercelRequest, Response as VercelResponse } from 'express';
 import bcrypt from 'bcryptjs';

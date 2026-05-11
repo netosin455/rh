@@ -1,6 +1,4 @@
-// ============================================================
-// api/notices/[id].ts — GET PUT PATCH DELETE /api/notices/:id
-// ============================================================
+// api/notices/item.ts — GET PUT PATCH DELETE /api/notices/:id
 
 import type { Request as VercelRequest, Response as VercelResponse } from 'express';
 import { sql, cors, authenticate, err, CAN_MANAGE_EMPLOYEES } from '../_lib';
@@ -19,8 +17,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === 'GET') {
     const rows = await sql`
       SELECT n.*, u.name AS author_name
-      FROM notices n
-      JOIN users u ON u.id = n.author_id
+      FROM notices n JOIN users u ON u.id = n.author_id
       WHERE n.id = ${id} AND n.company_id = ${ctx.company_id}
     `;
     if (!rows[0]) return err(res, 404, 'Aviso não encontrado');
@@ -29,11 +26,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // ── PUT ───────────────────────────────────────────────────
   if (req.method === 'PUT') {
-    if (!CAN_MANAGE_EMPLOYEES.includes(ctx.role)) {
-      return err(res, 403, 'Sem permissão');
-    }
+    if (!CAN_MANAGE_EMPLOYEES.includes(ctx.role)) return err(res, 403, 'Sem permissão');
     const { title, body, priority, pinned, expires_at } = req.body ?? {};
-
     const rows = await sql`
       UPDATE notices SET
         title      = COALESCE(${title      ?? null}, title),
@@ -48,15 +42,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.json(rows[0]);
   }
 
-  // ── PATCH /pin ────────────────────────────────────────────
+  // ── PATCH ─────────────────────────────────────────────────
   if (req.method === 'PATCH') {
-    if (!CAN_MANAGE_EMPLOYEES.includes(ctx.role)) {
-      return err(res, 403, 'Sem permissão');
-    }
+    if (!CAN_MANAGE_EMPLOYEES.includes(ctx.role)) return err(res, 403, 'Sem permissão');
     const { pinned } = req.body ?? {};
-    if (typeof pinned !== 'boolean') {
-      return err(res, 400, 'Campo "pinned" deve ser boolean');
-    }
+    if (typeof pinned !== 'boolean') return err(res, 400, 'Campo "pinned" deve ser boolean');
     const rows = await sql`
       UPDATE notices SET pinned = ${pinned}
       WHERE id = ${id} AND company_id = ${ctx.company_id}
@@ -68,9 +58,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // ── DELETE ────────────────────────────────────────────────
   if (req.method === 'DELETE') {
-    if (!CAN_MANAGE_EMPLOYEES.includes(ctx.role)) {
-      return err(res, 403, 'Sem permissão');
-    }
+    if (!CAN_MANAGE_EMPLOYEES.includes(ctx.role)) return err(res, 403, 'Sem permissão');
     await sql`DELETE FROM notices WHERE id = ${id} AND company_id = ${ctx.company_id}`;
     return res.status(204).end();
   }
