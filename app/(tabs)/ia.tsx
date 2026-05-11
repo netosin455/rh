@@ -1,5 +1,5 @@
 // ============================================================
-// app/(tabs)/ia.tsx — SuperRH  Assistente IA (Groq)
+// app/(tabs)/ia.tsx — SuperRH Assistente IA (Groq)
 // ============================================================
 
 import React, { useState, useRef, useCallback } from 'react';
@@ -16,10 +16,10 @@ import { useAuth } from '../../contextos/Autenticacao';
 import { theme } from '../../estilo/cores';
 
 const SUGGESTIONS = [
-  'Quem tem férias pendentes?',
-  'Quais eventos tenho hoje?',
-  'Mostre os colaboradores ativos',
-  'Quem faz aniversário essa semana?',
+  { label: 'Férias pendentes',    text: 'Quem tem férias pendentes de aprovação?' },
+  { label: 'Eventos de hoje',     text: 'Quais eventos tenho agendados para hoje?' },
+  { label: 'Colaboradores ativos', text: 'Quais colaboradores estão ativos no momento?' },
+  { label: 'Aniversários',        text: 'Quem faz aniversário essa semana?' },
 ];
 
 let msgId = 0;
@@ -76,7 +76,7 @@ export default function IAScreen() {
     return date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
   }
 
-  const renderItem = ({ item, index }: { item: ChatMessage; index: number }) => {
+  const renderItem = ({ item }: { item: ChatMessage }) => {
     const isUser = item.role === 'user';
     return (
       <Animated.View
@@ -104,6 +104,16 @@ export default function IAScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 0}
     >
+      {/* Header modelo */}
+      <View style={styles.modelHeader}>
+        <View style={styles.modelDot} />
+        <Text style={styles.modelName}>Groq · Llama 3</Text>
+        <View style={styles.modelStatus}>
+          <View style={styles.statusDot} />
+          <Text style={styles.statusText}>Online</Text>
+        </View>
+      </View>
+
       {/* Lista de mensagens */}
       <FlatList
         ref={listRef}
@@ -126,14 +136,15 @@ export default function IAScreen() {
         ) : null}
       />
 
-      {/* Sugestões — só quando há apenas 1 mensagem (a intro) */}
+      {/* Sugestões — só quando há apenas 1 mensagem */}
       {messages.length === 1 && !loading && (
         <View style={styles.suggestions}>
-          <Text style={styles.suggestionsLabel}>Sugestões</Text>
+          <Text style={styles.suggestionsLabel}>SUGESTÕES</Text>
           <View style={styles.suggestionsGrid}>
             {SUGGESTIONS.map(s => (
-              <TouchableOpacity key={s} style={styles.suggestionChip} onPress={() => send(s)}>
-                <Text style={styles.suggestionText}>{s}</Text>
+              <TouchableOpacity key={s.text} style={styles.suggestionChip} onPress={() => send(s.text)}>
+                <Ionicons name="sparkles-outline" size={11} color={theme.gold} />
+                <Text style={styles.suggestionText}>{s.label}</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -144,7 +155,7 @@ export default function IAScreen() {
       <View style={styles.inputRow}>
         <TextInput
           style={styles.input}
-          placeholder="Pergunte algo..."
+          placeholder="Pergunte algo sobre a equipe..."
           placeholderTextColor={theme.textMuted}
           value={input}
           onChangeText={setInput}
@@ -170,22 +181,32 @@ export default function IAScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.bg },
 
+  modelHeader: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingHorizontal: 16, paddingVertical: 10,
+    backgroundColor: theme.surface,
+    borderBottomWidth: 1, borderBottomColor: theme.border,
+  },
+  modelDot:  { width: 6, height: 6, borderRadius: 3, backgroundColor: theme.gold },
+  modelName: { fontSize: 12, color: theme.textLight, fontWeight: '600', flex: 1 },
+  modelStatus: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  statusDot:  { width: 6, height: 6, borderRadius: 3, backgroundColor: theme.success },
+  statusText: { fontSize: 11, color: theme.success },
+
   listContent: { padding: 16, paddingBottom: 8 },
 
-  msgWrapper:          { flexDirection: 'row', marginBottom: 12, gap: 8 },
+  msgWrapper:          { flexDirection: 'row', marginBottom: 14, gap: 8 },
   msgWrapperUser:      { justifyContent: 'flex-end' },
   msgWrapperAssistant: { justifyContent: 'flex-start' },
 
   avatar: {
-    width: 28, height: 28, borderRadius: 14,
+    width: 30, height: 30, borderRadius: 15,
     backgroundColor: theme.goldDim, borderWidth: 1, borderColor: theme.border2,
     alignItems: 'center', justifyContent: 'center',
     alignSelf: 'flex-end',
   },
 
-  bubble: {
-    maxWidth: '80%', borderRadius: 14, padding: 12,
-  },
+  bubble: { maxWidth: '80%', borderRadius: 16, padding: 12 },
   bubbleAssistant: {
     backgroundColor: theme.surface,
     borderWidth: 1, borderColor: theme.border,
@@ -195,26 +216,27 @@ const styles = StyleSheet.create({
     backgroundColor: theme.gold,
     borderBottomRightRadius: 4,
   },
-  bubbleText:     { fontSize: 14, color: theme.text, lineHeight: 20 },
+  bubbleText:     { fontSize: 14, color: theme.text, lineHeight: 21 },
   bubbleTextUser: { color: '#000' },
-  timestamp:      { fontSize: 10, color: theme.textMuted, marginTop: 4, textAlign: 'right' },
+  timestamp:      { fontSize: 10, color: theme.textMuted, marginTop: 5, textAlign: 'right' },
   timestampUser:  { color: 'rgba(0,0,0,0.5)' },
 
   typingRow: { flexDirection: 'row', gap: 8, marginBottom: 12, alignItems: 'flex-end' },
   typingBubble: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.border,
-    borderRadius: 14, borderBottomLeftRadius: 4, padding: 12,
+    borderRadius: 16, borderBottomLeftRadius: 4, padding: 12,
   },
   typingText: { fontSize: 12, color: theme.textMuted },
 
-  suggestions:      { paddingHorizontal: 16, paddingBottom: 8 },
-  suggestionsLabel: { fontSize: 10, color: theme.textMuted, marginBottom: 8, letterSpacing: 1 },
+  suggestions:      { paddingHorizontal: 14, paddingBottom: 8 },
+  suggestionsLabel: { fontSize: 9, color: theme.textMuted, marginBottom: 8, letterSpacing: 1.5, fontWeight: '700' },
   suggestionsGrid:  { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   suggestionChip: {
-    paddingHorizontal: 12, paddingVertical: 7,
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 12, paddingVertical: 8,
     backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.border2,
-    borderRadius: 16,
+    borderRadius: 20,
   },
   suggestionText: { fontSize: 12, color: theme.goldLight },
 
@@ -227,12 +249,12 @@ const styles = StyleSheet.create({
   input: {
     flex: 1, backgroundColor: theme.surface2,
     borderWidth: 1, borderColor: theme.border,
-    borderRadius: 20, paddingHorizontal: 14,
+    borderRadius: 22, paddingHorizontal: 16,
     paddingVertical: 10, fontSize: 14, color: theme.text,
     maxHeight: 100,
   },
   sendBtn: {
-    width: 36, height: 36, borderRadius: 18,
+    width: 38, height: 38, borderRadius: 19,
     backgroundColor: theme.gold,
     alignItems: 'center', justifyContent: 'center',
   },

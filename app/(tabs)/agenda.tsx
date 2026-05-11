@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
   StyleSheet, ActivityIndicator, RefreshControl, Modal,
-  KeyboardAvoidingView, Platform, Alert,
+  KeyboardAvoidingView, Platform,
 } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
@@ -61,15 +61,16 @@ export default function AgendaScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [showModal,  setShowModal]  = useState(false);
   const [saving,     setSaving]     = useState(false);
+  const [formError,  setFormError]  = useState('');
   const [form,       setForm]       = useState({
-    title:      '',
-    date:       today,
-    start_time: '',
-    end_time:   '',
-    category:   'outro' as EventCategory,
-    location:   '',
-    description:'',
-    is_all_day: false,
+    title:       '',
+    date:        today,
+    start_time:  '',
+    end_time:    '',
+    category:    'outro' as EventCategory,
+    location:    '',
+    description: '',
+    is_all_day:  false,
   });
 
   const monthKey = `${year}-${String(month + 1).padStart(2, '0')}`;
@@ -127,18 +128,20 @@ export default function AgendaScreen() {
   const selectedBirthdays = birthdaysByDate[selected] ?? [];
   const weeks = buildCalendar(year, month);
 
-  function set(field: string, value: any) {
+  function setF(field: string, value: any) {
     setForm(f => ({ ...f, [field]: value }));
   }
 
   function openModal() {
     setForm(f => ({ ...f, date: selected }));
+    setFormError('');
     setShowModal(true);
   }
 
   async function handleSave() {
-    if (!form.title.trim()) return Alert.alert('Campo obrigatório', 'Informe o título do evento.');
-    if (!form.date)         return Alert.alert('Campo obrigatório', 'Informe a data.');
+    setFormError('');
+    if (!form.title.trim()) { setFormError('Informe o título do evento.'); return; }
+    if (!form.date)         { setFormError('Informe a data do evento.'); return; }
 
     setSaving(true);
     try {
@@ -158,7 +161,7 @@ export default function AgendaScreen() {
       setShowModal(false);
       setForm({ title: '', date: today, start_time: '', end_time: '', category: 'outro', location: '', description: '', is_all_day: false });
     } catch (e: any) {
-      Alert.alert('Erro', e.message || 'Não foi possível salvar.');
+      setFormError(e.message || 'Não foi possível salvar. Tente novamente.');
     } finally {
       setSaving(false);
     }
@@ -169,11 +172,14 @@ export default function AgendaScreen() {
       {/* Cabeçalho do calendário */}
       <View style={styles.calendarHeader}>
         <TouchableOpacity onPress={prevMonth} style={styles.navBtn}>
-          <Ionicons name="chevron-back" size={18} color={theme.gold} />
+          <Ionicons name="chevron-back" size={20} color={theme.gold} />
         </TouchableOpacity>
-        <Text style={styles.monthTitle}>{MONTH_NAMES[month]} {year}</Text>
+        <View style={styles.monthWrap}>
+          <Text style={styles.monthTitle}>{MONTH_NAMES[month]}</Text>
+          <Text style={styles.monthYear}>{year}</Text>
+        </View>
         <TouchableOpacity onPress={nextMonth} style={styles.navBtn}>
-          <Ionicons name="chevron-forward" size={18} color={theme.gold} />
+          <Ionicons name="chevron-forward" size={20} color={theme.gold} />
         </TouchableOpacity>
       </View>
 
@@ -197,16 +203,24 @@ export default function AgendaScreen() {
                 if (!dateStr) return <View key={di} style={styles.dayCell} />;
                 const isToday    = dateStr === today;
                 const isSelected = dateStr === selected;
-                const dots       = (eventsByDate[dateStr] || []).slice(0, 2);
+                const dots       = (eventsByDate[dateStr] || []).slice(0, 3);
                 const hasBirthday = (birthdaysByDate[dateStr] || []).length > 0;
                 return (
                   <TouchableOpacity
                     key={di}
-                    style={[styles.dayCell, isSelected && styles.dayCellSelected, isToday && !isSelected && styles.dayCellToday]}
+                    style={[
+                      styles.dayCell,
+                      isSelected && styles.dayCellSelected,
+                      isToday && !isSelected && styles.dayCellToday,
+                    ]}
                     onPress={() => setSelected(dateStr)}
                     activeOpacity={0.7}
                   >
-                    <Text style={[styles.dayText, isSelected && styles.dayTextSelected, isToday && !isSelected && styles.dayTextToday]}>
+                    <Text style={[
+                      styles.dayText,
+                      isSelected && styles.dayTextSelected,
+                      isToday && !isSelected && styles.dayTextToday,
+                    ]}>
                       {Number(dateStr.slice(8))}
                     </Text>
                     {(dots.length > 0 || hasBirthday) && (
@@ -229,7 +243,7 @@ export default function AgendaScreen() {
 
       <View style={styles.divider} />
 
-      {/* Header da lista de eventos */}
+      {/* Header da lista */}
       <View style={styles.eventsHeader}>
         <Text style={styles.eventsTitle}>
           {selected === today ? 'Hoje' : formatDateDisplay(selected)}
@@ -257,12 +271,17 @@ export default function AgendaScreen() {
             ))}
           </View>
         )}
+
         {selectedEvents.length === 0 && selectedBirthdays.length === 0 ? (
           <View style={styles.empty}>
             <Ionicons name="calendar-outline" size={36} color={theme.textMuted} />
             <Text style={styles.emptyText}>Nenhum evento neste dia</Text>
+            <TouchableOpacity style={styles.emptyAddBtn} onPress={openModal}>
+              <Ionicons name="add" size={14} color={theme.gold} />
+              <Text style={styles.emptyAddText}>Adicionar evento</Text>
+            </TouchableOpacity>
           </View>
-        ) : selectedEvents.length > 0 ? (
+        ) : (
           selectedEvents
             .sort((a, b) => (a.start_time ?? '').localeCompare(b.start_time ?? ''))
             .map((evt, i) => (
@@ -284,12 +303,14 @@ export default function AgendaScreen() {
                       </View>
                       {evt.location && <Text style={styles.eventMetaText}>{evt.location}</Text>}
                     </View>
-                    {evt.description ? <Text style={styles.eventDesc} numberOfLines={2}>{evt.description}</Text> : null}
+                    {evt.description ? (
+                      <Text style={styles.eventDesc} numberOfLines={2}>{evt.description}</Text>
+                    ) : null}
                   </View>
                 </TouchableOpacity>
               </Animated.View>
             ))
-        ) : null}
+        )}
         <View style={{ height: 80 }} />
       </ScrollView>
 
@@ -302,18 +323,21 @@ export default function AgendaScreen() {
       <Modal visible={showModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowModal(false)}>
         <KeyboardAvoidingView style={styles.modal} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Novo Evento</Text>
-            <TouchableOpacity onPress={() => setShowModal(false)}>
-              <Ionicons name="close" size={22} color={theme.textMuted} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.modalTitle}>Novo Evento</Text>
+              <Text style={styles.modalSubtitle}>Audiência, reunião, prazo ou outro</Text>
+            </View>
+            <TouchableOpacity onPress={() => setShowModal(false)} style={styles.modalClose}>
+              <Ionicons name="close" size={20} color={theme.textMuted} />
             </TouchableOpacity>
           </View>
 
           <ScrollView style={styles.modalBody} keyboardShouldPersistTaps="handled">
             <Text style={styles.label}>Título *</Text>
-            <TextInput style={styles.input} placeholder="Ex: Audiência — Processo 0012847" placeholderTextColor={theme.textMuted} value={form.title} onChangeText={v => set('title', v)} />
+            <TextInput style={styles.input} placeholder="Ex: Audiência — Processo 0012847" placeholderTextColor={theme.textMuted} value={form.title} onChangeText={v => setF('title', v)} />
 
             <Text style={styles.label}>Data * (AAAA-MM-DD)</Text>
-            <TextInput style={styles.input} placeholder="2024-07-15" placeholderTextColor={theme.textMuted} value={form.date} onChangeText={v => set('date', v)} />
+            <TextInput style={styles.input} placeholder="2024-07-15" placeholderTextColor={theme.textMuted} value={form.date} onChangeText={v => setF('date', v)} />
 
             <Text style={styles.label}>Categoria</Text>
             <View style={styles.chipGroup}>
@@ -321,7 +345,7 @@ export default function AgendaScreen() {
                 <TouchableOpacity
                   key={o.key}
                   style={[styles.chip, form.category === o.key && styles.chipActive]}
-                  onPress={() => set('category', o.key)}
+                  onPress={() => setF('category', o.key)}
                 >
                   <View style={[styles.chipDot, { backgroundColor: EVENT_CATEGORY_COLORS[o.key] }]} />
                   <Text style={[styles.chipText, form.category === o.key && styles.chipTextActive]}>{o.label}</Text>
@@ -329,14 +353,19 @@ export default function AgendaScreen() {
               ))}
             </View>
 
-            <Text style={styles.label}>Horário Início (HH:mm)</Text>
-            <TextInput style={styles.input} placeholder="09:00" placeholderTextColor={theme.textMuted} value={form.start_time} onChangeText={v => set('start_time', v)} />
-
-            <Text style={styles.label}>Horário Fim (HH:mm)</Text>
-            <TextInput style={styles.input} placeholder="10:30" placeholderTextColor={theme.textMuted} value={form.end_time} onChangeText={v => set('end_time', v)} />
+            <View style={styles.timeRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.label}>Início (HH:mm)</Text>
+                <TextInput style={styles.input} placeholder="09:00" placeholderTextColor={theme.textMuted} value={form.start_time} onChangeText={v => setF('start_time', v)} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.label}>Fim (HH:mm)</Text>
+                <TextInput style={styles.input} placeholder="10:30" placeholderTextColor={theme.textMuted} value={form.end_time} onChangeText={v => setF('end_time', v)} />
+              </View>
+            </View>
 
             <Text style={styles.label}>Local</Text>
-            <TextInput style={styles.input} placeholder="Ex: Fórum Central, Sala 5" placeholderTextColor={theme.textMuted} value={form.location} onChangeText={v => set('location', v)} />
+            <TextInput style={styles.input} placeholder="Ex: Fórum Central, Sala 5" placeholderTextColor={theme.textMuted} value={form.location} onChangeText={v => setF('location', v)} />
 
             <Text style={styles.label}>Descrição</Text>
             <TextInput
@@ -344,13 +373,19 @@ export default function AgendaScreen() {
               placeholder="Detalhes do evento..."
               placeholderTextColor={theme.textMuted}
               value={form.description}
-              onChangeText={v => set('description', v)}
-              multiline
-              numberOfLines={3}
+              onChangeText={v => setF('description', v)}
+              multiline numberOfLines={3}
             />
 
             <View style={{ height: 20 }} />
           </ScrollView>
+
+          {formError ? (
+            <View style={styles.errorBox}>
+              <Ionicons name="alert-circle-outline" size={15} color={theme.danger} />
+              <Text style={styles.errorText}>{formError}</Text>
+            </View>
+          ) : null}
 
           <View style={styles.modalFooter}>
             <TouchableOpacity style={styles.btnCancel} onPress={() => setShowModal(false)}>
@@ -377,43 +412,48 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16, paddingVertical: 12,
     backgroundColor: theme.surface, borderBottomWidth: 1, borderBottomColor: theme.border,
   },
-  navBtn:     { padding: 4 },
-  monthTitle: { fontSize: 15, fontWeight: '700', color: theme.white, letterSpacing: 0.5 },
+  navBtn:     { padding: 6 },
+  monthWrap:  { alignItems: 'center' },
+  monthTitle: { fontSize: 16, fontWeight: '700', color: theme.white },
+  monthYear:  { fontSize: 11, color: theme.gold, letterSpacing: 1 },
 
   weekRow:        { flexDirection: 'row' },
   weekDay: {
     flex: 1, textAlign: 'center', fontSize: 10,
-    color: theme.textMuted, fontWeight: '600', paddingVertical: 6,
+    color: theme.textMuted, fontWeight: '700', paddingVertical: 7,
   },
   weekDayWeekend: { color: theme.gold },
 
   loadingGrid: { height: 200, justifyContent: 'center', alignItems: 'center' },
   grid:        { paddingHorizontal: 8, paddingBottom: 4 },
 
-  dayCell:         { flex: 1, minHeight: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 8, padding: 2 },
+  dayCell:         { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 8, padding: 2 },
   dayCellSelected: { backgroundColor: theme.gold },
   dayCellToday:    { backgroundColor: theme.goldDim, borderWidth: 1, borderColor: theme.border2 },
   dayText:         { fontSize: 13, color: theme.textLight, fontWeight: '500' },
-  dayTextSelected: { color: '#000', fontWeight: '700' },
-  dayTextToday:    { color: theme.gold, fontWeight: '700' },
+  dayTextSelected: { color: '#000', fontWeight: '800' },
+  dayTextToday:    { color: theme.gold, fontWeight: '800' },
   dotsRow:         { flexDirection: 'row', gap: 2, marginTop: 2 },
   dot:             { width: 4, height: 4, borderRadius: 2 },
 
-  divider: { height: 1, backgroundColor: theme.border, marginVertical: 4 },
+  divider: { height: 1, backgroundColor: theme.border },
 
   eventsHeader: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingHorizontal: 16, paddingVertical: 10,
+    borderBottomWidth: 1, borderBottomColor: theme.border,
   },
-  eventsTitle: { fontSize: 14, fontWeight: '600', color: theme.white },
+  eventsTitle: { fontSize: 14, fontWeight: '700', color: theme.white },
   eventsCount: { fontSize: 11, color: theme.textMuted },
 
   eventsList: { flex: 1 },
   empty:      { alignItems: 'center', paddingTop: 40, gap: 10 },
   emptyText:  { fontSize: 13, color: theme.textMuted },
+  emptyAddBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 4, paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1, borderColor: theme.border2 },
+  emptyAddText: { fontSize: 12, color: theme.gold },
 
   birthdaySection: {
-    backgroundColor: theme.goldDim,
+    backgroundColor: theme.goldGlow,
     borderBottomWidth: 1, borderBottomColor: theme.border2,
   },
   birthdayRow: {
@@ -424,42 +464,52 @@ const styles = StyleSheet.create({
   birthdayEmoji: { fontSize: 22 },
   birthdayName:  { fontSize: 14, fontWeight: '600', color: theme.white },
   birthdayRole:  { fontSize: 11, color: theme.gold, marginTop: 1 },
-  eventRow: { flexDirection: 'row', gap: 12, padding: 14, borderBottomWidth: 1, borderBottomColor: theme.border },
+
+  eventRow: {
+    flexDirection: 'row', gap: 12, padding: 14,
+    borderBottomWidth: 1, borderBottomColor: theme.border,
+  },
   eventColor:    { width: 3, borderRadius: 2, minHeight: 40 },
   eventInfo:     { flex: 1 },
-  eventTitle:    { fontSize: 14, fontWeight: '600', color: theme.text, marginBottom: 4 },
+  eventTitle:    { fontSize: 14, fontWeight: '600', color: theme.text, marginBottom: 5 },
   eventMeta:     { flexDirection: 'row', flexWrap: 'wrap', gap: 6, alignItems: 'center' },
   eventMetaText: { fontSize: 11, color: theme.textMuted },
   categoryPill:  { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
-  categoryText:  { fontSize: 10, fontWeight: '600' },
-  eventDesc:     { fontSize: 12, color: theme.textMuted, marginTop: 4 },
+  categoryText:  { fontSize: 10, fontWeight: '700' },
+  eventDesc:     { fontSize: 12, color: theme.textMuted, marginTop: 5 },
 
   fab: {
     position: 'absolute', bottom: 24, right: 20,
-    width: 52, height: 52, borderRadius: 26,
+    width: 54, height: 54, borderRadius: 27,
     backgroundColor: theme.gold,
     alignItems: 'center', justifyContent: 'center',
-    shadowColor: theme.gold, shadowOpacity: 0.5, shadowRadius: 12, shadowOffset: { width: 0, height: 4 },
+    shadowColor: theme.gold, shadowOpacity: 0.5, shadowRadius: 14, shadowOffset: { width: 0, height: 4 },
     elevation: 8,
   },
 
   modal:       { flex: 1, backgroundColor: theme.bg },
   modalHeader: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start',
     paddingHorizontal: 20, paddingVertical: 16,
     borderBottomWidth: 1, borderBottomColor: theme.border,
     backgroundColor: theme.surface,
   },
-  modalTitle: { fontSize: 17, fontWeight: '700', color: theme.white },
-  modalBody:  { flex: 1, paddingHorizontal: 20, paddingTop: 16 },
+  modalTitle:    { fontSize: 17, fontWeight: '700', color: theme.white },
+  modalSubtitle: { fontSize: 12, color: theme.textMuted, marginTop: 2 },
+  modalClose:    { padding: 2 },
+  modalBody:     { flex: 1, paddingHorizontal: 20, paddingTop: 16 },
 
-  label: { fontSize: 11, color: theme.textMuted, fontWeight: '600', letterSpacing: 0.5, marginBottom: 6, marginTop: 14, textTransform: 'uppercase' },
+  label: {
+    fontSize: 11, color: theme.textMuted, fontWeight: '600',
+    letterSpacing: 0.5, marginBottom: 6, marginTop: 14, textTransform: 'uppercase',
+  },
   input: {
     backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.border,
     borderRadius: 8, paddingHorizontal: 14, paddingVertical: 11,
     fontSize: 14, color: theme.text,
   },
-  textarea: { minHeight: 80, textAlignVertical: 'top' },
+  textarea:  { minHeight: 80, textAlignVertical: 'top' },
+  timeRow:   { flexDirection: 'row', gap: 12 },
   chipGroup: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
@@ -471,6 +521,13 @@ const styles = StyleSheet.create({
   chipDot:        { width: 6, height: 6, borderRadius: 3 },
   chipText:       { fontSize: 12, color: theme.textMuted, fontWeight: '500' },
   chipTextActive: { color: theme.gold },
+
+  errorBox: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: 'rgba(224,82,82,0.08)', borderTopWidth: 1, borderTopColor: 'rgba(224,82,82,0.2)',
+    paddingHorizontal: 20, paddingVertical: 10,
+  },
+  errorText: { fontSize: 13, color: theme.danger, flex: 1 },
 
   modalFooter: {
     flexDirection: 'row', gap: 10,

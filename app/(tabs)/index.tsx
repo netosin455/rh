@@ -19,34 +19,7 @@ import { Employee, Event, Absence, Notice } from '../../tipos/modelos';
 import { theme } from '../../estilo/cores';
 import { formatDateDisplay, getTodayString, ymd } from '../../helpers/datas';
 
-function MetricCard({
-  label, value, sub, accent, delay,
-}: {
-  label: string; value: string | number; sub?: string; accent?: string; delay: number;
-}) {
-  return (
-    <Animated.View entering={FadeInDown.delay(delay).duration(350)} style={styles.metricCard}>
-      <View style={styles.metricGoldBar} />
-      <Text style={styles.metricLabel}>{label}</Text>
-      <Text style={[styles.metricValue, accent ? { color: accent } : {}]}>{value}</Text>
-      {sub ? <Text style={styles.metricSub}>{sub}</Text> : null}
-    </Animated.View>
-  );
-}
-
-function SectionHeader({ title, onPress }: { title: string; onPress?: () => void }) {
-  return (
-    <View style={styles.sectionHeader}>
-      <View style={styles.sectionDot} />
-      <Text style={styles.sectionTitle}>{title}</Text>
-      {onPress && (
-        <TouchableOpacity onPress={onPress}>
-          <Text style={styles.sectionLink}>Ver todos →</Text>
-        </TouchableOpacity>
-      )}
-    </View>
-  );
-}
+const WEEKDAY_NAMES = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
 
 const STATUS_COLORS: Record<string, string> = {
   ativo:     theme.success,
@@ -55,6 +28,47 @@ const STATUS_COLORS: Record<string, string> = {
   afastado:  theme.warning,
   desligado: theme.textMuted,
 };
+
+const QUICK_ACTIONS = [
+  { label: 'Colaboradores', icon: 'people-outline',    route: '/(tabs)/colaboradores' as const },
+  { label: 'Férias',        icon: 'umbrella-outline',  route: '/(tabs)/ferias'        as const },
+  { label: 'Avisos',        icon: 'megaphone-outline', route: '/(tabs)/avisos'        as const },
+  { label: 'Agenda',        icon: 'calendar-outline',  route: '/(tabs)/agenda'        as const },
+];
+
+function MetricCard({
+  label, value, sub, accent, delay, icon,
+}: {
+  label: string; value: string | number; sub?: string;
+  accent?: string; delay: number; icon: string;
+}) {
+  const color = accent || theme.gold;
+  return (
+    <Animated.View entering={FadeInDown.delay(delay).duration(350)} style={styles.metricCard}>
+      <View style={[styles.metricIconWrap, { backgroundColor: `${color}18` }]}>
+        <Ionicons name={icon as any} size={15} color={color} />
+      </View>
+      <Text style={[styles.metricValue, { color }]}>{value}</Text>
+      <Text style={styles.metricLabel}>{label}</Text>
+      {sub ? <Text style={styles.metricSub}>{sub}</Text> : null}
+    </Animated.View>
+  );
+}
+
+function SectionHeader({ title, onPress }: { title: string; onPress?: () => void }) {
+  return (
+    <View style={styles.sectionHeader}>
+      <View style={styles.sectionAccent} />
+      <Text style={styles.sectionTitle}>{title}</Text>
+      {onPress && (
+        <TouchableOpacity onPress={onPress} style={styles.sectionLinkBtn}>
+          <Text style={styles.sectionLink}>Ver todos</Text>
+          <Ionicons name="arrow-forward" size={10} color={theme.gold} />
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+}
 
 export default function DashboardScreen() {
   const router = useRouter();
@@ -96,8 +110,8 @@ export default function DashboardScreen() {
 
   const activeEmployees = employees.filter(e => e.status === 'ativo').length;
   const pendingAbsences = absences.length;
-
-  const today = getTodayString();
+  const today           = getTodayString();
+  const todayName       = WEEKDAY_NAMES[new Date(today + 'T00:00:00').getDay()];
 
   const upcomingBirthdays = (() => {
     const DAYS = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
@@ -138,49 +152,84 @@ export default function DashboardScreen() {
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.gold} />
       }
     >
+      {/* Greeting */}
       <Animated.View entering={FadeInDown.duration(300)} style={styles.greeting}>
-        <Text style={styles.greetingLabel}>BOM DIA,</Text>
-        <Text style={styles.greetingName}>{user?.name?.split(' ')[0] || 'Usuário'}</Text>
-        <Text style={styles.greetingDate}>{formatDateDisplay(today)}</Text>
+        <View style={styles.greetingLeft}>
+          <Text style={styles.greetingDay}>{todayName}</Text>
+          <Text style={styles.greetingName}>{user?.name?.split(' ')[0] || 'Usuário'}</Text>
+          <Text style={styles.greetingDate}>{formatDateDisplay(today)}</Text>
+        </View>
+        <View style={styles.greetingBadge}>
+          <Ionicons name="briefcase-outline" size={14} color={theme.gold} />
+          <Text style={styles.greetingRole}>{user?.role?.toUpperCase() ?? 'USER'}</Text>
+        </View>
       </Animated.View>
 
-      <View style={styles.goldDivider} />
+      {/* Quick actions */}
+      <Animated.View entering={FadeInDown.delay(60).duration(300)} style={styles.quickRow}>
+        {QUICK_ACTIONS.map(qa => (
+          <TouchableOpacity
+            key={qa.route}
+            style={styles.quickBtn}
+            onPress={() => router.push(qa.route)}
+            activeOpacity={0.75}
+          >
+            <View style={styles.quickIcon}>
+              <Ionicons name={qa.icon as any} size={18} color={theme.gold} />
+            </View>
+            <Text style={styles.quickLabel}>{qa.label}</Text>
+          </TouchableOpacity>
+        ))}
+      </Animated.View>
 
+      {/* Metrics */}
       <View style={styles.metricsGrid}>
-        <MetricCard label="COLABORADORES" value={activeEmployees} sub="ativos" delay={0} />
-        <MetricCard label="EM FÉRIAS" value={employees.filter(e => e.status === 'ferias').length} sub="colaboradores" delay={80} />
-        <MetricCard label="EVENTOS HOJE" value={events.filter(e => e.date === today).length} sub="agendados" delay={160} />
+        <MetricCard label="Ativos"      value={activeEmployees}
+          icon="people"            delay={80}  />
+        <MetricCard label="Em Férias"   value={employees.filter(e => e.status === 'ferias').length}
+          icon="umbrella"          delay={130} />
+        <MetricCard label="Eventos Hoje" value={events.filter(e => e.date === today).length}
+          icon="calendar"          delay={180} />
         <MetricCard
-          label="FÉRIAS PEND." value={pendingAbsences} sub="aguardando"
-          accent={pendingAbsences > 0 ? theme.warning : undefined} delay={240}
+          label="Férias Pend."  value={pendingAbsences}
+          icon="time"              delay={230}
+          accent={pendingAbsences > 0 ? theme.warning : undefined}
         />
       </View>
 
+      {/* Aniversários */}
       {upcomingBirthdays.length > 0 && (
-        <Animated.View entering={FadeInDown.delay(280).duration(350)} style={styles.birthdayCard}>
-          <Text style={styles.birthdayIcon}>🎂</Text>
+        <Animated.View entering={FadeInDown.delay(260).duration(350)} style={styles.birthdayCard}>
+          <View style={styles.birthdayLeft}>
+            <Text style={styles.birthdayEmoji}>🎂</Text>
+          </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.birthdayTitle}>Aniversários próximos</Text>
-            {upcomingBirthdays.slice(0, 5).map(e => (
-              <Text key={e.id} style={styles.birthdayNames}>
-                <Text style={styles.birthdayDay}>{e.birthdayLabel}: </Text>{e.name}
+            {upcomingBirthdays.slice(0, 4).map(e => (
+              <Text key={e.id} style={styles.birthdayLine}>
+                <Text style={styles.birthdayDay}>{e.birthdayLabel}  </Text>
+                {e.name}
               </Text>
             ))}
-            {upcomingBirthdays.length > 5 && (
-              <Text style={styles.birthdayMore}>+{upcomingBirthdays.length - 5} mais</Text>
+            {upcomingBirthdays.length > 4 && (
+              <Text style={styles.birthdayMore}>+{upcomingBirthdays.length - 4} mais</Text>
             )}
           </View>
         </Animated.View>
       )}
 
-      <Animated.View entering={FadeInDown.delay(300).duration(350)} style={styles.card}>
+      {/* Próximos eventos */}
+      <Animated.View entering={FadeInDown.delay(290).duration(350)} style={styles.card}>
         <SectionHeader title="Próximos eventos" onPress={() => router.push('/(tabs)/agenda')} />
         {events.length === 0 ? (
-          <Text style={styles.empty}>Nenhum evento próximo</Text>
+          <View style={styles.emptyRow}>
+            <Ionicons name="calendar-outline" size={22} color={theme.textMuted} />
+            <Text style={styles.emptyText}>Nenhum evento próximo</Text>
+          </View>
         ) : (
           events.slice(0, 4).map(evt => (
-            <TouchableOpacity key={evt.id} style={styles.eventRow}>
-              <View style={[styles.eventDot, { backgroundColor: evt.color }]} />
+            <TouchableOpacity key={evt.id} style={styles.eventRow} activeOpacity={0.7}>
+              <View style={[styles.eventColorBar, { backgroundColor: evt.color }]} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.eventName}>{evt.title}</Text>
                 <Text style={styles.eventMeta}>
@@ -189,15 +238,20 @@ export default function DashboardScreen() {
                   {evt.location ? ` · ${evt.location}` : ''}
                 </Text>
               </View>
+              <View style={[styles.categoryDot, { backgroundColor: evt.color }]} />
             </TouchableOpacity>
           ))
         )}
       </Animated.View>
 
-      <Animated.View entering={FadeInDown.delay(360).duration(350)} style={styles.card}>
+      {/* Colaboradores */}
+      <Animated.View entering={FadeInDown.delay(340).duration(350)} style={styles.card}>
         <SectionHeader title="Colaboradores" onPress={() => router.push('/(tabs)/colaboradores')} />
         {employees.slice(0, 4).map(emp => (
-          <TouchableOpacity key={emp.id} style={styles.empRow}>
+          <TouchableOpacity
+            key={emp.id} style={styles.empRow} activeOpacity={0.7}
+            onPress={() => router.push(`/colaborador/${emp.id}` as any)}
+          >
             <View style={styles.empAvatar}>
               <Text style={styles.empInitials}>
                 {emp.name.split(' ').map(n => n[0]).slice(0, 2).join('')}
@@ -216,12 +270,13 @@ export default function DashboardScreen() {
         ))}
       </Animated.View>
 
+      {/* Avisos */}
       {notices.length > 0 && (
-        <Animated.View entering={FadeInDown.delay(420).duration(350)} style={styles.card}>
+        <Animated.View entering={FadeInDown.delay(390).duration(350)} style={styles.card}>
           <SectionHeader title="Avisos recentes" onPress={() => router.push('/(tabs)/avisos')} />
           {notices.slice(0, 3).map(n => (
-            <TouchableOpacity key={n.id} style={styles.eventRow} onPress={() => router.push('/(tabs)/avisos')}>
-              <View style={[styles.eventDot, {
+            <TouchableOpacity key={n.id} style={styles.eventRow} activeOpacity={0.7} onPress={() => router.push('/(tabs)/avisos')}>
+              <View style={[styles.eventColorBar, {
                 backgroundColor: n.priority === 'urgente' ? theme.danger : n.priority === 'importante' ? theme.warning : theme.info,
               }]} />
               <View style={{ flex: 1 }}>
@@ -242,47 +297,101 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.bg },
   content:   { padding: 16 },
   centered:  { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.bg },
-  greeting: { paddingHorizontal: 4, paddingTop: 8, marginBottom: 16 },
-  greetingLabel: { fontSize: 10, color: theme.gold, letterSpacing: 2, fontWeight: '600', marginBottom: 2 },
-  greetingName: { fontSize: 22, fontWeight: '700', color: theme.white, marginBottom: 2 },
-  greetingDate: { fontSize: 12, color: theme.textMuted },
-  goldDivider: { height: 1, backgroundColor: theme.gold, opacity: 0.2, marginBottom: 16, marginHorizontal: 4 },
+
+  greeting: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start',
+    marginBottom: 16, paddingHorizontal: 2,
+  },
+  greetingLeft:  {},
+  greetingDay:   { fontSize: 10, color: theme.gold, letterSpacing: 2, fontWeight: '700', textTransform: 'uppercase', marginBottom: 3 },
+  greetingName:  { fontSize: 24, fontWeight: '800', color: theme.white, marginBottom: 2 },
+  greetingDate:  { fontSize: 12, color: theme.textMuted },
+  greetingBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    backgroundColor: theme.goldDim, borderWidth: 1, borderColor: theme.border2,
+    paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20,
+  },
+  greetingRole: { fontSize: 10, color: theme.gold, fontWeight: '700', letterSpacing: 0.8 },
+
+  quickRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
+  quickBtn: { flex: 1, alignItems: 'center', gap: 6 },
+  quickIcon: {
+    width: 46, height: 46, borderRadius: 14,
+    backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.border,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  quickLabel: { fontSize: 9, color: theme.textMuted, fontWeight: '600', textAlign: 'center', letterSpacing: 0.2 },
+
   metricsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 14 },
   metricCard: {
     flex: 1, minWidth: '44%',
-    backgroundColor: theme.surface, borderRadius: 10,
+    backgroundColor: theme.surface, borderRadius: 12,
     borderWidth: 1, borderColor: theme.border,
-    padding: 14, overflow: 'hidden', position: 'relative',
+    padding: 14,
   },
-  metricGoldBar: { position: 'absolute', top: 0, left: 0, right: 0, height: 2, backgroundColor: theme.gold, opacity: 0.5 },
-  metricLabel: { fontSize: 9, color: theme.gold, letterSpacing: 1.5, fontWeight: '600', marginBottom: 6 },
-  metricValue: { fontSize: 26, fontWeight: '700', color: theme.white },
-  metricSub: { fontSize: 11, color: theme.textMuted, marginTop: 3 },
+  metricIconWrap: {
+    width: 30, height: 30, borderRadius: 8,
+    alignItems: 'center', justifyContent: 'center', marginBottom: 10,
+  },
+  metricValue: { fontSize: 28, fontWeight: '800', color: theme.white, marginBottom: 2 },
+  metricLabel: { fontSize: 10, color: theme.textMuted, fontWeight: '600', letterSpacing: 0.5, textTransform: 'uppercase' },
+  metricSub:   { fontSize: 11, color: theme.textMuted, marginTop: 2 },
+
   birthdayCard: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: theme.goldDim, borderWidth: 1, borderColor: theme.border2,
-    borderRadius: 10, padding: 14, marginBottom: 14,
+    flexDirection: 'row', alignItems: 'flex-start', gap: 12,
+    backgroundColor: theme.goldGlow, borderWidth: 1, borderColor: theme.border2,
+    borderRadius: 12, padding: 14, marginBottom: 14,
   },
-  birthdayIcon: { fontSize: 24 },
-  birthdayTitle: { fontSize: 12, color: theme.gold, fontWeight: '600', marginBottom: 4 },
-  birthdayNames: { fontSize: 13, color: theme.text, marginBottom: 1 },
+  birthdayLeft:  { paddingTop: 2 },
+  birthdayEmoji: { fontSize: 24 },
+  birthdayTitle: { fontSize: 11, color: theme.gold, fontWeight: '700', letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 6 },
+  birthdayLine:  { fontSize: 13, color: theme.text, marginBottom: 2 },
   birthdayDay:   { color: theme.gold, fontWeight: '600' },
   birthdayMore:  { fontSize: 11, color: theme.textMuted, marginTop: 2 },
-  card: { backgroundColor: theme.surface, borderRadius: 10, borderWidth: 1, borderColor: theme.border, marginBottom: 14, overflow: 'hidden' },
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 14, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: theme.border },
-  sectionDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: theme.gold },
-  sectionTitle: { fontSize: 13, fontWeight: '600', color: theme.white, flex: 1 },
-  sectionLink: { fontSize: 11, color: theme.gold },
-  empty: { fontSize: 13, color: theme.textMuted, padding: 14 },
-  eventRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, padding: 12, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.03)' },
-  eventDot: { width: 8, height: 8, borderRadius: 4, marginTop: 3 },
-  eventName: { fontSize: 13, color: theme.text, fontWeight: '500' },
-  eventMeta: { fontSize: 11, color: theme.textMuted, marginTop: 2 },
-  empRow: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.03)' },
-  empAvatar: { width: 32, height: 32, borderRadius: 16, backgroundColor: theme.goldDim, borderWidth: 1, borderColor: theme.border2, alignItems: 'center', justifyContent: 'center' },
-  empInitials: { fontSize: 11, fontWeight: '600', color: theme.goldLight },
-  empName: { fontSize: 13, color: theme.text, fontWeight: '500' },
-  empRole: { fontSize: 11, color: theme.textMuted },
-  statusPill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 4 },
-  statusText: { fontSize: 10, fontWeight: '600' },
+
+  card: {
+    backgroundColor: theme.surface, borderRadius: 12,
+    borderWidth: 1, borderColor: theme.border, marginBottom: 14, overflow: 'hidden',
+  },
+  sectionHeader: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    padding: 14, paddingBottom: 12,
+    borderBottomWidth: 1, borderBottomColor: theme.border,
+  },
+  sectionAccent: { width: 3, height: 14, borderRadius: 2, backgroundColor: theme.gold },
+  sectionTitle:  { fontSize: 13, fontWeight: '700', color: theme.white, flex: 1 },
+  sectionLinkBtn: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  sectionLink:   { fontSize: 11, color: theme.gold },
+
+  emptyRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    padding: 16, paddingHorizontal: 14,
+  },
+  emptyText: { fontSize: 13, color: theme.textMuted },
+
+  eventRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    paddingHorizontal: 14, paddingVertical: 12,
+    borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.03)',
+  },
+  eventColorBar: { width: 3, height: 36, borderRadius: 2 },
+  eventName:     { fontSize: 13, color: theme.text, fontWeight: '600', marginBottom: 2 },
+  eventMeta:     { fontSize: 11, color: theme.textMuted },
+  categoryDot:   { width: 6, height: 6, borderRadius: 3 },
+
+  empRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    paddingHorizontal: 14, paddingVertical: 11,
+    borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.03)',
+  },
+  empAvatar: {
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: theme.goldDim, borderWidth: 1, borderColor: theme.border2,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  empInitials: { fontSize: 12, fontWeight: '700', color: theme.goldLight },
+  empName:     { fontSize: 13, color: theme.text, fontWeight: '600' },
+  empRole:     { fontSize: 11, color: theme.textMuted, marginTop: 1 },
+  statusPill:  { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 5 },
+  statusText:  { fontSize: 10, fontWeight: '700', letterSpacing: 0.3 },
 });

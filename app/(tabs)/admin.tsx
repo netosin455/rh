@@ -52,7 +52,7 @@ export default function AdminScreen() {
     try {
       setUsers(await getUsers());
     } catch (e: any) {
-      Alert.alert('Erro', e.message || 'Não foi possível carregar usuários.');
+      console.error('[AdminScreen] Erro ao carregar usuários:', e.message);
     } finally {
       setLoading(false);
       setRefreshing(false);
