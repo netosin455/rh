@@ -49,6 +49,7 @@ export interface Employee {
   birth_date?: string;       // "YYYY-MM-DD"
   hire_date: string;
   department_id?: number;
+  department_name?: string;  // via JOIN
   role_title: string;
   legal_area?: LegalArea;
   oab_number?: string;
