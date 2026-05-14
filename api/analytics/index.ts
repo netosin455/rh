@@ -1,6 +1,6 @@
 // ============================================================
-// api/analytics/index.ts — GET /api/analytics/overview
-// Retorna métricas consolidadas de People Analytics
+// api/analytics/index.ts — GET /api/analytics
+// Retorna métricas consolidadas + alertas proativos de IA
 // ============================================================
 
 import type { Request as VercelRequest, Response as VercelResponse } from 'express';
@@ -24,9 +24,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     absenteeismPrev,
     turnoverRisk,
     urgentCases,
+    onboardingStats,
   ] = await Promise.all([
 
-    // Distribuição por status (inclui desligados)
+    // Distribuição por status
     sql`
       SELECT status, COUNT(*)::int AS count
       FROM employees
@@ -93,7 +94,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       GROUP BY turnover_risk
     `,
 
-    // Processos urgentes com responsável
+    // Processos jurídicos urgentes
     sql`
       SELECT
         lc.id,
@@ -109,9 +110,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       ORDER BY lc.deadline ASC NULLS LAST
       LIMIT 10
     `,
+
+    // Onboarding em andamento
+    sql`
+      SELECT
+        COUNT(*)::int AS active,
+        COUNT(*) FILTER (WHERE started_at < NOW() - INTERVAL '14 days')::int AS long_running
+      FROM onboarding_processes
+      WHERE company_id = ${cid} AND completed_at IS NULL
+    `.catch(() => [{ active: 0, long_running: 0 }]),
   ]);
 
-  // Monta distribuição de status com percentuais
   const total = (statusDist as any[]).reduce((s, r) => s + r.count, 0);
   const statusMap = Object.fromEntries((statusDist as any[]).map(r => [r.status, r.count]));
 
@@ -123,7 +132,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return { days, pct };
   };
 
-  // Agrupa risco de turnover
   const riskMap: Record<string, { count: number; employees: any[] }> = {
     alto:  { count: 0, employees: [] },
     medio: { count: 0, employees: [] },
@@ -131,6 +139,59 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   };
   for (const row of turnoverRisk as any[]) {
     riskMap[row.risk] = { count: row.count, employees: row.employees ?? [] };
+  }
+
+  const currAbs = buildAbsenteeism((absenteeismCurrent as any[])[0]);
+  const ob      = (onboardingStats as any[])[0] ?? { active: 0, long_running: 0 };
+
+  // Geração de alertas proativos
+  const alerts: any[] = [];
+
+  if (riskMap.alto.count > 0) {
+    const names = riskMap.alto.employees.slice(0, 2).map((e: any) => e.name).join(', ');
+    const extra = riskMap.alto.count > 2 ? ` +${riskMap.alto.count - 2}` : '';
+    alerts.push({
+      type: 'turnover_risk',
+      severity: 'alta',
+      title: `${riskMap.alto.count} colaborador${riskMap.alto.count > 1 ? 'es' : ''} com alto risco de saída`,
+      description: names + extra,
+      route: 'analytics',
+      icon: 'warning-outline',
+    });
+  }
+
+  if (currAbs.pct >= 5) {
+    alerts.push({
+      type: 'absenteeism',
+      severity: currAbs.pct >= 8 ? 'alta' : 'media',
+      title: `Absenteísmo ${currAbs.pct}% este mês`,
+      description: `${currAbs.days} dias de ausência registrados · meta: <5%`,
+      route: 'analytics',
+      icon: 'trending-up-outline',
+    });
+  }
+
+  if ((urgentCases as any[]).length > 0) {
+    const uc = urgentCases as any[];
+    alerts.push({
+      type: 'juridico',
+      severity: 'alta',
+      title: `${uc.length} processo${uc.length > 1 ? 's' : ''} jurídico${uc.length > 1 ? 's' : ''} urgente${uc.length > 1 ? 's' : ''}`,
+      description: uc[0]?.title ?? '',
+      route: 'analytics',
+      icon: 'briefcase-outline',
+    });
+  }
+
+  if (ob.long_running > 0) {
+    alerts.push({
+      type: 'onboarding',
+      severity: 'media',
+      title: `${ob.long_running} onboarding${ob.long_running > 1 ? 's' : ''} há mais de 14 dias`,
+      description: 'Verifique o progresso das etapas pendentes',
+      route: 'onboarding',
+      icon: 'clipboard-outline',
+    });
   }
 
   return res.json({
@@ -144,10 +205,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     },
     headcount_by_dept:  deptHeadcount,
     absenteeism: {
-      current: buildAbsenteeism(absenteeismCurrent[0]),
-      prev:    buildAbsenteeism(absenteeismPrev[0]),
+      current: currAbs,
+      prev:    buildAbsenteeism((absenteeismPrev as any[])[0]),
     },
     turnover_risk: riskMap,
     urgent_cases:  urgentCases,
+    alerts,
   });
 }

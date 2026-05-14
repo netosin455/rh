@@ -6,7 +6,7 @@
     { "source": "/api/auth/login",          "destination": "/api/auth/login" },
     { "source": "/api/users/:id",           "destination": "/api/users/index?id=:id" },
     { "source": "/api/users",               "destination": "/api/users/index" },
-    { "source": "/api/employees/:id",       "destination": "/api/employees/item?id=:id" },
+    { "source": "/api/employees/:id",       "destination": "/api/employees/index?id=:id" },
     { "source": "/api/employees",           "destination": "/api/employees/index" },
     { "source": "/api/absences/:id",                       "destination": "/api/absences/index?id=:id" },
     { "source": "/api/absences",                          "destination": "/api/absences/index" },

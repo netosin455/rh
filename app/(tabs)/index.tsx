@@ -14,7 +14,8 @@ import { useAuth } from '../../contextos/Autenticacao';
 import { getEmployees } from '../../conexoes/colaboradores';
 import { getUpcomingEvents } from '../../conexoes/eventos';
 import { getNotices } from '../../conexoes/avisos';
-import { Employee, Event, Notice } from '../../tipos/modelos';
+import { getAlerts } from '../../conexoes/analytics';
+import { Employee, Event, Notice, ProactiveAlert } from '../../tipos/modelos';
 import { theme } from '../../estilo/cores';
 import { formatDateDisplay, getTodayString, ymd } from '../../helpers/datas';
 
@@ -76,6 +77,7 @@ export default function DashboardScreen() {
   const [employees,  setEmployees]  = useState<Employee[]>([]);
   const [events,     setEvents]     = useState<Event[]>([]);
   const [notices,    setNotices]    = useState<Notice[]>([]);
+  const [alerts,     setAlerts]     = useState<ProactiveAlert[]>([]);
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -89,6 +91,8 @@ export default function DashboardScreen() {
       setEmployees(emp);
       setEvents(evt);
       setNotices(ntc);
+      // Alertas carregam após o render inicial (non-blocking)
+      getAlerts().then(setAlerts).catch(() => {});
     } catch (err) {
       console.error('[Dashboard] Erro ao carregar dados:', err);
     } finally {
@@ -192,6 +196,38 @@ export default function DashboardScreen() {
           accent={onLeave > 0 ? theme.warning : undefined}
         />
       </View>
+
+      {/* Alertas IA */}
+      {alerts.length > 0 && (
+        <Animated.View entering={FadeInDown.delay(200).duration(350)} style={styles.alertsWrap}>
+          <View style={styles.alertsHeader}>
+            <Ionicons name="sparkles" size={12} color={theme.gold} />
+            <Text style={styles.alertsHeaderText}>ALERTAS INTELIGENTES</Text>
+          </View>
+          {alerts.map((alert, i) => {
+            const color = alert.severity === 'alta' ? theme.danger : theme.warning;
+            return (
+              <TouchableOpacity
+                key={i}
+                style={[styles.alertCard, { borderLeftColor: color }]}
+                onPress={() => router.push(`/${alert.route}` as any)}
+                activeOpacity={0.75}
+              >
+                <View style={[styles.alertIconWrap, { backgroundColor: `${color}18` }]}>
+                  <Ionicons name={alert.icon as any} size={14} color={color} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.alertTitle}>{alert.title}</Text>
+                  {alert.description ? (
+                    <Text style={styles.alertDesc} numberOfLines={1}>{alert.description}</Text>
+                  ) : null}
+                </View>
+                <Ionicons name="chevron-forward" size={13} color={theme.textMuted} />
+              </TouchableOpacity>
+            );
+          })}
+        </Animated.View>
+      )}
 
       {/* Aniversários */}
       {upcomingBirthdays.length > 0 && (
@@ -335,6 +371,32 @@ const styles = StyleSheet.create({
   metricValue: { fontSize: 28, fontWeight: '800', color: theme.gold, marginBottom: 2 },
   metricLabel: { fontSize: 10, color: theme.textLight, fontWeight: '700', letterSpacing: 0.5, textTransform: 'uppercase' },
   metricSub:   { fontSize: 11, color: theme.textMuted, marginTop: 2 },
+
+  alertsWrap: {
+    backgroundColor: 'rgba(24,27,33,0.92)',
+    borderRadius: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
+    marginBottom: 14, overflow: 'hidden',
+  },
+  alertsHeader: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 14, paddingVertical: 10,
+    borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.05)',
+  },
+  alertsHeaderText: {
+    fontSize: 9, fontWeight: '800', color: theme.gold, letterSpacing: 1.5,
+  },
+  alertCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    paddingHorizontal: 14, paddingVertical: 12,
+    borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.03)',
+    borderLeftWidth: 3,
+  },
+  alertIconWrap: {
+    width: 28, height: 28, borderRadius: 8,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  alertTitle: { fontSize: 13, color: theme.white, fontWeight: '600', marginBottom: 1 },
+  alertDesc:  { fontSize: 11, color: theme.textMuted },
 
   birthdayCard: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 12,

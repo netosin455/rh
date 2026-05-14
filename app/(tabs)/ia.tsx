@@ -16,10 +16,10 @@ import { useAuth } from '../../contextos/Autenticacao';
 import { theme } from '../../estilo/cores';
 
 const SUGGESTIONS = [
-  { label: 'Férias pendentes',    text: 'Quem tem férias pendentes de aprovação?' },
-  { label: 'Eventos de hoje',     text: 'Quais eventos tenho agendados para hoje?' },
-  { label: 'Colaboradores ativos', text: 'Quais colaboradores estão ativos no momento?' },
-  { label: 'Aniversários',        text: 'Quem faz aniversário essa semana?' },
+  { label: 'Risco de saída',   text: 'Quais colaboradores têm maior risco de saída da empresa?' },
+  { label: 'Onboarding',       text: 'Como está o andamento dos onboardings em curso?' },
+  { label: 'Pesquisas',        text: 'Quais são os resultados das pesquisas de pulso ativas?' },
+  { label: 'Aniversários',     text: 'Quem faz aniversário essa semana?' },
 ];
 
 let msgId = 0;

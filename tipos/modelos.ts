@@ -259,6 +259,18 @@ export interface AbsenteeismPeriod {
   pct: number;
 }
 
+export type AlertSeverity = 'alta' | 'media';
+export type AlertType = 'turnover_risk' | 'absenteeism' | 'juridico' | 'onboarding';
+
+export interface ProactiveAlert {
+  type:        AlertType;
+  severity:    AlertSeverity;
+  title:       string;
+  description: string;
+  route:       string;
+  icon:        string;
+}
+
 export interface AnalyticsOverview {
   summary: {
     total: number;
@@ -286,6 +298,7 @@ export interface AnalyticsOverview {
     deadline: string | null;
     responsible_name: string | null;
   }[];
+  alerts: ProactiveAlert[];
 }
 
 // ── Chat IA ──────────────────────────────────────────────────
