@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback, Component } from 'react';
 import {
   View, Text, ScrollView, TextInput, TouchableOpacity,
   StyleSheet, ActivityIndicator, Alert, KeyboardAvoidingView,
-  Platform, Linking,
+  Platform, Linking, Modal,
 } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useLocalSearchParams, useRouter } from 'expo-router';
