@@ -166,6 +166,37 @@ export const NOTICE_PRIORITY_LABELS: Record<NoticePriority, string> = {
   urgente:    'Urgente',
 };
 
+// ── Pulse Surveys ────────────────────────────────────────────
+
+export type SurveyType = 'scale' | 'choice';
+
+export interface PulseSurvey {
+  id: number;
+  company_id: number;
+  created_by: number | null;
+  created_by_name?: string;
+  title: string;
+  question: string;
+  type: SurveyType;
+  options: string[] | null;
+  target_dept: number | null;
+  dept_name?: string | null;
+  expires_at?: string | null;
+  created_at: string;
+  response_count?: number;
+}
+
+export interface SurveyResults {
+  survey: PulseSurvey;
+  total_responses: number;
+  results: {
+    avg?: number;                          // scale
+    distribution: Record<string, number>; // scale: {1:n,2:n,...} | choice: {Ótimo:n,...}
+  };
+}
+
+export type CreateSurveyData = Pick<PulseSurvey, 'title' | 'question' | 'type' | 'options' | 'target_dept' | 'expires_at'>;
+
 // ── Analytics ───────────────────────────────────────────────
 
 export type TurnoverRisk = 'alto' | 'medio' | 'baixo';

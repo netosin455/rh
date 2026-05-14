@@ -350,6 +350,33 @@ export default function AnalyticsScreen() {
         </Animated.View>
       )}
 
+      {/* Pesquisas de Pulso — acesso rápido */}
+      <Animated.View entering={FadeInDown.delay(520).duration(350)} style={styles.card}>
+        <View style={styles.sectionHeader}>
+          <View style={styles.sectionAccent} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.sectionTitle}>Pesquisas de Pulso</Text>
+            <Text style={styles.sectionSub}>Colete feedback anônimo da equipe</Text>
+          </View>
+        </View>
+        <TouchableOpacity
+          style={styles.surveyCTA}
+          onPress={() => router.push('/pesquisas' as any)}
+          activeOpacity={0.75}
+        >
+          <View style={styles.surveyCTALeft}>
+            <View style={styles.surveyCTAIcon}>
+              <Ionicons name="clipboard-outline" size={22} color={theme.gold} />
+            </View>
+            <View>
+              <Text style={styles.surveyCTATitle}>Gerenciar pesquisas</Text>
+              <Text style={styles.surveyCTASub}>Criar, compartilhar e ver resultados</Text>
+            </View>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={theme.textMuted} />
+        </TouchableOpacity>
+      </Animated.View>
+
       <View style={{ height: 32 }} />
     </ScrollView>
   );
@@ -471,4 +498,13 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: 'rgba(248,113,113,0.3)',
   },
   urgentBadgeText: { fontSize: 9, color: theme.danger, fontWeight: '800', letterSpacing: 0.5 },
+
+  surveyCTA: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 14, paddingVertical: 14,
+  },
+  surveyCTALeft:  { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  surveyCTAIcon:  { width: 44, height: 44, borderRadius: 12, backgroundColor: theme.goldDim, alignItems: 'center', justifyContent: 'center' },
+  surveyCTATitle: { fontSize: 14, color: theme.white, fontWeight: '700' },
+  surveyCTASub:   { fontSize: 12, color: theme.textMuted, marginTop: 2 },
 });

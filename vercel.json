@@ -12,8 +12,12 @@
     { "source": "/api/absences",            "destination": "/api/absences/index" },
     { "source": "/api/events/:id",          "destination": "/api/events/item?id=:id" },
     { "source": "/api/events",              "destination": "/api/events/index" },
-    { "source": "/api/notices/:id",         "destination": "/api/notices/item?id=:id" },
+    { "source": "/api/notices/:id",         "destination": "/api/notices/index?id=:id" },
     { "source": "/api/notices",             "destination": "/api/notices/index" },
+    { "source": "/api/surveys/:id/results", "destination": "/api/surveys/index?id=:id&results=true" },
+    { "source": "/api/surveys/:id/respond", "destination": "/api/surveys/index?id=:id&respond=true" },
+    { "source": "/api/surveys/:id",         "destination": "/api/surveys/index?id=:id" },
+    { "source": "/api/surveys",             "destination": "/api/surveys/index" },
     { "source": "/api/analytics",           "destination": "/api/analytics/index" },
     { "source": "/api/chat",               "destination": "/api/chat" },
     { "source": "/(.*)",                    "destination": "/index.html" }
