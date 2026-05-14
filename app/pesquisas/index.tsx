@@ -6,7 +6,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
   StyleSheet, ActivityIndicator, RefreshControl, Alert,
-  Share, Switch,
+  Share, Switch, Platform,
 } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
@@ -93,6 +93,16 @@ export default function PesquisasScreen() {
   }
 
   async function handleDelete(s: PulseSurvey) {
+    if (Platform.OS === 'web') {
+      if (!window.confirm(`Excluir "${s.title}"?`)) return;
+      try {
+        await deleteSurvey(s.id);
+        load();
+      } catch (e: any) {
+        window.alert(e?.message ?? 'Erro ao excluir pesquisa');
+      }
+      return;
+    }
     Alert.alert('Excluir', `Excluir "${s.title}"?`, [
       { text: 'Cancelar', style: 'cancel' },
       {
