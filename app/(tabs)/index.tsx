@@ -13,9 +13,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contextos/Autenticacao';
 import { getEmployees } from '../../conexoes/colaboradores';
 import { getUpcomingEvents } from '../../conexoes/eventos';
-import { getAbsences } from '../../conexoes/ausencias';
 import { getNotices } from '../../conexoes/avisos';
-import { Employee, Event, Absence, Notice } from '../../tipos/modelos';
+import { Employee, Event, Notice } from '../../tipos/modelos';
 import { theme } from '../../estilo/cores';
 import { formatDateDisplay, getTodayString, ymd } from '../../helpers/datas';
 
@@ -76,22 +75,19 @@ export default function DashboardScreen() {
 
   const [employees,  setEmployees]  = useState<Employee[]>([]);
   const [events,     setEvents]     = useState<Event[]>([]);
-  const [absences,   setAbsences]   = useState<Absence[]>([]);
   const [notices,    setNotices]    = useState<Notice[]>([]);
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
     try {
-      const [emp, evt, abs, ntc] = await Promise.all([
+      const [emp, evt, ntc] = await Promise.all([
         getEmployees(),
         getUpcomingEvents(5),
-        getAbsences('pendente'),
         getNotices().catch(() => [] as Notice[]),
       ]);
       setEmployees(emp);
       setEvents(evt);
-      setAbsences(abs);
       setNotices(ntc);
     } catch (err) {
       console.error('[Dashboard] Erro ao carregar dados:', err);
@@ -109,7 +105,7 @@ export default function DashboardScreen() {
   }, [load]);
 
   const activeEmployees = employees.filter(e => e.status === 'ativo').length;
-  const pendingAbsences = absences.length;
+  const onLeave         = employees.filter(e => e.status === 'licenca' || e.status === 'afastado').length;
   const today           = getTodayString();
   const todayName       = WEEKDAY_NAMES[new Date(today + 'T00:00:00').getDay()];
 
@@ -191,9 +187,9 @@ export default function DashboardScreen() {
         <MetricCard label="Eventos Hoje" value={events.filter(e => e.date === today).length}
           icon="calendar"          delay={180} />
         <MetricCard
-          label="Férias Pend."  value={pendingAbsences}
-          icon="time"              delay={230}
-          accent={pendingAbsences > 0 ? theme.warning : undefined}
+          label="Em Licença"   value={onLeave}
+          icon="medical"       delay={230}
+          accent={onLeave > 0 ? theme.warning : undefined}
         />
       </View>
 
