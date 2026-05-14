@@ -166,6 +166,45 @@ export const NOTICE_PRIORITY_LABELS: Record<NoticePriority, string> = {
   urgente:    'Urgente',
 };
 
+// ── Onboarding ──────────────────────────────────────────────
+
+export interface OnboardingStep {
+  title:            string;
+  description:      string;
+  responsible_role: string;  // 'rh' | 'gestor' | 'ti' | 'adm'
+  days_deadline:    number;
+}
+
+export interface StepProgress {
+  completed:     boolean;
+  completed_at?: string;
+  completed_by?: string;
+}
+
+export interface OnboardingTemplate {
+  id:         number;
+  company_id: number;
+  name:       string;
+  steps:      OnboardingStep[];
+  is_default: boolean;
+  created_at: string;
+}
+
+export interface OnboardingProcess {
+  id:              number;
+  company_id:      number;
+  employee_id:     number;
+  employee_name?:  string;
+  role_title?:     string;
+  department_name?: string;
+  template_id:     number | null;
+  template_name:   string;
+  steps_snapshot:  OnboardingStep[];
+  steps_progress:  Record<string, StepProgress>;
+  started_at:      string;
+  completed_at:    string | null;
+}
+
 // ── Pulse Surveys ────────────────────────────────────────────
 
 export type SurveyType = 'scale' | 'choice';

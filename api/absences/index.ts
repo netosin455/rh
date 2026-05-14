@@ -1,9 +1,9 @@
 // ============================================================
-// api/absences/index.ts — GET /api/absences  POST /api/absences
+// api/absences/index.ts — /api/absences  e  /api/absences/:id
 // ============================================================
 
 import type { Request as VercelRequest, Response as VercelResponse } from 'express';
-import { sql, cors, authenticate, err } from '../_lib';
+import { sql, cors, authenticate, err, CAN_MANAGE_EMPLOYEES, CAN_APPROVE_ABSENCES } from '../_lib';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   cors(res);
@@ -12,18 +12,51 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   let ctx;
   try { ctx = authenticate(req); } catch (e: any) { return err(res, e.status ?? 401, e.message); }
 
-  // ── GET ───────────────────────────────────────────────────
+  // ── Rotas com :id ─────────────────────────────────────────
+  if (req.query.id) {
+    const id = Number(req.query.id);
+    if (!id) return err(res, 400, 'ID inválido');
+
+    if (req.method === 'PATCH') {
+      if (!CAN_APPROVE_ABSENCES.includes(ctx.role)) {
+        return err(res, 403, 'Sem permissão para aprovar/recusar ausências');
+      }
+      const { approved } = req.body ?? {};
+      if (typeof approved !== 'boolean') return err(res, 400, 'Campo "approved" (boolean) é obrigatório');
+      const newStatus = approved ? 'aprovado' : 'recusado';
+      const rows = await sql`
+        UPDATE absences SET
+          status      = ${newStatus},
+          approved_by = ${ctx.sub},
+          approved_at = now()
+        WHERE id = ${id} AND company_id = ${ctx.company_id}
+        RETURNING *
+      `;
+      if (!rows[0]) return err(res, 404, 'Solicitação não encontrada');
+      return res.json(rows[0]);
+    }
+
+    if (req.method === 'DELETE') {
+      if (!CAN_MANAGE_EMPLOYEES.includes(ctx.role)) return err(res, 403, 'Sem permissão');
+      await sql`DELETE FROM absences WHERE id = ${id} AND company_id = ${ctx.company_id}`;
+      return res.status(204).end();
+    }
+
+    return err(res, 405, 'Método não permitido');
+  }
+
+  // ── Rotas de coleção ─────────────────────────────────────
+
   if (req.method === 'GET') {
     const { status, employee_id } = req.query;
-    const empId = employee_id ? Number(employee_id) : null;
-    const page  = Math.max(1, Number(req.query.page)  || 1);
-    const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 50));
+    const empId  = employee_id ? Number(employee_id) : null;
+    const page   = Math.max(1, Number(req.query.page)  || 1);
+    const limit  = Math.min(100, Math.max(1, Number(req.query.limit) || 50));
     const offset = (page - 1) * limit;
 
     const [countRow, rows] = await Promise.all([
       sql`
-        SELECT COUNT(*)::int AS total
-        FROM absences a
+        SELECT COUNT(*)::int AS total FROM absences a
         WHERE a.company_id = ${ctx.company_id}
           AND (${empId}::int IS NULL OR a.employee_id = ${empId})
           AND (${status ?? null}::text IS NULL OR a.status = ${String(status ?? '')})
@@ -44,7 +77,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.json({ data: rows, total, page, limit, totalPages: Math.ceil(total / limit) });
   }
 
-  // ── POST ──────────────────────────────────────────────────
   if (req.method === 'POST') {
     const {
       employee_id, type = 'ferias',
@@ -60,7 +92,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return err(res, 400, `Tipo inválido. Use: ${VALID_TYPES.join(', ')}`);
     }
 
-    // Garante que o funcionário pertence à mesma empresa do usuário autenticado
     const empCheck = await sql`
       SELECT id FROM employees WHERE id = ${Number(employee_id)} AND company_id = ${ctx.company_id}
     `;

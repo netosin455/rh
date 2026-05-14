@@ -8,6 +8,7 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { getEmployeeById, updateEmployee, deleteEmployee } from '../../conexoes/colaboradores';
+import { startOnboarding } from '../../conexoes/onboarding';
 import { apiFetch } from '../../conexoes/http';
 import {
   Employee, EmployeeStatus, LegalArea,
@@ -453,6 +454,24 @@ export default function ColaboradorScreen() {
               )}
             </Animated.View>
 
+            {/* Botão onboarding */}
+            {canEdit && (
+              <TouchableOpacity
+                style={styles.btnOnboarding}
+                onPress={async () => {
+                  try {
+                    const proc = await startOnboarding(Number(id));
+                    router.push(`/onboarding/${proc.id}` as any);
+                  } catch (e: any) {
+                    Alert.alert('Erro', e?.message ?? 'Não foi possível iniciar o onboarding');
+                  }
+                }}
+              >
+                <Ionicons name="rocket-outline" size={15} color={theme.info} />
+                <Text style={styles.btnOnboardingText}>Iniciar Onboarding</Text>
+              </TouchableOpacity>
+            )}
+
             {/* Botão excluir */}
             {canDelete && (
               <TouchableOpacity style={styles.btnDelete} onPress={handleDelete}>
@@ -692,9 +711,17 @@ const styles = StyleSheet.create({
   absBadgeText: { fontSize: 10, fontWeight: '700' },
 
   // Botão excluir
-  btnDelete: {
+  btnOnboarding: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     marginHorizontal: 14, marginTop: 14, paddingVertical: 12,
+    borderRadius: 10, borderWidth: 1, borderColor: `${theme.info}44`,
+    backgroundColor: `${theme.info}0C`,
+  },
+  btnOnboardingText: { fontSize: 14, color: theme.info, fontWeight: '600' },
+
+  btnDelete: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    marginHorizontal: 14, marginTop: 10, paddingVertical: 12,
     borderRadius: 10, borderWidth: 1, borderColor: `${theme.danger}30`,
   },
   btnDeleteText: { fontSize: 14, color: theme.danger, fontWeight: '600' },

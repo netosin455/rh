@@ -350,6 +350,33 @@ export default function AnalyticsScreen() {
         </Animated.View>
       )}
 
+      {/* Onboarding — acesso rápido */}
+      <Animated.View entering={FadeInDown.delay(500).duration(350)} style={styles.card}>
+        <View style={styles.sectionHeader}>
+          <View style={styles.sectionAccent} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.sectionTitle}>Onboarding Digital</Text>
+            <Text style={styles.sectionSub}>Trilhas de integração de novos colaboradores</Text>
+          </View>
+        </View>
+        <TouchableOpacity
+          style={styles.surveyCTA}
+          onPress={() => router.push('/onboarding' as any)}
+          activeOpacity={0.75}
+        >
+          <View style={styles.surveyCTALeft}>
+            <View style={[styles.surveyCTAIcon, { backgroundColor: `${theme.info}18` }]}>
+              <Ionicons name="rocket-outline" size={22} color={theme.info} />
+            </View>
+            <View>
+              <Text style={styles.surveyCTATitle}>Ver onboardings ativos</Text>
+              <Text style={styles.surveyCTASub}>Acompanhar checklists e progresso</Text>
+            </View>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={theme.textMuted} />
+        </TouchableOpacity>
+      </Animated.View>
+
       {/* Pesquisas de Pulso — acesso rápido */}
       <Animated.View entering={FadeInDown.delay(520).duration(350)} style={styles.card}>
         <View style={styles.sectionHeader}>
