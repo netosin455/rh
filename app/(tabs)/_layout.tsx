@@ -16,6 +16,7 @@ const TABS = [
   { name: 'agenda',        title: 'Agenda',      icon: 'calendar',         roles: null },
   { name: 'ferias',        title: 'Férias',      icon: 'umbrella',         roles: null },
   { name: 'avisos',        title: 'Avisos',      icon: 'megaphone',        roles: null },
+  { name: 'reconhecimentos', title: 'Kudos',     icon: 'trophy',           roles: null },
   { name: 'ia',            title: 'Assistente',  icon: 'sparkles',         roles: null },
   { name: 'admin',         title: 'Admin',       icon: 'shield-checkmark', roles: ['super_admin'] },
 ] as const;

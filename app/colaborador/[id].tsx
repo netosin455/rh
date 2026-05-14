@@ -9,10 +9,11 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { getEmployeeById, updateEmployee, deleteEmployee } from '../../conexoes/colaboradores';
 import { startOnboarding } from '../../conexoes/onboarding';
+import { getPayslips, createPayslip, deletePayslip } from '../../conexoes/holerites';
 import { apiFetch } from '../../conexoes/http';
 import {
   Employee, EmployeeStatus, LegalArea,
-  STATUS_LABELS, Absence, ABSENCE_TYPE_LABELS,
+  STATUS_LABELS, Absence, ABSENCE_TYPE_LABELS, Payslip,
 } from '../../tipos/modelos';
 import { useAuth } from '../../contextos/Autenticacao';
 import { theme } from '../../estilo/cores';
@@ -128,14 +129,18 @@ export default function ColaboradorScreen() {
   const canDelete = ['super_admin','admin'].includes(user?.role ?? '');
   const canSeeSalary = ['super_admin','admin','rh','adm'].includes(user?.role ?? '');
 
-  const [employee,   setEmployee]   = useState<Employee | null>(null);
-  const [absences,   setAbsences]   = useState<Absence[]>([]);
-  const [loading,    setLoading]    = useState(true);
-  const [loadError,  setLoadError]  = useState<string | null>(null);
-  const [absLoading, setAbsLoading] = useState(true);
-  const [saving,     setSaving]     = useState(false);
-  const [editing,    setEditing]    = useState(false);
-  const [form,       setForm]       = useState<Partial<Employee & { salary: string }>>({});
+  const [employee,      setEmployee]      = useState<Employee | null>(null);
+  const [absences,      setAbsences]      = useState<Absence[]>([]);
+  const [payslips,      setPayslips]      = useState<Payslip[]>([]);
+  const [loading,       setLoading]       = useState(true);
+  const [loadError,     setLoadError]     = useState<string | null>(null);
+  const [absLoading,    setAbsLoading]    = useState(true);
+  const [saving,        setSaving]        = useState(false);
+  const [editing,       setEditing]       = useState(false);
+  const [form,          setForm]          = useState<Partial<Employee & { salary: string }>>({});
+  const [payslipModal,  setPayslipModal]  = useState(false);
+  const [psForm,        setPsForm]        = useState({ month: '', description: '', file_url: '' });
+  const [psSaving,      setPsSaving]      = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -174,7 +179,13 @@ export default function ColaboradorScreen() {
     }
   }, [id]);
 
-  useEffect(() => { load(); loadAbsences(); }, [load, loadAbsences]);
+  const loadPayslips = useCallback(async () => {
+    try {
+      setPayslips(await getPayslips(Number(id)));
+    } catch { setPayslips([]); }
+  }, [id]);
+
+  useEffect(() => { load(); loadAbsences(); loadPayslips(); }, [load, loadAbsences, loadPayslips]);
 
   function set(field: string, value: any) {
     setForm(f => ({ ...f, [field]: value }));
@@ -454,6 +465,124 @@ export default function ColaboradorScreen() {
               )}
             </Animated.View>
 
+            {/* Holerites */}
+            <Animated.View entering={FadeInDown.delay(260).duration(300)} style={styles.section}>
+              <View style={styles.sectionHeaderRow}>
+                <SectionTitle icon="document-outline" title="Holerites" />
+                {canEdit && (
+                  <TouchableOpacity
+                    style={styles.addPayslipBtn}
+                    onPress={() => { setPsForm({ month: '', description: '', file_url: '' }); setPayslipModal(true); }}
+                  >
+                    <Ionicons name="add" size={14} color={theme.gold} />
+                    <Text style={styles.addPayslipText}>Adicionar</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+              {payslips.length === 0 ? (
+                <View style={styles.emptyAbs}>
+                  <Ionicons name="document-outline" size={22} color={theme.textMuted} />
+                  <Text style={styles.emptyAbsText}>Nenhum holerite cadastrado</Text>
+                </View>
+              ) : (
+                payslips.map(p => (
+                  <View key={p.id} style={styles.payslipRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.payslipMonth}>
+                        {(() => {
+                          const [y, m] = p.month.split('-');
+                          const d = new Date(Number(y), Number(m) - 1, 1);
+                          return d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+                        })()}
+                      </Text>
+                      {p.description ? <Text style={styles.payslipDesc}>{p.description}</Text> : null}
+                    </View>
+                    <TouchableOpacity
+                      style={styles.viewPayslipBtn}
+                      onPress={() => Linking.openURL(p.file_url)}
+                    >
+                      <Ionicons name="open-outline" size={14} color={theme.info} />
+                      <Text style={styles.viewPayslipText}>Ver</Text>
+                    </TouchableOpacity>
+                    {canEdit && (
+                      <TouchableOpacity
+                        style={styles.delPayslipBtn}
+                        onPress={() => Alert.alert('Remover', 'Remover este holerite?', [
+                          { text: 'Cancelar', style: 'cancel' },
+                          { text: 'Remover', style: 'destructive', onPress: async () => {
+                              try { await deletePayslip(p.id); loadPayslips(); }
+                              catch (e: any) { Alert.alert('Erro', e?.message); }
+                          }},
+                        ])}
+                      >
+                        <Ionicons name="trash-outline" size={14} color={theme.danger} />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                ))
+              )}
+            </Animated.View>
+
+            {/* Modal adicionar holerite */}
+            <Modal visible={payslipModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setPayslipModal(false)}>
+              <KeyboardAvoidingView style={styles.psModal} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+                <View style={styles.psModalHeader}>
+                  <Text style={styles.psModalTitle}>Adicionar Holerite</Text>
+                  <TouchableOpacity onPress={() => setPayslipModal(false)}>
+                    <Ionicons name="close" size={20} color={theme.textMuted} />
+                  </TouchableOpacity>
+                </View>
+                <View style={styles.psModalBody}>
+                  <Text style={styles.psLabel}>MÊS (YYYY-MM) *</Text>
+                  <TextInput
+                    style={styles.psInput}
+                    placeholder="Ex: 2025-05"
+                    placeholderTextColor={theme.textMuted}
+                    value={psForm.month}
+                    onChangeText={v => setPsForm(f => ({ ...f, month: v }))}
+                    keyboardType="numbers-and-punctuation"
+                    autoFocus
+                  />
+                  <Text style={styles.psLabel}>DESCRIÇÃO (opcional)</Text>
+                  <TextInput
+                    style={styles.psInput}
+                    placeholder="Ex: Holerite maio/2025"
+                    placeholderTextColor={theme.textMuted}
+                    value={psForm.description}
+                    onChangeText={v => setPsForm(f => ({ ...f, description: v }))}
+                  />
+                  <Text style={styles.psLabel}>URL DO ARQUIVO *</Text>
+                  <TextInput
+                    style={styles.psInput}
+                    placeholder="https://..."
+                    placeholderTextColor={theme.textMuted}
+                    value={psForm.file_url}
+                    onChangeText={v => setPsForm(f => ({ ...f, file_url: v }))}
+                    keyboardType="url"
+                    autoCapitalize="none"
+                  />
+                  <TouchableOpacity
+                    style={[styles.psSaveBtn, (!psForm.month || !psForm.file_url || psSaving) && { opacity: 0.4 }]}
+                    disabled={!psForm.month || !psForm.file_url || psSaving}
+                    onPress={async () => {
+                      setPsSaving(true);
+                      try {
+                        await createPayslip({ employee_id: Number(id), month: psForm.month, description: psForm.description || undefined, file_url: psForm.file_url });
+                        setPayslipModal(false);
+                        loadPayslips();
+                      } catch (e: any) { Alert.alert('Erro', e?.message); }
+                      finally { setPsSaving(false); }
+                    }}
+                  >
+                    {psSaving
+                      ? <ActivityIndicator size="small" color={theme.bg} />
+                      : <Text style={styles.psSaveBtnText}>Salvar Holerite</Text>
+                    }
+                  </TouchableOpacity>
+                </View>
+              </KeyboardAvoidingView>
+            </Modal>
+
             {/* Botão onboarding */}
             {canEdit && (
               <TouchableOpacity
@@ -725,6 +854,27 @@ const styles = StyleSheet.create({
     borderRadius: 10, borderWidth: 1, borderColor: `${theme.danger}30`,
   },
   btnDeleteText: { fontSize: 14, color: theme.danger, fontWeight: '600' },
+
+  // Holerites
+  sectionHeaderRow:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+  addPayslipBtn:     { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 7, borderWidth: 1, borderColor: theme.border2 },
+  addPayslipText:    { fontSize: 11, color: theme.gold, fontWeight: '600' },
+  payslipRow:        { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.04)' },
+  payslipMonth:      { fontSize: 13, fontWeight: '700', color: theme.white, textTransform: 'capitalize' },
+  payslipDesc:       { fontSize: 11, color: theme.textMuted, marginTop: 1 },
+  viewPayslipBtn:    { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 7, backgroundColor: `${theme.info}15` },
+  viewPayslipText:   { fontSize: 12, color: theme.info, fontWeight: '700' },
+  delPayslipBtn:     { padding: 6 },
+
+  // Modal holerite
+  psModal:       { flex: 1, backgroundColor: theme.bg },
+  psModalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: theme.border },
+  psModalTitle:  { fontSize: 16, fontWeight: '800', color: theme.white },
+  psModalBody:   { padding: 16, gap: 4 },
+  psLabel:       { fontSize: 9, color: theme.textMuted, fontWeight: '800', letterSpacing: 1.5, marginTop: 14, marginBottom: 6 },
+  psInput:       { backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.border, borderRadius: 10, padding: 12, color: theme.white, fontSize: 14 },
+  psSaveBtn:     { marginTop: 24, backgroundColor: theme.gold, paddingVertical: 14, borderRadius: 12, alignItems: 'center' },
+  psSaveBtnText: { fontSize: 15, fontWeight: '800', color: theme.bg },
 
   // Form (edição)
   formWrap:   { padding: 16, gap: 0 },

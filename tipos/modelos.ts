@@ -301,6 +301,52 @@ export interface AnalyticsOverview {
   alerts: ProactiveAlert[];
 }
 
+// ── Reconhecimentos ─────────────────────────────────────────
+
+export type RecognitionCategory =
+  | 'trabalho_em_equipe'
+  | 'inovacao'
+  | 'lideranca'
+  | 'atendimento'
+  | 'resultado'
+  | 'outro';
+
+export interface Recognition {
+  id:             number;
+  company_id:     number;
+  from_user_id:   number | null;
+  from_name:      string;
+  to_employee_id: number;
+  to_name:        string;
+  to_role?:       string;
+  message:        string;
+  category:       RecognitionCategory;
+  created_at:     string;
+}
+
+export const RECOGNITION_CATEGORIES: Record<RecognitionCategory, { label: string; icon: string; color: string }> = {
+  trabalho_em_equipe: { label: 'Trabalho em Equipe', icon: 'people-outline',   color: '#4A8FD4' },
+  inovacao:           { label: 'Inovação',            icon: 'bulb-outline',     color: '#E8955A' },
+  lideranca:          { label: 'Liderança',            icon: 'ribbon-outline',   color: '#9B72CF' },
+  atendimento:        { label: 'Atendimento',          icon: 'heart-outline',    color: '#E05252' },
+  resultado:          { label: 'Resultado',             icon: 'trophy-outline',   color: '#C9A84C' },
+  outro:              { label: 'Outro',                 icon: 'star-outline',     color: '#8A887F' },
+};
+
+// ── Holerites ────────────────────────────────────────────────
+
+export interface Payslip {
+  id:            number;
+  company_id:    number;
+  employee_id:   number;
+  employee_name?: string;
+  month:         string;  // 'YYYY-MM'
+  description?:  string;
+  file_url:      string;
+  created_by:    number | null;
+  created_at:    string;
+}
+
 // ── Chat IA ──────────────────────────────────────────────────
 export interface ChatMessage {
   id: string;
