@@ -113,8 +113,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // ── DELETE :id ────────────────────────────────────────────
   if (surveyId && req.method === 'DELETE') {
     if (!CAN_MANAGE_EMPLOYEES.includes(ctx.role)) return err(res, 403, 'Sem permissão');
-    await sql`DELETE FROM pulse_surveys WHERE id = ${surveyId} AND company_id = ${ctx.company_id}`;
-    return res.status(204).end();
+    const deleted = await sql`
+      DELETE FROM pulse_surveys WHERE id = ${surveyId} AND company_id = ${ctx.company_id}
+      RETURNING id
+    `;
+    if (!(deleted as any[])[0]) return err(res, 404, 'Pesquisa não encontrada');
+    return res.status(200).json({ deleted: true });
   }
 
   // ── GET /api/surveys — listar ─────────────────────────────
