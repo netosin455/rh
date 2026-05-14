@@ -166,6 +166,58 @@ export const NOTICE_PRIORITY_LABELS: Record<NoticePriority, string> = {
   urgente:    'Urgente',
 };
 
+// ── Analytics ───────────────────────────────────────────────
+
+export type TurnoverRisk = 'alto' | 'medio' | 'baixo';
+
+export interface EmployeeAtRisk {
+  id: number;
+  name: string;
+  department_name: string | null;
+  role_title: string;
+  days_in_company: number;
+  absences_90d: number;
+}
+
+export interface DeptHeadcount {
+  department: string;
+  count: number;
+}
+
+export interface AbsenteeismPeriod {
+  days: number;
+  pct: number;
+}
+
+export interface AnalyticsOverview {
+  summary: {
+    total: number;
+    ativo: number;
+    ferias: number;
+    licenca: number;
+    afastado: number;
+    desligado: number;
+  };
+  headcount_by_dept: DeptHeadcount[];
+  absenteeism: {
+    current: AbsenteeismPeriod;
+    prev:    AbsenteeismPeriod;
+  };
+  turnover_risk: {
+    alto:  { count: number; employees: EmployeeAtRisk[] };
+    medio: { count: number; employees: EmployeeAtRisk[] };
+    baixo: { count: number; employees: EmployeeAtRisk[] };
+  };
+  urgent_cases: {
+    id: number;
+    case_number: string;
+    title: string;
+    area: string;
+    deadline: string | null;
+    responsible_name: string | null;
+  }[];
+}
+
 // ── Chat IA ──────────────────────────────────────────────────
 export interface ChatMessage {
   id: string;

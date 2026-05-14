@@ -8,19 +8,20 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contextos/Autenticacao';
 import { theme } from '../../estilo/cores';
 
+// roles: null = visível para todos | string[] = visível apenas para esses roles
 const TABS = [
-  { name: 'index',         title: 'Dashboard',  icon: 'grid',           adminOnly: false },
-  { name: 'colaboradores', title: 'Equipe',      icon: 'people',         adminOnly: false },
-  { name: 'agenda',        title: 'Agenda',      icon: 'calendar',       adminOnly: false },
-  { name: 'ferias',        title: 'Férias',      icon: 'umbrella',       adminOnly: false },
-  { name: 'avisos',        title: 'Avisos',      icon: 'megaphone',      adminOnly: false },
-  { name: 'ia',            title: 'Assistente',  icon: 'sparkles',       adminOnly: false },
-  { name: 'admin',         title: 'Admin',       icon: 'shield-checkmark', adminOnly: true },
+  { name: 'index',         title: 'Dashboard',  icon: 'grid',             roles: null },
+  { name: 'colaboradores', title: 'Equipe',      icon: 'people',           roles: null },
+  { name: 'analytics',     title: 'Analytics',  icon: 'bar-chart',        roles: ['rh', 'admin', 'super_admin', 'adm'] },
+  { name: 'agenda',        title: 'Agenda',      icon: 'calendar',         roles: null },
+  { name: 'ferias',        title: 'Férias',      icon: 'umbrella',         roles: null },
+  { name: 'avisos',        title: 'Avisos',      icon: 'megaphone',        roles: null },
+  { name: 'ia',            title: 'Assistente',  icon: 'sparkles',         roles: null },
+  { name: 'admin',         title: 'Admin',       icon: 'shield-checkmark', roles: ['super_admin'] },
 ] as const;
 
 export default function TabLayout() {
   const { user, logout } = useAuth();
-  const isSuperAdmin = user?.role === 'super_admin';
 
   function handleLogout() {
     if (Platform.OS === 'web') {
@@ -67,7 +68,7 @@ export default function TabLayout() {
           name={tab.name}
           options={{
             title: tab.title,
-            href: tab.adminOnly && !isSuperAdmin ? null : undefined,
+            href: tab.roles && !tab.roles.includes(user?.role as any) ? null : undefined,
             tabBarIcon: ({ color, focused }) => (
               <Ionicons
                 name={(focused ? tab.icon : `${tab.icon}-outline`) as any}

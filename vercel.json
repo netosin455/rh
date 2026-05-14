@@ -14,6 +14,7 @@
     { "source": "/api/events",              "destination": "/api/events/index" },
     { "source": "/api/notices/:id",         "destination": "/api/notices/item?id=:id" },
     { "source": "/api/notices",             "destination": "/api/notices/index" },
+    { "source": "/api/analytics",           "destination": "/api/analytics/index" },
     { "source": "/api/chat",               "destination": "/api/chat" },
     { "source": "/(.*)",                    "destination": "/index.html" }
   ]
