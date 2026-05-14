@@ -6,39 +6,27 @@ import {
 } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
-import { getAbsences, approveAbsence, createAbsence } from '../../conexoes/ausencias';
+import { getAbsences, createAbsence } from '../../conexoes/ausencias';
 import { getEmployees } from '../../conexoes/colaboradores';
-import { Absence, AbsenceStatus, AbsenceType, ABSENCE_TYPE_LABELS, CreateAbsenceData, Employee } from '../../tipos/modelos';
-import { useAuth } from '../../contextos/Autenticacao';
+import { Absence, AbsenceType, ABSENCE_TYPE_LABELS, CreateAbsenceData, Employee } from '../../tipos/modelos';
 import { theme } from '../../estilo/cores';
 import { formatDateShort } from '../../helpers/datas';
 
-const STATUS_COLORS: Record<AbsenceStatus, string> = {
-  pendente:  theme.warning,
-  aprovado:  theme.success,
-  recusado:  theme.danger,
-  cancelado: theme.textMuted,
+const TYPE_COLORS: Record<AbsenceType, string> = {
+  ferias:               theme.gold,
+  licenca_medica:       theme.info,
+  licenca_maternidade:  '#A78BFA',
+  licenca_paternidade:  '#34D399',
+  folga:                theme.success,
+  outro:                theme.textMuted,
 };
 
-const STATUS_LABELS: Record<AbsenceStatus, string> = {
-  pendente:  'Pendente',
-  aprovado:  'Aprovado',
-  recusado:  'Recusado',
-  cancelado: 'Cancelado',
-};
-
-const STATUS_ICONS: Record<AbsenceStatus, string> = {
-  pendente:  'time-outline',
-  aprovado:  'checkmark-circle-outline',
-  recusado:  'close-circle-outline',
-  cancelado: 'ban-outline',
-};
-
-const FILTER_TABS: { key: AbsenceStatus | 'todos'; label: string }[] = [
-  { key: 'todos',    label: 'Todos' },
-  { key: 'pendente', label: 'Pendentes' },
-  { key: 'aprovado', label: 'Aprovados' },
-  { key: 'recusado', label: 'Recusados' },
+const FILTER_TABS: { key: AbsenceType | 'todos'; label: string }[] = [
+  { key: 'todos',              label: 'Todos' },
+  { key: 'ferias',             label: 'Férias' },
+  { key: 'licenca_medica',     label: 'Médica' },
+  { key: 'folga',              label: 'Folga' },
+  { key: 'outro',              label: 'Outro' },
 ];
 
 const TYPE_OPTIONS: { key: AbsenceType; label: string }[] = [
@@ -52,24 +40,19 @@ const TYPE_OPTIONS: { key: AbsenceType; label: string }[] = [
 
 const EMPTY_FORM = {
   employee_id: 0,
-  type:        'ferias' as AbsenceType,
-  start_date:  '',
-  end_date:    '',
-  reason:      '',
-  status:      'pendente' as AbsenceStatus,
+  type:       'ferias' as AbsenceType,
+  start_date: '',
+  end_date:   '',
+  reason:     '',
 };
 
 export default function FeriasScreen() {
-  const { user } = useAuth();
-  const canApprove = ['super_admin','admin','rh','adm','gestor'].includes(user?.role ?? '');
-
   const [absences,   setAbsences]   = useState<Absence[]>([]);
   const [employees,  setEmployees]  = useState<Employee[]>([]);
   const [empNames,   setEmpNames]   = useState<Record<number, string>>({});
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [activeTab,  setActiveTab]  = useState<AbsenceStatus | 'todos'>('todos');
-  const [approving,  setApproving]  = useState<number | null>(null);
+  const [activeTab,  setActiveTab]  = useState<AbsenceType | 'todos'>('todos');
   const [showModal,  setShowModal]  = useState(false);
   const [saving,     setSaving]     = useState(false);
   const [form,       setForm]       = useState(EMPTY_FORM);
@@ -96,11 +79,9 @@ export default function FeriasScreen() {
   const onRefresh = useCallback(() => { setRefreshing(true); load(); }, [load]);
 
   const filtered = useMemo(() =>
-    activeTab === 'todos' ? absences : absences.filter(a => a.status === activeTab),
+    activeTab === 'todos' ? absences : absences.filter(a => a.type === activeTab),
     [absences, activeTab],
   );
-
-  const pendingCount = absences.filter(a => a.status === 'pendente').length;
 
   const filteredEmps = useMemo(() => {
     if (!empSearch.trim()) return employees;
@@ -119,22 +100,6 @@ export default function FeriasScreen() {
     setShowModal(true);
   }
 
-  async function handleApprove(id: number, approved: boolean) {
-    const label = approved ? 'aprovar' : 'recusar';
-    const confirmed = window.confirm(`Deseja ${label} esta solicitação?`);
-    if (!confirmed) return;
-
-    setApproving(id);
-    try {
-      const updated = await approveAbsence(id, approved);
-      setAbsences(prev => prev.map(a => a.id === id ? updated : a));
-    } catch (e: any) {
-      console.error('[handleApprove]', e.message);
-    } finally {
-      setApproving(null);
-    }
-  }
-
   async function handleSave() {
     setFormError('');
     if (!form.employee_id) { setFormError('Selecione o colaborador.'); return; }
@@ -148,7 +113,7 @@ export default function FeriasScreen() {
         type:        form.type,
         start_date:  form.start_date,
         end_date:    form.end_date,
-        status:      form.status,
+        status:      'aprovado',
         reason:      form.reason.trim() || undefined,
       };
       const created = await createAbsence(data);
@@ -173,22 +138,12 @@ export default function FeriasScreen() {
 
   return (
     <View style={styles.container}>
-      {pendingCount > 0 && (
-        <TouchableOpacity
-          style={styles.pendingBanner}
-          onPress={() => setActiveTab('pendente')}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="time-outline" size={14} color={theme.warning} />
-          <Text style={styles.pendingText}>
-            {pendingCount} solicitaç{pendingCount > 1 ? 'ões' : 'ão'} aguardando aprovação
-          </Text>
-          <Ionicons name="chevron-forward" size={12} color={theme.warning} />
-        </TouchableOpacity>
-      )}
 
-      {/* Abas de filtro */}
-      <View style={styles.tabsRow}>
+      {/* Abas de filtro por tipo */}
+      <ScrollView
+        horizontal showsHorizontalScrollIndicator={false}
+        style={styles.tabsScroll} contentContainerStyle={styles.tabsContent}
+      >
         {FILTER_TABS.map(tab => (
           <TouchableOpacity
             key={tab.key}
@@ -198,13 +153,13 @@ export default function FeriasScreen() {
             <Text style={[styles.tabText, activeTab === tab.key && styles.tabTextActive]}>
               {tab.label}
             </Text>
-            {tab.key === 'pendente' && pendingCount > 0 && (
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>{pendingCount}</Text>
-              </View>
-            )}
           </TouchableOpacity>
         ))}
+      </ScrollView>
+
+      {/* Contagem */}
+      <View style={styles.countRow}>
+        <Text style={styles.countLabel}>{filtered.length} registro{filtered.length !== 1 ? 's' : ''}</Text>
       </View>
 
       {/* Lista */}
@@ -215,87 +170,53 @@ export default function FeriasScreen() {
         {filtered.length === 0 ? (
           <View style={styles.empty}>
             <Ionicons name="umbrella-outline" size={44} color={theme.textMuted} />
-            <Text style={styles.emptyTitle}>Nenhuma solicitação</Text>
-            <Text style={styles.emptyText}>Não há registros para este filtro</Text>
+            <Text style={styles.emptyTitle}>Nenhum registro</Text>
+            <Text style={styles.emptyText}>Não há lançamentos para este filtro</Text>
           </View>
         ) : (
-          filtered.map((absence, i) => (
-            <Animated.View key={absence.id} entering={FadeInDown.delay(i * 40).duration(300)}>
-              <View style={styles.card}>
-                <View style={[styles.cardAccent, { backgroundColor: STATUS_COLORS[absence.status] }]} />
-                <View style={styles.cardBody}>
-                  <View style={styles.cardTop}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.empName}>
-                        {empNames[absence.employee_id] || `Colaborador #${absence.employee_id}`}
-                      </Text>
-                      <Text style={styles.absenceType}>{ABSENCE_TYPE_LABELS[absence.type]}</Text>
+          filtered.map((absence, i) => {
+            const color = TYPE_COLORS[absence.type];
+            return (
+              <Animated.View key={absence.id} entering={FadeInDown.delay(i * 40).duration(300)}>
+                <View style={styles.card}>
+                  <View style={[styles.cardAccent, { backgroundColor: color }]} />
+                  <View style={styles.cardBody}>
+                    <View style={styles.cardTop}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.empName}>
+                          {empNames[absence.employee_id] || `Colaborador #${absence.employee_id}`}
+                        </Text>
+                        <View style={[styles.typePill, { backgroundColor: `${color}18` }]}>
+                          <Text style={[styles.typeText, { color }]}>
+                            {ABSENCE_TYPE_LABELS[absence.type]}
+                          </Text>
+                        </View>
+                      </View>
+                      <View style={styles.daysChip}>
+                        <Text style={styles.daysText}>{absence.days_count}d</Text>
+                      </View>
                     </View>
-                    <View style={[styles.statusPill, { backgroundColor: `${STATUS_COLORS[absence.status]}18` }]}>
-                      <Ionicons name={STATUS_ICONS[absence.status] as any} size={11} color={STATUS_COLORS[absence.status]} />
-                      <Text style={[styles.statusText, { color: STATUS_COLORS[absence.status] }]}>
-                        {STATUS_LABELS[absence.status]}
-                      </Text>
+
+                    <View style={styles.datesRow}>
+                      <View style={styles.dateBlock}>
+                        <Text style={styles.dateLabel}>INÍCIO</Text>
+                        <Text style={styles.dateValue}>{formatDateShort(absence.start_date)}</Text>
+                      </View>
+                      <Ionicons name="arrow-forward" size={12} color={theme.textMuted} />
+                      <View style={styles.dateBlock}>
+                        <Text style={styles.dateLabel}>FIM</Text>
+                        <Text style={styles.dateValue}>{formatDateShort(absence.end_date)}</Text>
+                      </View>
                     </View>
+
+                    {absence.reason ? (
+                      <Text style={styles.reason} numberOfLines={2}>{absence.reason}</Text>
+                    ) : null}
                   </View>
-
-                  <View style={styles.datesRow}>
-                    <View style={styles.dateBlock}>
-                      <Text style={styles.dateLabel}>INÍCIO</Text>
-                      <Text style={styles.dateValue}>{formatDateShort(absence.start_date)}</Text>
-                    </View>
-                    <Ionicons name="arrow-forward" size={12} color={theme.textMuted} />
-                    <View style={styles.dateBlock}>
-                      <Text style={styles.dateLabel}>FIM</Text>
-                      <Text style={styles.dateValue}>{formatDateShort(absence.end_date)}</Text>
-                    </View>
-                    <View style={styles.daysChip}>
-                      <Text style={styles.daysText}>{absence.days_count}d</Text>
-                    </View>
-                  </View>
-
-                  {absence.reason ? (
-                    <Text style={styles.reason} numberOfLines={2}>{absence.reason}</Text>
-                  ) : null}
-
-                  {canApprove && absence.status === 'pendente' && (
-                    <View style={styles.actions}>
-                      <TouchableOpacity
-                        style={styles.btnRecusar}
-                        onPress={() => handleApprove(absence.id, false)}
-                        disabled={approving === absence.id}
-                      >
-                        {approving === absence.id
-                          ? <ActivityIndicator size="small" color={theme.danger} />
-                          : (
-                            <>
-                              <Ionicons name="close" size={12} color={theme.danger} />
-                              <Text style={styles.btnRecusarText}>Recusar</Text>
-                            </>
-                          )
-                        }
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={styles.btnAprovar}
-                        onPress={() => handleApprove(absence.id, true)}
-                        disabled={approving === absence.id}
-                      >
-                        {approving === absence.id
-                          ? <ActivityIndicator size="small" color="#000" />
-                          : (
-                            <>
-                              <Ionicons name="checkmark" size={12} color="#000" />
-                              <Text style={styles.btnAprovarText}>Aprovar</Text>
-                            </>
-                          )
-                        }
-                      </TouchableOpacity>
-                    </View>
-                  )}
                 </View>
-              </View>
-            </Animated.View>
-          ))
+              </Animated.View>
+            );
+          })
         )}
         <View style={{ height: 80 }} />
       </ScrollView>
@@ -310,7 +231,7 @@ export default function FeriasScreen() {
         <KeyboardAvoidingView style={styles.modal} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <View style={styles.modalHeader}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.modalTitle}>Nova Solicitação</Text>
+              <Text style={styles.modalTitle}>Novo Lançamento</Text>
               <Text style={styles.modalSubtitle}>Férias, licença ou afastamento</Text>
             </View>
             <TouchableOpacity onPress={() => setShowModal(false)} style={styles.modalClose}>
@@ -367,10 +288,10 @@ export default function FeriasScreen() {
             <Text style={styles.label}>Data Fim * (AAAA-MM-DD)</Text>
             <TextInput style={styles.input} placeholder="2024-07-30" placeholderTextColor={theme.textMuted} value={form.end_date} onChangeText={v => setF('end_date', v)} />
 
-            <Text style={styles.label}>Motivo</Text>
+            <Text style={styles.label}>Observação</Text>
             <TextInput
               style={[styles.input, styles.textarea]}
-              placeholder="Motivo da solicitação (opcional)..."
+              placeholder="Observação (opcional)..."
               placeholderTextColor={theme.textMuted}
               value={form.reason}
               onChangeText={v => setF('reason', v)}
@@ -408,25 +329,19 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.bg },
   centered:  { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.bg },
 
-  pendingBanner: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: 'rgba(245,158,11,0.10)',
-    borderBottomWidth: 1, borderBottomColor: 'rgba(245,158,11,0.25)',
-    paddingHorizontal: 16, paddingVertical: 10,
-  },
-  pendingText: { fontSize: 12, color: theme.warning, fontWeight: '600', flex: 1 },
-
-  tabsRow: { flexDirection: 'row', backgroundColor: theme.surface, borderBottomWidth: 1, borderBottomColor: theme.border },
+  tabsScroll:   { maxHeight: 48, borderBottomWidth: 1, borderBottomColor: theme.border, backgroundColor: theme.surface },
+  tabsContent:  { paddingHorizontal: 12, paddingVertical: 8, gap: 8, flexDirection: 'row' },
   tab: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    paddingVertical: 13, gap: 4,
-    borderBottomWidth: 2, borderBottomColor: 'transparent',
+    paddingHorizontal: 16, paddingVertical: 6,
+    borderRadius: 20, borderWidth: 1, borderColor: theme.border,
+    backgroundColor: theme.surface,
   },
-  tabActive:     { borderBottomColor: theme.gold },
+  tabActive:     { backgroundColor: theme.goldDim, borderColor: theme.border2 },
   tabText:       { fontSize: 12, color: theme.textMuted, fontWeight: '500' },
   tabTextActive: { color: theme.gold, fontWeight: '700' },
-  badge:         { backgroundColor: theme.warning, borderRadius: 8, paddingHorizontal: 5, paddingVertical: 1 },
-  badgeText:     { fontSize: 9, fontWeight: '700', color: '#000' },
+
+  countRow:   { paddingHorizontal: 16, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: theme.border },
+  countLabel: { fontSize: 11, color: theme.gold, fontWeight: '600' },
 
   list:  { flex: 1, padding: 12 },
   empty: { alignItems: 'center', paddingTop: 64, gap: 8 },
@@ -435,35 +350,28 @@ const styles = StyleSheet.create({
 
   card: {
     flexDirection: 'row',
-    backgroundColor: 'rgba(24,27,33,0.92)',
-    borderRadius: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)',
+    backgroundColor: theme.surface,
+    borderRadius: 12, borderWidth: 1, borderColor: theme.border,
     marginBottom: 10, overflow: 'hidden',
-    shadowColor: '#000', shadowOpacity: 0.28, shadowRadius: 10, shadowOffset: { width: 0, height: 3 },
-    elevation: 3,
+    elevation: 2,
   },
   cardAccent: { width: 4 },
   cardBody:   { flex: 1, padding: 14 },
-  cardTop:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 },
-  empName:    { fontSize: 14, fontWeight: '700', color: theme.white },
-  absenceType: { fontSize: 11, color: theme.textMuted, marginTop: 2 },
+  cardTop:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 },
+  empName:    { fontSize: 14, fontWeight: '700', color: theme.white, marginBottom: 4 },
 
-  statusPill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
-  statusText: { fontSize: 10, fontWeight: '700' },
+  typePill: { alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 5 },
+  typeText: { fontSize: 10, fontWeight: '700' },
 
-  datesRow:  { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },
+  datesRow:  { flexDirection: 'row', alignItems: 'center', gap: 10 },
   dateBlock: { alignItems: 'center' },
   dateLabel: { fontSize: 9, color: theme.textMuted, letterSpacing: 1, marginBottom: 2 },
   dateValue: { fontSize: 13, fontWeight: '700', color: theme.white },
-  daysChip:  { marginLeft: 'auto', backgroundColor: theme.goldDim, borderWidth: 1, borderColor: theme.border2, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
-  daysText:  { fontSize: 12, fontWeight: '700', color: theme.gold },
 
-  reason: { fontSize: 12, color: theme.textMuted, marginBottom: 10 },
+  daysChip:  { backgroundColor: theme.goldDim, borderWidth: 1, borderColor: theme.border2, borderRadius: 6, paddingHorizontal: 10, paddingVertical: 4 },
+  daysText:  { fontSize: 13, fontWeight: '700', color: theme.gold },
 
-  actions:        { flexDirection: 'row', gap: 8, marginTop: 4 },
-  btnRecusar:     { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 9, borderRadius: 7, borderWidth: 1, borderColor: `${theme.danger}40` },
-  btnRecusarText: { fontSize: 12, fontWeight: '600', color: theme.danger },
-  btnAprovar:     { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 9, borderRadius: 7, backgroundColor: theme.gold },
-  btnAprovarText: { fontSize: 12, fontWeight: '700', color: '#000' },
+  reason: { fontSize: 12, color: theme.textMuted, marginTop: 8 },
 
   fab: {
     position: 'absolute', bottom: 24, right: 20,
