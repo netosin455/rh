@@ -21,43 +21,42 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (upcoming === 'true') {
       const today = new Date().toISOString().slice(0, 10);
       rows = await sql`
-        SELECT e.*, c.case_number, c.title AS case_title
+        SELECT e.*, u.name AS created_by_name, c.case_number, c.title AS case_title
         FROM events e
+        LEFT JOIN users u ON u.id = e.user_id
         LEFT JOIN legal_cases c ON c.id = e.case_id
         WHERE e.company_id = ${ctx.company_id}
-          AND e.user_id    = ${ctx.sub}
           AND e.date       >= ${today}
         ORDER BY e.date ASC, e.start_time ASC
         LIMIT ${Number(limit)}
       `;
     } else if (date) {
       rows = await sql`
-        SELECT e.*, c.case_number, c.title AS case_title
+        SELECT e.*, u.name AS created_by_name, c.case_number, c.title AS case_title
         FROM events e
+        LEFT JOIN users u ON u.id = e.user_id
         LEFT JOIN legal_cases c ON c.id = e.case_id
         WHERE e.company_id = ${ctx.company_id}
-          AND e.user_id    = ${ctx.sub}
           AND e.date       = ${String(date)}
         ORDER BY e.start_time ASC
       `;
     } else if (month) {
-      // month = "YYYY-MM"
       rows = await sql`
-        SELECT e.*, c.case_number, c.title AS case_title
+        SELECT e.*, u.name AS created_by_name, c.case_number, c.title AS case_title
         FROM events e
+        LEFT JOIN users u ON u.id = e.user_id
         LEFT JOIN legal_cases c ON c.id = e.case_id
         WHERE e.company_id = ${ctx.company_id}
-          AND e.user_id    = ${ctx.sub}
           AND e.date LIKE ${`${String(month)}%`}
         ORDER BY e.date ASC, e.start_time ASC
       `;
     } else {
       rows = await sql`
-        SELECT e.*, c.case_number, c.title AS case_title
+        SELECT e.*, u.name AS created_by_name, c.case_number, c.title AS case_title
         FROM events e
+        LEFT JOIN users u ON u.id = e.user_id
         LEFT JOIN legal_cases c ON c.id = e.case_id
         WHERE e.company_id = ${ctx.company_id}
-          AND e.user_id    = ${ctx.sub}
         ORDER BY e.date DESC
         LIMIT 100
       `;

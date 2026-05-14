@@ -1,7 +1,7 @@
 // api/events/item.ts — GET PUT DELETE /api/events/:id
 
 import type { Request as VercelRequest, Response as VercelResponse } from 'express';
-import { sql, cors, authenticate, err } from '../_lib';
+import { sql, cors, authenticate, err, IS_ADMIN } from '../_lib';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   cors(res);
@@ -16,15 +16,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // ── GET ───────────────────────────────────────────────────
   if (req.method === 'GET') {
     const rows = await sql`
-      SELECT * FROM events
-      WHERE id = ${id} AND company_id = ${ctx.company_id} AND user_id = ${ctx.sub}
+      SELECT e.*, u.name AS created_by_name
+      FROM events e
+      LEFT JOIN users u ON u.id = e.user_id
+      WHERE e.id = ${id} AND e.company_id = ${ctx.company_id}
     `;
     if (!rows[0]) return err(res, 404, 'Evento não encontrado');
     return res.json(rows[0]);
   }
 
-  // ── PUT ───────────────────────────────────────────────────
+  // ── PUT — criador ou admin pode editar ────────────────────
   if (req.method === 'PUT') {
+    const isAdmin = IS_ADMIN.includes(ctx.role) || ['rh','adm'].includes(ctx.role);
+
+    const existing = await sql`
+      SELECT user_id FROM events WHERE id = ${id} AND company_id = ${ctx.company_id}
+    `;
+    if (!existing[0]) return err(res, 404, 'Evento não encontrado');
+    if (!isAdmin && existing[0].user_id !== ctx.sub) {
+      return err(res, 403, 'Sem permissão para editar este evento');
+    }
+
     const {
       title, description, date, start_time, end_time,
       color, category, case_id, location, is_all_day,
@@ -42,19 +54,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         case_id     = COALESCE(${case_id     ?? null}, case_id),
         location    = COALESCE(${location    ?? null}, location),
         is_all_day  = COALESCE(${is_all_day  ?? null}, is_all_day)
-      WHERE id = ${id} AND company_id = ${ctx.company_id} AND user_id = ${ctx.sub}
+      WHERE id = ${id} AND company_id = ${ctx.company_id}
       RETURNING *
     `;
-    if (!rows[0]) return err(res, 404, 'Evento não encontrado');
     return res.json(rows[0]);
   }
 
-  // ── DELETE ────────────────────────────────────────────────
+  // ── DELETE — criador ou admin pode deletar ────────────────
   if (req.method === 'DELETE') {
-    await sql`
-      DELETE FROM events
-      WHERE id = ${id} AND company_id = ${ctx.company_id} AND user_id = ${ctx.sub}
+    const isAdmin = IS_ADMIN.includes(ctx.role) || ['rh','adm'].includes(ctx.role);
+
+    const existing = await sql`
+      SELECT user_id FROM events WHERE id = ${id} AND company_id = ${ctx.company_id}
     `;
+    if (!existing[0]) return err(res, 404, 'Evento não encontrado');
+    if (!isAdmin && existing[0].user_id !== ctx.sub) {
+      return err(res, 403, 'Sem permissão para excluir este evento');
+    }
+
+    await sql`DELETE FROM events WHERE id = ${id} AND company_id = ${ctx.company_id}`;
     return res.status(204).end();
   }
 
