@@ -21,6 +21,11 @@ function escapeICS(s: string) {
   return s.replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n');
 }
 
+function nowStamp(): string {
+  const n = new Date();
+  return `${n.getUTCFullYear()}${pad(n.getUTCMonth() + 1)}${pad(n.getUTCDate())}T${pad(n.getUTCHours())}${pad(n.getUTCMinutes())}${pad(n.getUTCSeconds())}Z`;
+}
+
 export function buildICS(events: Event[]): string {
   const lines: string[] = [
     'BEGIN:VCALENDAR',
@@ -28,7 +33,11 @@ export function buildICS(events: Event[]): string {
     'PRODID:-//SuperRH//Agenda//PT',
     'CALSCALE:GREGORIAN',
     'METHOD:PUBLISH',
+    'X-WR-CALNAME:SuperRH',
+    'X-WR-TIMEZONE:America/Sao_Paulo',
   ];
+
+  const dtstamp = nowStamp();
 
   for (const e of events) {
     const start = toICSDate(e.date, e.start_time ?? undefined);
@@ -48,12 +57,13 @@ export function buildICS(events: Event[]): string {
 
     lines.push('BEGIN:VEVENT');
     lines.push(`UID:superrh-${e.id}@superrh`);
+    lines.push(`DTSTAMP:${dtstamp}`);
     if (e.is_all_day) {
       lines.push(`DTSTART;VALUE=DATE:${e.date.replace(/-/g, '')}`);
       lines.push(`DTEND;VALUE=DATE:${addDay(e.date).replace(/-/g, '')}`);
     } else {
-      lines.push(`DTSTART:${start}`);
-      lines.push(`DTEND:${end}`);
+      lines.push(`DTSTART;TZID=America/Sao_Paulo:${start}`);
+      lines.push(`DTEND;TZID=America/Sao_Paulo:${end}`);
     }
     lines.push(`SUMMARY:${escapeICS(e.title)}`);
     if (e.description) lines.push(`DESCRIPTION:${escapeICS(e.description)}`);

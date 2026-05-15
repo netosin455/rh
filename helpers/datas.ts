@@ -69,3 +69,4 @@ export function getAge(birthDate: string): number {
   if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
   return age;
 }
+

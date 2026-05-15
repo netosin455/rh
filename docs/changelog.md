@@ -1,5 +1,12 @@
 # Changelog — SuperRH
 
+## [2026-05-15] — Correção exportação ICS / Google Calendar
+
+### Corrigido
+- `helpers/ics.ts`: adicionado campo `DTSTAMP` obrigatório (RFC 5545) que o Google Calendar exigia para aceitar o arquivo
+- `helpers/ics.ts`: adicionado `TZID=America/Sao_Paulo` nos campos `DTSTART` e `DTEND` para evitar eventos no horário errado
+- `helpers/ics.ts`: adicionado `X-WR-CALNAME` e `X-WR-TIMEZONE` no cabeçalho do VCALENDAR
+
 ## [2026-05-08] — Testes, Paginação e Rate Limiting
 
 ### Adicionado
