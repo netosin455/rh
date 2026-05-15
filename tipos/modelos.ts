@@ -248,6 +248,13 @@ export interface EmployeeAtRisk {
   role_title: string;
   days_in_company: number;
   absences_90d: number;
+  avg_pulse_score?: number | null;
+}
+
+export interface ClimateHistory {
+  month: string;          // 'YYYY-MM'
+  avg_score: number;      // 1–5
+  response_count: number;
 }
 
 export interface DeptHeadcount {
@@ -299,6 +306,7 @@ export interface AnalyticsOverview {
     deadline: string | null;
     responsible_name: string | null;
   }[];
+  climate_history: ClimateHistory[];
   alerts: ProactiveAlert[];
 }
 

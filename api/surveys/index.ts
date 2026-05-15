@@ -29,23 +29,37 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return err(res, 410, 'Esta pesquisa já encerrou');
     }
 
-    const { score, choice } = req.body ?? {};
-    const type = survey[0].type;
+    const { score, choice, voter_token } = req.body ?? {};
+
+    // Verifica se esse dispositivo já respondeu (sem identificar quem é)
+    if (voter_token) {
+      const already = await sql`
+        SELECT 1 FROM pulse_responses
+        WHERE survey_id = ${surveyId} AND voter_token = ${String(voter_token)}
+        LIMIT 1
+      `;
+      if (already.length > 0) {
+        return err(res, 409, 'Você já respondeu esta pesquisa');
+      }
+    }
+
+    const type   = survey[0].type;
+    const vtoken = voter_token ? String(voter_token) : null;
 
     if (type === 'scale') {
       const s = Number(score);
       if (!s || s < 1 || s > 5) return err(res, 400, 'score deve ser entre 1 e 5');
       await sql`
-        INSERT INTO pulse_responses (survey_id, score)
-        VALUES (${surveyId}, ${s})
+        INSERT INTO pulse_responses (survey_id, score, voter_token)
+        VALUES (${surveyId}, ${s}, ${vtoken})
       `;
     } else {
       if (!choice) return err(res, 400, 'choice é obrigatório para pesquisa de escolha');
       const opts: string[] = survey[0].options ?? [];
       if (!opts.includes(String(choice))) return err(res, 400, 'Opção inválida');
       await sql`
-        INSERT INTO pulse_responses (survey_id, choice)
-        VALUES (${surveyId}, ${String(choice)})
+        INSERT INTO pulse_responses (survey_id, choice, voter_token)
+        VALUES (${surveyId}, ${String(choice)}, ${vtoken})
       `;
     }
 

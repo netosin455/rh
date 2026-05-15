@@ -11,8 +11,27 @@ import {
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { respondSurvey } from '../../conexoes/pesquisas';
 import { theme } from '../../estilo/cores';
+
+// Gera UUID v4 simples sem dependência externa
+function uuidv4(): string {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = (Math.random() * 16) | 0;
+    return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
+  });
+}
+
+async function getVoterToken(): Promise<string> {
+  const key = 'superrh_voter_token';
+  let token = await AsyncStorage.getItem(key);
+  if (!token) {
+    token = uuidv4();
+    await AsyncStorage.setItem(key, token);
+  }
+  return token;
+}
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://super-rh.vercel.app';
 
@@ -63,13 +82,16 @@ export default function ResponderScreen() {
     setSubmitting(true);
     setSubmitError(null);
     try {
+      const voter_token = await getVoterToken();
       const payload = survey?.type === 'scale'
-        ? { score: Number(selected) }
-        : { choice: String(selected) };
+        ? { score: Number(selected), voter_token }
+        : { choice: String(selected), voter_token };
       await respondSurvey(Number(id), payload);
       setSubmitted(true);
-    } catch (e: any) {
-      setSubmitError(e?.message ?? 'Erro ao enviar resposta');
+    } catch (e: unknown) {
+      const er = e as { message?: string };
+      const msg = er?.message ?? 'Erro ao enviar resposta';
+      setSubmitError(msg.includes('já respondeu') ? 'Você já respondeu esta pesquisa anteriormente.' : msg);
     } finally {
       setSubmitting(false);
     }

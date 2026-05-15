@@ -2,7 +2,13 @@
   "version": 2,
   "buildCommand": "npx expo export --platform web",
   "outputDirectory": "dist",
+  "crons": [
+    { "path": "/api/cron/onboarding-reminders", "schedule": "0 11 * * *" },
+    { "path": "/api/cron/weekly-report",        "schedule": "0 10 * * 1" }
+  ],
   "rewrites": [
+    { "source": "/api/cron/onboarding-reminders", "destination": "/api/cron/onboarding-reminders" },
+    { "source": "/api/cron/weekly-report",         "destination": "/api/cron/weekly-report" },
     { "source": "/api/auth/login",          "destination": "/api/auth/login" },
     { "source": "/api/auth/google",         "destination": "/api/auth/login?google=true" },
     { "source": "/api/users/:id",           "destination": "/api/users/index?id=:id" },

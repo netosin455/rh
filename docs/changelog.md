@@ -1,5 +1,27 @@
 # Changelog — SuperRH
 
+## [2026-05-15] — Melhorias v2.0 (Feedback Técnico)
+
+### Adicionado
+- `api/cron/onboarding-reminders.ts` — Vercel Cron diário (8h BRT): detecta etapas de onboarding atrasadas e envia email via Resend ao responsável
+- `api/cron/weekly-report.ts` — Vercel Cron toda segunda-feira (7h BRT): gera resumo executivo com Groq e envia por email para rh/admin/super_admin
+- Histórico de clima organizacional (`climate_history`) na resposta de `GET /api/analytics` — últimos 6 meses de média das pesquisas de pulso
+- Gráfico de barras verticais "Clima Organizacional" na tela `analytics.tsx` com cores por faixa (verde/amarelo/vermelho)
+- Antifraude nas pesquisas de pulso: `voter_token` anônimo gerado no dispositivo, persistido em AsyncStorage, enviado na resposta e verificado no backend (409 se já respondeu)
+- `banco/migrations/005_survey_antifraud.sql` — coluna `voter_token` em `pulse_responses` com índice único `(survey_id, voter_token)`
+- `banco/migrations/006_analytics_engagement.sql` — atualiza `vw_employee_analytics` com fator de engajamento (média de pulso da empresa nos últimos 30 dias)
+- `avg_pulse_score` exibido na lista de colaboradores em atenção na tela de analytics
+
+### Corrigido
+- `api/analytics/index.ts` — removidos todos os `any`, tipagem explícita com interfaces locais e tipos de `modelos.ts`
+- `app/(tabs)/analytics.tsx` — `catch (e: any)` substituído por `catch (e: unknown)`, card de erro inteligente que diferencia sessão expirada / sem conexão / erro de banco
+- `app/responder/[id].tsx` — `catch (e: any)` corrigido para `unknown`, mensagem amigável quando pesquisa já foi respondida
+
+### Tipos
+- `EmployeeAtRisk` — novo campo opcional `avg_pulse_score?: number | null`
+- `ClimateHistory` — novo tipo `{ month, avg_score, response_count }`
+- `AnalyticsOverview` — novo campo `climate_history: ClimateHistory[]`
+
 ## [2026-05-15] — Correção exportação ICS / Google Calendar
 
 ### Corrigido
