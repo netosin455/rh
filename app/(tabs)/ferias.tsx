@@ -11,6 +11,7 @@ import { getEmployees } from '../../conexoes/colaboradores';
 import { Absence, AbsenceType, ABSENCE_TYPE_LABELS, CreateAbsenceData, Employee } from '../../tipos/modelos';
 import { theme } from '../../estilo/cores';
 import { formatDateShort } from '../../helpers/datas';
+import { exportAbsencesPDF } from '../../helpers/pdf';
 
 const TYPE_COLORS: Record<AbsenceType, string> = {
   ferias:               theme.gold,
@@ -160,9 +161,19 @@ export default function FeriasScreen() {
         ))}
       </ScrollView>
 
-      {/* Contagem */}
+      {/* Contagem + export */}
       <View style={styles.countRow}>
         <Text style={styles.countLabel}>{filtered.length} registro{filtered.length !== 1 ? 's' : ''}</Text>
+        {Platform.OS === 'web' && filtered.length > 0 && (
+          <TouchableOpacity
+            style={styles.exportBtn}
+            onPress={() => exportAbsencesPDF(filtered as any)}
+            activeOpacity={0.75}
+          >
+            <Ionicons name="download-outline" size={13} color={theme.gold} />
+            <Text style={styles.exportBtnText}>PDF</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Lista */}
@@ -343,8 +354,10 @@ const styles = StyleSheet.create({
   tabText:       { fontSize: 12, color: theme.textMuted, fontWeight: '500' },
   tabTextActive: { color: theme.gold, fontWeight: '700' },
 
-  countRow:   { paddingHorizontal: 16, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: theme.border },
+  countRow:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: theme.border },
   countLabel: { fontSize: 11, color: theme.gold, fontWeight: '600' },
+  exportBtn:  { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: theme.goldDim, borderWidth: 1, borderColor: theme.border2, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 },
+  exportBtnText: { fontSize: 10, color: theme.gold, fontWeight: '700' },
 
   list:  { flex: 1, padding: 12 },
   empty: { alignItems: 'center', paddingTop: 64, gap: 8 },

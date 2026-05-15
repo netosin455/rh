@@ -11,6 +11,7 @@ import { getEmployees } from '../../conexoes/colaboradores';
 import { Event, EventCategory, EVENT_CATEGORY_COLORS, CreateEventData, Employee } from '../../tipos/modelos';
 import { theme } from '../../estilo/cores';
 import { getTodayString, toDateString, formatDateDisplay, ymd } from '../../helpers/datas';
+import { downloadICS } from '../../helpers/ics';
 
 const WEEKDAYS = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
 const MONTH_NAMES = [
@@ -181,6 +182,16 @@ export default function AgendaScreen() {
         <TouchableOpacity onPress={nextMonth} style={styles.navBtn}>
           <Ionicons name="chevron-forward" size={20} color={theme.gold} />
         </TouchableOpacity>
+        {Platform.OS === 'web' && events.length > 0 && (
+          <TouchableOpacity
+            style={styles.icsBtn}
+            onPress={() => downloadICS(events, `agenda-${monthKey}.ics`)}
+            activeOpacity={0.75}
+          >
+            <Ionicons name="calendar-outline" size={14} color={theme.gold} />
+            <Text style={styles.icsBtnText}>Exportar</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Dias da semana */}
@@ -413,6 +424,12 @@ const styles = StyleSheet.create({
     backgroundColor: theme.surface, borderBottomWidth: 1, borderBottomColor: theme.border,
   },
   navBtn:     { padding: 6 },
+  icsBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: theme.goldDim, borderWidth: 1, borderColor: theme.border2,
+    borderRadius: 8, paddingHorizontal: 8, paddingVertical: 5,
+  },
+  icsBtnText: { fontSize: 10, color: theme.gold, fontWeight: '700' },
   monthWrap:  { alignItems: 'center' },
   monthTitle: { fontSize: 16, fontWeight: '700', color: theme.white },
   monthYear:  { fontSize: 11, color: theme.gold, letterSpacing: 1 },

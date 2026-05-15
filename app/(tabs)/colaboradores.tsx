@@ -12,6 +12,7 @@ import { getEmployees, createEmployee } from '../../conexoes/colaboradores';
 import { Employee, EmployeeStatus, LegalArea, STATUS_LABELS, CreateEmployeeData } from '../../tipos/modelos';
 import { theme } from '../../estilo/cores';
 import { brToIso, maskDate, todayBr } from '../../helpers/datas';
+import { exportEmployeesPDF } from '../../helpers/pdf';
 
 const STATUS_COLORS: Record<EmployeeStatus, string> = {
   ativo:     theme.success,
@@ -190,11 +191,21 @@ export default function ColaboradoresScreen() {
         ))}
       </ScrollView>
 
-      {/* Contagem */}
+      {/* Contagem + export */}
       <View style={styles.countRow}>
         <Text style={styles.countLabel}>
           {filtered.length} colaborador{filtered.length !== 1 ? 'es' : ''}
         </Text>
+        {Platform.OS === 'web' && filtered.length > 0 && (
+          <TouchableOpacity
+            style={styles.exportBtn}
+            onPress={() => exportEmployeesPDF(filtered)}
+            activeOpacity={0.75}
+          >
+            <Ionicons name="download-outline" size={13} color={theme.gold} />
+            <Text style={styles.exportBtnText}>PDF</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Lista */}
@@ -362,8 +373,10 @@ const styles = StyleSheet.create({
   filterText:       { fontSize: 12, color: theme.textMuted, fontWeight: '500' },
   filterTextActive: { color: theme.gold },
 
-  countRow:   { paddingHorizontal: 16, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: theme.border },
+  countRow:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: theme.border },
   countLabel: { fontSize: 11, color: theme.gold, fontWeight: '600' },
+  exportBtn:  { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: theme.goldDim, borderWidth: 1, borderColor: theme.border2, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 },
+  exportBtnText: { fontSize: 10, color: theme.gold, fontWeight: '700' },
   list: { flex: 1 },
 
   empty: { alignItems: 'center', paddingTop: 64, gap: 8 },

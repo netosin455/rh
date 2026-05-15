@@ -4,6 +4,7 @@
   "outputDirectory": "dist",
   "rewrites": [
     { "source": "/api/auth/login",          "destination": "/api/auth/login" },
+    { "source": "/api/auth/google",         "destination": "/api/auth/login?google=true" },
     { "source": "/api/users/:id",           "destination": "/api/users/index?id=:id" },
     { "source": "/api/users",               "destination": "/api/users/index" },
     { "source": "/api/employees/:id",       "destination": "/api/employees/index?id=:id" },

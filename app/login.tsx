@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
   StyleSheet, ActivityIndicator, KeyboardAvoidingView,
-  Platform, ScrollView, Dimensions,
+  Platform, ScrollView, Dimensions, Linking,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -43,6 +43,18 @@ export default function LoginScreen() {
   const [showPass, setShowPass] = useState(false);
   const [loading,  setLoading]  = useState(false);
   const [error,    setError]    = useState('');
+
+  const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://super-rh.vercel.app';
+  const GOOGLE_SSO_ENABLED = !!process.env.EXPO_PUBLIC_GOOGLE_SSO;
+
+  function handleGoogleLogin() {
+    const url = `${API_URL}/api/auth/google`;
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      window.location.href = url;
+    } else {
+      Linking.openURL(url);
+    }
+  }
 
   async function handleLogin() {
     if (!username.trim() || !password) { setError('Preencha usuário e senha.'); return; }
@@ -237,6 +249,24 @@ export default function LoginScreen() {
                   : <Text style={styles.loginBtnText}>Entrar na plataforma</Text>
                 }
               </TouchableOpacity>
+
+              {GOOGLE_SSO_ENABLED && (
+                <>
+                  <View style={styles.dividerRow}>
+                    <View style={styles.dividerLine} />
+                    <Text style={styles.dividerText}>ou</Text>
+                    <View style={styles.dividerLine} />
+                  </View>
+                  <TouchableOpacity
+                    style={styles.googleBtn}
+                    onPress={handleGoogleLogin}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={styles.googleIcon}>G</Text>
+                    <Text style={styles.googleBtnText}>Entrar com Google</Text>
+                  </TouchableOpacity>
+                </>
+              )}
             </View>
           </View>
         </View>
@@ -445,6 +475,19 @@ const styles = StyleSheet.create({
     paddingVertical: 15, alignItems: 'center', marginTop: 24,
   },
   loginBtnText: { color: '#000', fontWeight: '800', fontSize: 15 },
+
+  dividerRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginVertical: 16 },
+  dividerLine: { flex: 1, height: 1, backgroundColor: 'rgba(255,255,255,0.08)' },
+  dividerText: { fontSize: 11, color: MUTED_D },
+
+  googleBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)',
+    borderRadius: 10, paddingVertical: 13,
+  },
+  googleIcon:    { fontSize: 16, fontWeight: '900', color: WHITE },
+  googleBtnText: { color: WHITE, fontWeight: '600', fontSize: 14 },
 
   // ── Footer
   footer: {

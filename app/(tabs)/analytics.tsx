@@ -5,7 +5,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, ActivityIndicator, RefreshControl,
+  StyleSheet, ActivityIndicator, RefreshControl, Platform,
 } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
@@ -14,6 +14,7 @@ import { getAnalyticsOverview } from '../../conexoes/analytics';
 import { AnalyticsOverview, EmployeeAtRisk, DeptHeadcount } from '../../tipos/modelos';
 import { theme } from '../../estilo/cores';
 import { STATUS_LABELS } from '../../tipos/modelos';
+import { exportAnalyticsPDF } from '../../helpers/pdf';
 
 // ── Helpers ──────────────────────────────────────────────────
 
@@ -164,6 +165,21 @@ export default function AnalyticsScreen() {
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.gold} />
       }
     >
+      {/* Título + botão PDF */}
+      {Platform.OS === 'web' && (
+        <View style={styles.pageHeader}>
+          <Text style={styles.pageTitle}>People Analytics</Text>
+          <TouchableOpacity
+            style={styles.exportBtn}
+            onPress={() => exportAnalyticsPDF(data)}
+            activeOpacity={0.75}
+          >
+            <Ionicons name="download-outline" size={13} color={theme.gold} />
+            <Text style={styles.exportBtnText}>Exportar PDF</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       {/* KPI Grid */}
       <Animated.View entering={FadeInDown.duration(300)} style={styles.kpiGrid}>
         <KPICard label="Total"       value={summary.total}    color={theme.gold}    icon="people"    delay={0}   />
@@ -414,6 +430,10 @@ export default function AnalyticsScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.bg },
   content:   { padding: 16 },
+  pageHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+  pageTitle:  { fontSize: 18, fontWeight: '800', color: theme.white },
+  exportBtn:  { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: theme.goldDim, borderWidth: 1, borderColor: theme.border2, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
+  exportBtnText: { fontSize: 11, color: theme.gold, fontWeight: '700' },
   centered:  { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.bg, gap: 12 },
   loadingText: { color: theme.textMuted, fontSize: 13, marginTop: 8 },
   errorText:   { color: theme.textMuted, fontSize: 14, textAlign: 'center', paddingHorizontal: 32 },

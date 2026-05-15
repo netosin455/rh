@@ -11,8 +11,9 @@ const USER_KEY  = '@superrh:user';
 const API_URL   = process.env.EXPO_PUBLIC_API_URL || '';
 
 interface AuthContextData extends AuthState {
-  login:  (username: string, password: string) => Promise<void>;
-  logout: () => Promise<void>;
+  login:           (username: string, password: string) => Promise<void>;
+  loginWithToken:  (token: string) => Promise<void>;
+  logout:          () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextData>({} as AuthContextData);
@@ -73,6 +74,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(data.user);
   }
 
+  async function loginWithToken(rawToken: string) {
+    if (isTokenExpired(rawToken)) throw new Error('Token expirado');
+    const payload = JSON.parse(atob(rawToken.split('.')[1]));
+    const userData: User = {
+      id:         payload.sub,
+      company_id: payload.company_id,
+      name:       payload.name,
+      email:      payload.email,
+      role:       payload.role,
+    };
+    await Promise.all([
+      AsyncStorage.setItem(TOKEN_KEY, rawToken),
+      AsyncStorage.setItem(USER_KEY, JSON.stringify(userData)),
+    ]);
+    setToken(rawToken);
+    setUser(userData);
+  }
+
   async function logout() {
     await AsyncStorage.removeItem(TOKEN_KEY);
     await AsyncStorage.removeItem(USER_KEY);
@@ -81,7 +100,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, token, loading, login, loginWithToken, logout }}>
       {children}
     </AuthContext.Provider>
   );
