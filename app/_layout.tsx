@@ -14,10 +14,10 @@ function AuthGuard() {
 
   useEffect(() => {
     if (loading) return;
-    const onLogin = segments[0] === 'login' || segments.length === 0;
-    if (!user && !onLogin) {
+    const isPublic = segments[0] === 'login' || segments[0] === 'responder' || segments.length === 0;
+    if (!user && !isPublic) {
       router.replace('/login');
-    } else if (user && onLogin) {
+    } else if (user && (segments[0] === 'login' || segments.length === 0)) {
       router.replace('/(tabs)');
     }
   }, [user, loading, segments]);

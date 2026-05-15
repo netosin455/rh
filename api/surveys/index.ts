@@ -52,6 +52,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(201).json({ ok: true });
   }
 
+  // ── GET :id — público quando sem token (página de resposta) ──
+  if (surveyId && req.method === 'GET' && !req.headers['authorization']) {
+    const rows = await sql`
+      SELECT id, title, question, type, options, expires_at
+      FROM pulse_surveys WHERE id = ${surveyId}
+    `;
+    if (!rows[0]) return err(res, 404, 'Pesquisa não encontrada');
+    return res.json(rows[0]);
+  }
+
   // ── Demais rotas exigem autenticação ─────────────────────
   let ctx;
   try { ctx = authenticate(req); } catch (e: any) { return err(res, e.status ?? 401, e.message); }
