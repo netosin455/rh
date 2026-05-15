@@ -185,7 +185,16 @@ export default function AgendaScreen() {
         {Platform.OS === 'web' && events.length > 0 && (
           <TouchableOpacity
             style={styles.icsBtn}
-            onPress={() => downloadICS(events, `agenda-${monthKey}.ics`)}
+            onPress={() => {
+              downloadICS(events, `agenda-${monthKey}.ics`);
+              window.alert(
+                'Arquivo .ics baixado!\n\n' +
+                'Para importar no Google Calendar:\n' +
+                '1. Abra calendar.google.com\n' +
+                '2. Configurações (⚙) → Importar e exportar\n' +
+                '3. Clique em "Importar" e selecione o arquivo baixado'
+              );
+            }}
             activeOpacity={0.75}
           >
             <Ionicons name="calendar-outline" size={14} color={theme.gold} />
