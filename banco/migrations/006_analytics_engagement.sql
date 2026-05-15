@@ -8,7 +8,9 @@
 -- de risco de colaboradores que já estão em "medio".
 -- ============================================================
 
-CREATE OR REPLACE VIEW vw_employee_analytics AS
+DROP VIEW IF EXISTS vw_employee_analytics;
+
+CREATE VIEW vw_employee_analytics AS
 SELECT
   e.id,
   e.company_id,
