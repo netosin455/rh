@@ -1,11 +1,27 @@
 import { apiFetch } from './http';
 import { Absence, CreateAbsenceData } from '../../tipos/modelos';
 
-export async function getAbsences(status?: string, page = 1, limit = 50): Promise<Absence[]> {
+export async function getAbsences(
+  status?: string,
+  page = 1,
+  limit = 50,
+  type?: string,
+  month?: string,
+): Promise<Absence[]> {
   const params = new URLSearchParams({ page: String(page), limit: String(limit) });
   if (status) params.set('status', status);
+  if (type)   params.set('type', type);
+  if (month)  params.set('month', month);
   const res = await apiFetch(`/api/absences?${params}`);
   return res?.data ?? res;
+}
+
+export async function countAbsences(type?: string, month?: string): Promise<number> {
+  const params = new URLSearchParams({ page: '1', limit: '1' });
+  if (type)  params.set('type', type);
+  if (month) params.set('month', month);
+  const res = await apiFetch(`/api/absences?${params}`);
+  return res?.total ?? 0;
 }
 
 export async function createAbsence(data: CreateAbsenceData): Promise<Absence> {

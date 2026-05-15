@@ -48,11 +48,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // ── Rotas de coleção ─────────────────────────────────────
 
   if (req.method === 'GET') {
-    const { status, employee_id } = req.query;
-    const empId  = employee_id ? Number(employee_id) : null;
-    const page   = Math.max(1, Number(req.query.page)  || 1);
-    const limit  = Math.min(100, Math.max(1, Number(req.query.limit) || 50));
-    const offset = (page - 1) * limit;
+    const { status, employee_id, type, month } = req.query;
+    const empId   = employee_id ? Number(employee_id) : null;
+    const typeVal = type   ? String(type)   : null;
+    const monthVal= month  ? String(month)  : null; // YYYY-MM
+    const page    = Math.max(1, Number(req.query.page)  || 1);
+    const limit   = Math.min(100, Math.max(1, Number(req.query.limit) || 50));
+    const offset  = (page - 1) * limit;
 
     const [countRow, rows] = await Promise.all([
       sql`
@@ -60,6 +62,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         WHERE a.company_id = ${ctx.company_id}
           AND (${empId}::int IS NULL OR a.employee_id = ${empId})
           AND (${status ?? null}::text IS NULL OR a.status = ${String(status ?? '')})
+          AND (${typeVal}::text IS NULL OR a.type = ${typeVal})
+          AND (${monthVal}::text IS NULL OR to_char(a.start_date, 'YYYY-MM') = ${monthVal})
       `,
       sql`
         SELECT a.*, e.name AS employee_name, e.role_title
@@ -68,6 +72,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         WHERE a.company_id = ${ctx.company_id}
           AND (${empId}::int IS NULL OR a.employee_id = ${empId})
           AND (${status ?? null}::text IS NULL OR a.status = ${String(status ?? '')})
+          AND (${typeVal}::text IS NULL OR a.type = ${typeVal})
+          AND (${monthVal}::text IS NULL OR to_char(a.start_date, 'YYYY-MM') = ${monthVal})
         ORDER BY a.created_at DESC
         LIMIT ${limit} OFFSET ${offset}
       `,

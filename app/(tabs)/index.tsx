@@ -15,6 +15,7 @@ import { getEmployees } from '../../conexoes/colaboradores';
 import { getUpcomingEvents } from '../../conexoes/eventos';
 import { getNotices } from '../../conexoes/avisos';
 import { getAlerts } from '../../conexoes/analytics';
+import { countAbsences } from '../../conexoes/ausencias';
 import { Employee, Event, Notice, ProactiveAlert } from '../../tipos/modelos';
 import { theme } from '../../estilo/cores';
 import { formatDateDisplay, getTodayString, ymd } from '../../helpers/datas';
@@ -78,6 +79,7 @@ export default function DashboardScreen() {
   const [events,     setEvents]     = useState<Event[]>([]);
   const [notices,    setNotices]    = useState<Notice[]>([]);
   const [alerts,     setAlerts]     = useState<ProactiveAlert[]>([]);
+  const [faltaCount, setFaltaCount] = useState<number>(0);
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -91,8 +93,10 @@ export default function DashboardScreen() {
       setEmployees(emp);
       setEvents(evt);
       setNotices(ntc);
-      // Alertas carregam após o render inicial (non-blocking)
+      // Alertas e faltas carregam após o render inicial (non-blocking)
       getAlerts().then(setAlerts).catch(() => {});
+      const currentMonth = getTodayString().slice(0, 7); // YYYY-MM
+      countAbsences('falta', currentMonth).then(setFaltaCount).catch(() => {});
     } catch (err) {
       console.error('[Dashboard] Erro ao carregar dados:', err);
     } finally {
@@ -188,8 +192,11 @@ export default function DashboardScreen() {
           icon="people"            delay={80}  />
         <MetricCard label="Em Férias"   value={employees.filter(e => e.status === 'ferias').length}
           icon="umbrella"          delay={130} />
-        <MetricCard label="Eventos Hoje" value={events.filter(e => e.date === today).length}
-          icon="calendar"          delay={180} />
+        <MetricCard
+          label="Faltas (mês)"  value={faltaCount}
+          icon="close-circle"   delay={180}
+          accent={faltaCount > 0 ? theme.danger : undefined}
+        />
         <MetricCard
           label="Em Licença"   value={onLeave}
           icon="medical"       delay={230}
