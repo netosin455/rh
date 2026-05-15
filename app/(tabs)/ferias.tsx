@@ -18,11 +18,13 @@ const TYPE_COLORS: Record<AbsenceType, string> = {
   licenca_maternidade:  '#A78BFA',
   licenca_paternidade:  '#34D399',
   folga:                theme.success,
+  falta:                theme.danger,
   outro:                theme.textMuted,
 };
 
 const FILTER_TABS: { key: AbsenceType | 'todos'; label: string }[] = [
   { key: 'todos',              label: 'Todos' },
+  { key: 'falta',              label: 'Faltas' },
   { key: 'ferias',             label: 'Férias' },
   { key: 'licenca_medica',     label: 'Médica' },
   { key: 'folga',              label: 'Folga' },
@@ -30,6 +32,7 @@ const FILTER_TABS: { key: AbsenceType | 'todos'; label: string }[] = [
 ];
 
 const TYPE_OPTIONS: { key: AbsenceType; label: string }[] = [
+  { key: 'falta',               label: 'Falta' },
   { key: 'ferias',              label: 'Férias' },
   { key: 'licenca_medica',      label: 'Licença Médica' },
   { key: 'licenca_maternidade', label: 'Lic. Maternidade' },
@@ -40,7 +43,7 @@ const TYPE_OPTIONS: { key: AbsenceType; label: string }[] = [
 
 const EMPTY_FORM = {
   employee_id: 0,
-  type:       'ferias' as AbsenceType,
+  type:       'falta' as AbsenceType,
   start_date: '',
   end_date:   '',
   reason:     '',

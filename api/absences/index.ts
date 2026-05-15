@@ -87,7 +87,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return err(res, 400, 'employee_id, start_date e end_date são obrigatórios');
     }
 
-    const VALID_TYPES = ['ferias','licenca_medica','licenca_maternidade','licenca_paternidade','folga','outro'];
+    const VALID_TYPES = ['ferias','licenca_medica','licenca_maternidade','licenca_paternidade','folga','falta','outro'];
     if (!VALID_TYPES.includes(type)) {
       return err(res, 400, `Tipo inválido. Use: ${VALID_TYPES.join(', ')}`);
     }

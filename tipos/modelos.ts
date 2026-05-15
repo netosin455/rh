@@ -103,6 +103,7 @@ export type AbsenceType =
   | 'licenca_maternidade'
   | 'licenca_paternidade'
   | 'folga'
+  | 'falta'
   | 'outro';
 
 export type AbsenceStatus = 'pendente' | 'aprovado' | 'recusado' | 'cancelado';
@@ -396,6 +397,7 @@ export const ABSENCE_TYPE_LABELS: Record<AbsenceType, string> = {
   licenca_maternidade:  'Licença Maternidade',
   licenca_paternidade:  'Licença Paternidade',
   folga:                'Folga',
+  falta:                'Falta',
   outro:                'Outro',
 };
 
