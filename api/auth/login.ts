@@ -44,7 +44,7 @@ async function exchangeGoogleCode(code: string): Promise<{ email: string; name: 
       client_secret: GOOGLE_CLIENT_SECRET,
       redirect_uri:  GOOGLE_REDIRECT_URI,
       grant_type:    'authorization_code',
-    }),
+    }).toString(),
   });
   if (!tokenRes.ok) throw new Error('Falha ao trocar código Google');
   const tokens = await tokenRes.json() as any;
