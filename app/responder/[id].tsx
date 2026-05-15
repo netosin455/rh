@@ -14,7 +14,7 @@ import { useLocalSearchParams } from 'expo-router';
 import { respondSurvey } from '../../conexoes/pesquisas';
 import { theme } from '../../estilo/cores';
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://super-rh.vercel.app/api';
+const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://super-rh.vercel.app';
 
 interface SurveyPublic {
   id: number;
@@ -45,7 +45,7 @@ export default function ResponderScreen() {
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch(`${API_URL}/surveys/${id}`)
+    fetch(`${API_URL}/api/surveys/${id}`)
       .then(r => r.ok ? r.json() : r.json().then((b: any) => Promise.reject(b?.error ?? 'Erro')))
       .then((data: SurveyPublic) => {
         if (data.expires_at && new Date(data.expires_at) < new Date()) {
