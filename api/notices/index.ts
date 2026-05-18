@@ -55,19 +55,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       `;
       if (!rows[0]) return err(res, 404, 'Aviso não encontrado');
 
-      // Push para todos da empresa quando aviso é fixado
       if (pinned) {
+        const notifTitle = '📌 Aviso fixado';
+        const notifBody  = String((rows[0] as any).title);
+
+        // Notificação para todos da empresa
+        await sql`
+          INSERT INTO notifications (company_id, user_id, title, body, type, route)
+          VALUES (${ctx.company_id}, NULL, ${notifTitle}, ${notifBody}, 'aviso', '/(tabs)/avisos')
+        `.catch(() => {});
+
+        // Push
         const tokens = await sql`
           SELECT pt.token FROM push_tokens pt
           JOIN users u ON u.id = pt.user_id
           WHERE u.company_id = ${ctx.company_id}
         `;
-        await sendPush(
-          tokens.map((t: any) => t.token),
-          '📌 Aviso fixado',
-          String((rows[0] as any).title),
-          { route: '/(tabs)/avisos' },
-        );
+        await sendPush(tokens.map((t: any) => t.token), notifTitle, notifBody, { route: '/(tabs)/avisos' });
       }
       return res.json(rows[0]);
     }

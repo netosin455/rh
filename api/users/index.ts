@@ -7,6 +7,41 @@ import type { Request as VercelRequest, Response as VercelResponse } from 'expre
 import bcrypt from 'bcryptjs';
 import { sql, cors, authenticate, err, VALID_ROLES, parsePagination } from '../_lib';
 
+// ── GET  /api/users?notifications=1  — lista notificações do usuário
+// ── PATCH /api/users?notifications=1 — marca como lida(s)
+async function handleNotifications(req: VercelRequest, res: VercelResponse, userId: number, companyId: number) {
+  if (req.method === 'GET') {
+    const rows = await sql`
+      SELECT id, title, body, type, route, read, created_at
+      FROM notifications
+      WHERE (user_id = ${userId} OR user_id IS NULL)
+        AND company_id = ${companyId}
+      ORDER BY created_at DESC
+      LIMIT 50
+    `;
+    const unread = (rows as any[]).filter(r => !r.read).length;
+    return res.status(200).json({ notifications: rows, unread });
+  }
+
+  if (req.method === 'PATCH') {
+    const { id, all } = req.body ?? {};
+    if (all) {
+      await sql`
+        UPDATE notifications SET read = TRUE
+        WHERE (user_id = ${userId} OR user_id IS NULL) AND company_id = ${companyId}
+      `;
+    } else if (id) {
+      await sql`
+        UPDATE notifications SET read = TRUE
+        WHERE id = ${Number(id)} AND company_id = ${companyId}
+      `;
+    }
+    return res.status(200).json({ ok: true });
+  }
+
+  return err(res, 405, 'Método não permitido');
+}
+
 // POST /api/users?push=1 — registra push token (qualquer role autenticado)
 async function handlePushToken(req: VercelRequest, res: VercelResponse, userId: number) {
   const { token, platform } = req.body ?? {};
@@ -36,7 +71,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   let ctx;
   try { ctx = authenticate(req); } catch (e: any) { return err(res, e.status ?? 401, e.message); }
 
-  // Rota de push token — qualquer usuário autenticado pode registrar
+  // Notificações — qualquer usuário autenticado
+  if (req.query.notifications === '1') {
+    return handleNotifications(req, res, ctx.sub, ctx.company_id);
+  }
+
+  // Push token — qualquer usuário autenticado
   if (req.query.push === '1' && req.method === 'POST') {
     return handlePushToken(req, res, ctx.sub);
   }

@@ -17,6 +17,7 @@ import { getNotices } from '../../conexoes/avisos';
 import { getAlerts } from '../../conexoes/analytics';
 import { countAbsences } from '../../conexoes/ausencias';
 import { buscarInsights, Insight } from '../../conexoes/insights';
+import { buscarNotificacoes } from '../../conexoes/notificacoes';
 import { Employee, Event, Notice, ProactiveAlert } from '../../tipos/modelos';
 import { theme } from '../../estilo/cores';
 import { formatDateDisplay, getTodayString, ymd } from '../../helpers/datas';
@@ -83,6 +84,7 @@ export default function DashboardScreen() {
   const [faltaCount,       setFaltaCount]       = useState<number>(0);
   const [insights,         setInsights]         = useState<Insight[]>([]);
   const [insightsLoading,  setInsightsLoading]  = useState(false);
+  const [unreadCount,      setUnreadCount]      = useState(0);
   const [loading,          setLoading]          = useState(true);
   const [refreshing,       setRefreshing]       = useState(false);
 
@@ -102,6 +104,9 @@ export default function DashboardScreen() {
       getAlerts().then(setAlerts).catch(() => {});
       const currentMonth = getTodayString().slice(0, 7); // YYYY-MM
       countAbsences('falta', currentMonth).then(setFaltaCount).catch(() => {});
+      // Contador de notificações não lidas
+      buscarNotificacoes().then(r => setUnreadCount(r.unread)).catch(() => {});
+
       // Insights de IA apenas para gestores autorizados
       if (['super_admin','admin','rh'].includes(user?.role ?? '')) {
         setInsightsLoading(true);
@@ -173,9 +178,19 @@ export default function DashboardScreen() {
           <Text style={styles.greetingName}>{user?.name?.split(' ')[0] || 'Usuário'}</Text>
           <Text style={styles.greetingDate}>{formatDateDisplay(today)}</Text>
         </View>
-        <View style={styles.greetingBadge}>
-          <Ionicons name="briefcase-outline" size={14} color={theme.gold} />
-          <Text style={styles.greetingRole}>{user?.role?.toUpperCase() ?? 'USER'}</Text>
+        <View style={styles.greetingRight}>
+          <TouchableOpacity style={styles.bellBtn} onPress={() => router.push('/notificacoes' as any)}>
+            <Ionicons name="notifications-outline" size={20} color={theme.gold} />
+            {unreadCount > 0 && (
+              <View style={styles.bellBadge}>
+                <Text style={styles.bellBadgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+          <View style={styles.greetingBadge}>
+            <Ionicons name="briefcase-outline" size={14} color={theme.gold} />
+            <Text style={styles.greetingRole}>{user?.role?.toUpperCase() ?? 'USER'}</Text>
+          </View>
         </View>
       </Animated.View>
 
@@ -403,6 +418,15 @@ const styles = StyleSheet.create({
   greetingDay:   { fontSize: 10, color: theme.gold, letterSpacing: 2, fontWeight: '700', textTransform: 'uppercase', marginBottom: 3 },
   greetingName:  { fontSize: 24, fontWeight: '800', color: theme.white, marginBottom: 2 },
   greetingDate:  { fontSize: 12, color: theme.textMuted },
+  greetingRight: { alignItems: 'flex-end', gap: 8 },
+  bellBtn: { position: 'relative', padding: 4 },
+  bellBadge: {
+    position: 'absolute', top: 0, right: 0,
+    minWidth: 16, height: 16, borderRadius: 8,
+    backgroundColor: theme.danger, alignItems: 'center', justifyContent: 'center',
+    paddingHorizontal: 3,
+  },
+  bellBadgeText: { fontSize: 9, color: '#fff', fontWeight: '800' },
   greetingBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
     backgroundColor: theme.goldDim, borderWidth: 1, borderColor: theme.border2,

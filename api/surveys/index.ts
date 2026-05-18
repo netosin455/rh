@@ -182,7 +182,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       RETURNING *
     `;
 
-    // Push para todos da empresa informando nova pesquisa
+    // Notificação + push para todos da empresa
+    await sql`
+      INSERT INTO notifications (company_id, user_id, title, body, type, route)
+      VALUES (${ctx.company_id}, NULL, '📊 Nova pesquisa de pulso', ${String(title)}, 'pesquisa', '/pesquisas')
+    `.catch(() => {});
     const tokens = await sql`
       SELECT pt.token FROM push_tokens pt
       JOIN users u ON u.id = pt.user_id

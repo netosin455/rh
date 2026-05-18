@@ -34,13 +34,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       `;
       if (!rows[0]) return err(res, 404, 'Solicitação não encontrada');
 
-      // Push para o solicitante
       const empUserId = (rows[0] as any).employee_user_id;
+      const notifTitle = approved ? 'Férias aprovadas ✅' : 'Férias recusadas ❌';
+      const notifBody  = approved ? 'Sua solicitação de férias foi aprovada.' : 'Sua solicitação de férias foi recusada.';
+
+      // Notificação no centro de notificações
+      await sql`
+        INSERT INTO notifications (company_id, user_id, title, body, type, route)
+        VALUES (${ctx.company_id}, ${empUserId ?? null}, ${notifTitle}, ${notifBody}, 'ferias', '/(tabs)/ferias')
+      `.catch(() => {});
+
+      // Push para o solicitante
       if (empUserId) {
         const tokens = await sql`SELECT token FROM push_tokens WHERE user_id = ${empUserId}`;
-        const pushTitle = approved ? 'Férias aprovadas ✅' : 'Férias recusadas ❌';
-        const pushBody  = approved ? 'Sua solicitação de férias foi aprovada.' : 'Sua solicitação de férias foi recusada.';
-        await sendPush(tokens.map((t: any) => t.token), pushTitle, pushBody, { route: '/(tabs)/ferias' });
+        await sendPush(tokens.map((t: any) => t.token), notifTitle, notifBody, { route: '/(tabs)/ferias' });
       }
 
       return res.json(rows[0]);

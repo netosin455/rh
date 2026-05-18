@@ -67,6 +67,7 @@ function AuthGuard() {
       <Stack.Screen name="responder/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="onboarding/index" options={{ headerShown: false }} />
       <Stack.Screen name="onboarding/[id]" options={{ headerShown: false }} />
+      <Stack.Screen name="notificacoes" options={{ headerShown: false }} />
     </Stack>
   );
 }

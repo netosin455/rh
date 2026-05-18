@@ -87,7 +87,14 @@ async function runOnboardingReminders(): Promise<{ checked: number; emails_sent:
       for (const user of users as UserRow[]) {
         if (!user.email) continue;
         const diasAtraso = Math.floor((today.getTime() - deadline.getTime()) / 86_400_000);
-        // Push notification além do email
+        // Notificação + push além do email
+        await sql`
+          INSERT INTO notifications (company_id, user_id, title, body, type, route)
+          VALUES (${proc.company_id}, ${user.id},
+                  '⚠️ Onboarding atrasado',
+                  ${`Etapa "${step.title}" de ${proc.employee_name} está atrasada`},
+                  'onboarding', ${`/onboarding/${proc.id}`})
+        `.catch(() => {});
         const pushTokens = await sql`SELECT token FROM push_tokens WHERE user_id = ${user.id}`.catch(() => []);
         await sendPush(
           (pushTokens as any[]).map(t => t.token),
