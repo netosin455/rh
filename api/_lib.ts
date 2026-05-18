@@ -60,6 +60,26 @@ export const IS_ADMIN = ['super_admin', 'admin'];
 export const VALID_ROLES = ['super_admin','admin','rh','gestor','colaborador','financeiro','juridico','ti','adm'] as const;
 export type SystemRole = typeof VALID_ROLES[number];
 
+/** Envia push notifications via Expo Push API (gratuito, sem conta) */
+export async function sendPush(
+  tokens: string[],
+  title:  string,
+  body:   string,
+  data?:  Record<string, unknown>,
+): Promise<void> {
+  if (tokens.length === 0) return;
+  const messages = tokens.map(to => ({ to, title, body, data: data ?? {}, sound: 'default' }));
+  try {
+    await fetch('https://exp.host/--/api/v2/push/send', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body:    JSON.stringify(messages),
+    });
+  } catch (e: unknown) {
+    console.error(`[${new Date().toISOString()}] [ERROR] sendPush:`, e);
+  }
+}
+
 /** Extrai e normaliza parâmetros de paginação de query strings */
 export function parsePagination(
   query: Record<string, unknown>,

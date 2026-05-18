@@ -13,6 +13,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { getOnboarding, markStep, deleteOnboarding } from '../../conexoes/onboarding';
 import { OnboardingProcess, OnboardingStep, StepProgress } from '../../tipos/modelos';
 import { theme } from '../../estilo/cores';
+import { useToast } from '../../contextos/Toast';
 
 const ROLE_LABELS: Record<string, string> = {
   rh:     'RH',
@@ -40,6 +41,7 @@ function formatDate(iso: string) {
 export default function OnboardingDetailScreen() {
   const { id }  = useLocalSearchParams<{ id: string }>();
   const router  = useRouter();
+  const toast   = useToast();
 
   const [proc,      setProc]      = useState<OnboardingProcess | null>(null);
   const [loading,   setLoading]   = useState(true);
@@ -63,7 +65,7 @@ export default function OnboardingDetailScreen() {
       const updated = await markStep(Number(id), idx, !currentDone);
       setProc(updated);
     } catch (e: any) {
-      Alert.alert('Erro', e?.message);
+      toast.error(e?.message ?? 'Erro ao atualizar etapa');
     } finally {
       setToggling(null);
     }
@@ -75,7 +77,7 @@ export default function OnboardingDetailScreen() {
       {
         text: 'Encerrar', style: 'destructive', onPress: async () => {
           try { await deleteOnboarding(Number(id)); router.replace('/onboarding' as any); }
-          catch (e: any) { Alert.alert('Erro', e?.message); }
+          catch (e: any) { toast.error(e?.message ?? 'Erro ao encerrar onboarding'); }
         },
       },
     ]);

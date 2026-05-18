@@ -9,7 +9,7 @@
 // ============================================================
 
 import type { Request as VercelRequest, Response as VercelResponse } from 'express';
-import { sql, cors, authenticate, err, CAN_MANAGE_EMPLOYEES } from '../_lib';
+import { sql, cors, authenticate, err, CAN_MANAGE_EMPLOYEES, sendPush } from '../_lib';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   cors(res);
@@ -181,6 +181,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       )
       RETURNING *
     `;
+
+    // Push para todos da empresa informando nova pesquisa
+    const tokens = await sql`
+      SELECT pt.token FROM push_tokens pt
+      JOIN users u ON u.id = pt.user_id
+      WHERE u.company_id = ${ctx.company_id}
+    `.catch(() => []);
+    await sendPush(
+      (tokens as any[]).map(t => t.token),
+      '📊 Nova pesquisa de pulso',
+      String(title),
+      { route: '/pesquisas' },
+    );
+
     return res.status(201).json(rows[0]);
   }
 

@@ -14,6 +14,7 @@ import { useRouter } from 'expo-router';
 import { getSurveys, createSurvey, deleteSurvey } from '../../conexoes/pesquisas';
 import { PulseSurvey, CreateSurveyData } from '../../tipos/modelos';
 import { theme } from '../../estilo/cores';
+import { useToast } from '../../contextos/Toast';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? '';
 
@@ -36,6 +37,7 @@ function daysLeft(expires_at: string | null | undefined) {
 
 export default function PesquisasScreen() {
   const router = useRouter();
+  const toast  = useToast();
   const [surveys,    setSurveys]    = useState<PulseSurvey[]>([]);
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -48,7 +50,7 @@ export default function PesquisasScreen() {
     try {
       setSurveys(await getSurveys());
     } catch (e: any) {
-      Alert.alert('Erro', e?.message ?? 'Não foi possível carregar pesquisas');
+      toast.error(e?.message ?? 'Não foi possível carregar pesquisas');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -63,7 +65,7 @@ export default function PesquisasScreen() {
     const t = optionText.trim();
     if (!t) return;
     const opts = form.options ?? [];
-    if (opts.length >= 6) return Alert.alert('Máximo de 6 opções');
+    if (opts.length >= 6) return toast.warning('Máximo de 6 opções de resposta');
     setForm(f => ({ ...f, options: [...(f.options ?? []), t] }));
     setOptionText('');
   }
@@ -74,10 +76,10 @@ export default function PesquisasScreen() {
 
   async function handleSave() {
     if (!form.title.trim() || !form.question.trim()) {
-      return Alert.alert('Preencha', 'Título e pergunta são obrigatórios');
+      return toast.warning('Título e pergunta são obrigatórios');
     }
     if (form.type === 'choice' && (!form.options || form.options.length < 2)) {
-      return Alert.alert('Atenção', 'Adicione ao menos 2 opções de resposta');
+      return toast.warning('Adicione ao menos 2 opções de resposta');
     }
     setSaving(true);
     try {
@@ -85,8 +87,9 @@ export default function PesquisasScreen() {
       setForm(EMPTY);
       setShowForm(false);
       load();
+      toast.success('Pesquisa criada com sucesso!');
     } catch (e: any) {
-      Alert.alert('Erro', e?.message ?? 'Não foi possível criar pesquisa');
+      toast.error(e?.message ?? 'Não foi possível criar pesquisa');
     } finally {
       setSaving(false);
     }
@@ -99,7 +102,7 @@ export default function PesquisasScreen() {
         await deleteSurvey(s.id);
         load();
       } catch (e: any) {
-        window.alert(e?.message ?? 'Erro ao excluir pesquisa');
+        toast.error(e?.message ?? 'Erro ao excluir pesquisa');
       }
       return;
     }
@@ -111,7 +114,7 @@ export default function PesquisasScreen() {
             await deleteSurvey(s.id);
             load();
           } catch (e: any) {
-            Alert.alert('Erro', e?.message);
+            toast.error(e?.message ?? 'Erro ao excluir pesquisa');
           }
         },
       },

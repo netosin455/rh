@@ -16,6 +16,7 @@ import {
   STATUS_LABELS, Absence, ABSENCE_TYPE_LABELS, Payslip,
 } from '../../tipos/modelos';
 import { useAuth } from '../../contextos/Autenticacao';
+import { useToast } from '../../contextos/Toast';
 import { theme } from '../../estilo/cores';
 import { ymd, brToIso, isoToBr, maskDate } from '../../helpers/datas';
 
@@ -142,6 +143,8 @@ function ColaboradorScreenInner() {
   const router  = useRouter();
   const { user } = useAuth();
 
+  const toast = useToast();
+
   const canEdit   = ['super_admin','admin','rh','adm'].includes(user?.role ?? '');
   const canDelete = ['super_admin','admin'].includes(user?.role ?? '');
   const canSeeSalary = ['super_admin','admin','rh','adm'].includes(user?.role ?? '');
@@ -209,13 +212,13 @@ function ColaboradorScreenInner() {
   }
 
   async function handleSave() {
-    if (!form.name?.trim())       return Alert.alert('Campo obrigatório', 'Informe o nome.');
-    if (!form.role_title?.trim()) return Alert.alert('Campo obrigatório', 'Informe o cargo.');
+    if (!form.name?.trim())       return toast.warning('Informe o nome.');
+    if (!form.role_title?.trim()) return toast.warning('Informe o cargo.');
 
     const hireDateIso  = brToIso(form.hire_date ?? '');
     const birthDateIso = form.birth_date ? brToIso(form.birth_date) : '';
-    if (!hireDateIso)                           return Alert.alert('Data inválida', 'Admissão: use DD/MM/AAAA.');
-    if (form.birth_date && !birthDateIso)       return Alert.alert('Data inválida', 'Nascimento: use DD/MM/AAAA.');
+    if (!hireDateIso)                     return toast.warning('Admissão: use DD/MM/AAAA.');
+    if (form.birth_date && !birthDateIso) return toast.warning('Nascimento: use DD/MM/AAAA.');
 
     setSaving(true);
     try {
@@ -235,9 +238,9 @@ function ColaboradorScreenInner() {
       });
       setEmployee(updated);
       setEditing(false);
-      Alert.alert('Sucesso', 'Colaborador atualizado.');
+      toast.success('Colaborador atualizado!');
     } catch (e: any) {
-      Alert.alert('Erro', e.message || 'Não foi possível salvar.');
+      toast.error(e.message || 'Não foi possível salvar.');
     } finally {
       setSaving(false);
     }
@@ -256,7 +259,7 @@ function ColaboradorScreenInner() {
               await deleteEmployee(Number(id));
               router.back();
             } catch (e: any) {
-              Alert.alert('Erro', e.message || 'Não foi possível excluir.');
+              toast.error(e.message || 'Não foi possível excluir.');
             }
           },
         },
@@ -528,7 +531,7 @@ function ColaboradorScreenInner() {
                           { text: 'Cancelar', style: 'cancel' },
                           { text: 'Remover', style: 'destructive', onPress: async () => {
                               try { await deletePayslip(p.id); loadPayslips(); }
-                              catch (e: any) { Alert.alert('Erro', e?.message); }
+                              catch (e: any) { toast.error(e?.message ?? 'Erro ao remover holerite'); }
                           }},
                         ])}
                       >
@@ -587,7 +590,8 @@ function ColaboradorScreenInner() {
                         await createPayslip({ employee_id: Number(id), month: psForm.month, description: psForm.description || undefined, file_url: psForm.file_url });
                         setPayslipModal(false);
                         loadPayslips();
-                      } catch (e: any) { Alert.alert('Erro', e?.message); }
+                        toast.success('Holerite adicionado!');
+                      } catch (e: any) { toast.error(e?.message ?? 'Erro ao salvar holerite'); }
                       finally { setPsSaving(false); }
                     }}
                   >
@@ -609,7 +613,7 @@ function ColaboradorScreenInner() {
                     const proc = await startOnboarding(Number(id));
                     router.push(`/onboarding/${proc.id}` as any);
                   } catch (e: any) {
-                    Alert.alert('Erro', e?.message ?? 'Não foi possível iniciar o onboarding');
+                    toast.error(e?.message ?? 'Não foi possível iniciar o onboarding');
                   }
                 }}
               >

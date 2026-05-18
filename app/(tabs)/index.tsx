@@ -16,6 +16,7 @@ import { getUpcomingEvents } from '../../conexoes/eventos';
 import { getNotices } from '../../conexoes/avisos';
 import { getAlerts } from '../../conexoes/analytics';
 import { countAbsences } from '../../conexoes/ausencias';
+import { buscarInsights, Insight } from '../../conexoes/insights';
 import { Employee, Event, Notice, ProactiveAlert } from '../../tipos/modelos';
 import { theme } from '../../estilo/cores';
 import { formatDateDisplay, getTodayString, ymd } from '../../helpers/datas';
@@ -79,9 +80,13 @@ export default function DashboardScreen() {
   const [events,     setEvents]     = useState<Event[]>([]);
   const [notices,    setNotices]    = useState<Notice[]>([]);
   const [alerts,     setAlerts]     = useState<ProactiveAlert[]>([]);
-  const [faltaCount, setFaltaCount] = useState<number>(0);
-  const [loading,    setLoading]    = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const [faltaCount,       setFaltaCount]       = useState<number>(0);
+  const [insights,         setInsights]         = useState<Insight[]>([]);
+  const [insightsLoading,  setInsightsLoading]  = useState(false);
+  const [loading,          setLoading]          = useState(true);
+  const [refreshing,       setRefreshing]       = useState(false);
+
+  const canSeeInsights = ['super_admin','admin','rh'].includes(user?.role ?? '');
 
   const load = useCallback(async () => {
     try {
@@ -97,6 +102,11 @@ export default function DashboardScreen() {
       getAlerts().then(setAlerts).catch(() => {});
       const currentMonth = getTodayString().slice(0, 7); // YYYY-MM
       countAbsences('falta', currentMonth).then(setFaltaCount).catch(() => {});
+      // Insights de IA apenas para gestores autorizados
+      if (['super_admin','admin','rh'].includes(user?.role ?? '')) {
+        setInsightsLoading(true);
+        buscarInsights().then(r => setInsights(r.insights)).catch(() => {}).finally(() => setInsightsLoading(false));
+      }
     } catch (err) {
       console.error('[Dashboard] Erro ao carregar dados:', err);
     } finally {
@@ -257,6 +267,54 @@ export default function DashboardScreen() {
         </Animated.View>
       )}
 
+      {/* Insights da IA */}
+      {canSeeInsights && (insightsLoading || insights.length > 0) && (
+        <Animated.View entering={FadeInDown.delay(270).duration(350)} style={styles.insightsWrap}>
+          <View style={styles.insightsHeader}>
+            <Ionicons name="sparkles" size={13} color={theme.gold} />
+            <Text style={styles.insightsHeaderText}>INSIGHTS DA IA</Text>
+            <TouchableOpacity
+              style={styles.insightsRefreshBtn}
+              onPress={() => {
+                setInsightsLoading(true);
+                buscarInsights(true).then(r => setInsights(r.insights)).catch(() => {}).finally(() => setInsightsLoading(false));
+              }}
+              disabled={insightsLoading}
+            >
+              <Ionicons name="refresh" size={13} color={insightsLoading ? theme.textMuted : theme.gold} />
+            </TouchableOpacity>
+          </View>
+
+          {insightsLoading && insights.length === 0 ? (
+            <View style={styles.insightsSkeleton}>
+              <ActivityIndicator size="small" color={theme.gold} />
+              <Text style={styles.insightsSkeletonText}>Analisando dados da empresa...</Text>
+            </View>
+          ) : (
+            insights.map((insight, i) => {
+              const color = insight.severity === 'high' ? theme.danger : insight.severity === 'medium' ? theme.warning : theme.info;
+              return (
+                <TouchableOpacity
+                  key={i}
+                  style={[styles.insightCard, { borderLeftColor: color }]}
+                  onPress={() => insight.action_route && router.push(insight.action_route as any)}
+                  activeOpacity={insight.action_route ? 0.75 : 1}
+                >
+                  <View style={[styles.insightDot, { backgroundColor: color }]} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.insightTitle}>{insight.title}</Text>
+                    <Text style={styles.insightDesc} numberOfLines={2}>{insight.description}</Text>
+                  </View>
+                  {insight.action_route && (
+                    <Ionicons name="chevron-forward" size={13} color={theme.textMuted} />
+                  )}
+                </TouchableOpacity>
+              );
+            })
+          )}
+        </Animated.View>
+      )}
+
       {/* Próximos eventos */}
       <Animated.View entering={FadeInDown.delay(290).duration(350)} style={styles.card}>
         <SectionHeader title="Próximos eventos" onPress={() => router.push('/(tabs)/agenda')} />
@@ -404,6 +462,33 @@ const styles = StyleSheet.create({
   },
   alertTitle: { fontSize: 13, color: theme.white, fontWeight: '600', marginBottom: 1 },
   alertDesc:  { fontSize: 11, color: theme.textMuted },
+
+  insightsWrap: {
+    backgroundColor: 'rgba(24,27,33,0.92)',
+    borderRadius: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
+    marginBottom: 14, overflow: 'hidden',
+  },
+  insightsHeader: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 14, paddingVertical: 10,
+    borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.05)',
+  },
+  insightsHeaderText: { fontSize: 9, fontWeight: '800', color: theme.gold, letterSpacing: 1.5, flex: 1 },
+  insightsRefreshBtn: { padding: 4 },
+  insightsSkeleton: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    paddingHorizontal: 14, paddingVertical: 16,
+  },
+  insightsSkeletonText: { fontSize: 12, color: theme.textMuted, fontStyle: 'italic' },
+  insightCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    paddingHorizontal: 14, paddingVertical: 12,
+    borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.03)',
+    borderLeftWidth: 3,
+  },
+  insightDot:  { width: 8, height: 8, borderRadius: 4 },
+  insightTitle: { fontSize: 13, color: theme.white, fontWeight: '600', marginBottom: 3 },
+  insightDesc:  { fontSize: 11, color: theme.textMuted, lineHeight: 15 },
 
   birthdayCard: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 12,

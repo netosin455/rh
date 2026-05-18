@@ -12,6 +12,7 @@ import { Event, EventCategory, EVENT_CATEGORY_COLORS, CreateEventData, Employee 
 import { theme } from '../../estilo/cores';
 import { getTodayString, toDateString, formatDateDisplay, ymd } from '../../helpers/datas';
 import { downloadICS } from '../../helpers/ics';
+import { useToast } from '../../contextos/Toast';
 
 const WEEKDAYS = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
 const MONTH_NAMES = [
@@ -52,6 +53,7 @@ function buildCalendar(year: number, month: number): (string | null)[][] {
 }
 
 export default function AgendaScreen() {
+  const toast = useToast();
   const today = getTodayString();
   const [year,       setYear]       = useState(new Date().getFullYear());
   const [month,      setMonth]      = useState(new Date().getMonth());
@@ -160,6 +162,7 @@ export default function AgendaScreen() {
       const created = await createEvent(data);
       setEvents(prev => [...prev, created]);
       setShowModal(false);
+      toast.success('Evento adicionado à agenda!');
       setForm({ title: '', date: today, start_time: '', end_time: '', category: 'outro', location: '', description: '', is_all_day: false });
     } catch (e: any) {
       setFormError(e.message || 'Não foi possível salvar. Tente novamente.');

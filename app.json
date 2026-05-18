@@ -22,7 +22,10 @@
       "output": "static"
     },
     "plugins": [
-      "expo-router"
+      "expo-router",
+      ["expo-notifications", {
+        "color": "#C9A84C"
+      }]
     ],
     "experiments": {
       "typedRoutes": true

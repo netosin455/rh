@@ -7,6 +7,8 @@ import { useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { AuthProvider, useAuth } from '../contextos/Autenticacao';
+import { ToastProvider } from '../contextos/Toast';
+import { PushProvider } from '../componentes/PushProvider';
 
 function readSSOParams(): { sso_token?: string; sso_error?: string } {
   if (Platform.OS !== 'web' || typeof window === 'undefined') return {};
@@ -72,8 +74,12 @@ function AuthGuard() {
 export default function RootLayout() {
   return (
     <AuthProvider>
-      <StatusBar style="light" />
-      <AuthGuard />
+      <ToastProvider>
+        <PushProvider>
+          <StatusBar style="light" />
+          <AuthGuard />
+        </PushProvider>
+      </ToastProvider>
     </AuthProvider>
   );
 }

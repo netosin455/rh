@@ -3,7 +3,7 @@
 // ============================================================
 
 import type { Request as VercelRequest, Response as VercelResponse } from 'express';
-import { sql, cors, authenticate, err, CAN_MANAGE_EMPLOYEES, CAN_APPROVE_ABSENCES, parsePagination } from '../_lib';
+import { sql, cors, authenticate, err, CAN_MANAGE_EMPLOYEES, CAN_APPROVE_ABSENCES, parsePagination, sendPush } from '../_lib';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   cors(res);
@@ -30,9 +30,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           approved_by = ${ctx.sub},
           approved_at = now()
         WHERE id = ${id} AND company_id = ${ctx.company_id}
-        RETURNING *
+        RETURNING *, (SELECT user_id FROM employees WHERE id = absences.employee_id) AS employee_user_id
       `;
       if (!rows[0]) return err(res, 404, 'Solicitação não encontrada');
+
+      // Push para o solicitante
+      const empUserId = (rows[0] as any).employee_user_id;
+      if (empUserId) {
+        const tokens = await sql`SELECT token FROM push_tokens WHERE user_id = ${empUserId}`;
+        const pushTitle = approved ? 'Férias aprovadas ✅' : 'Férias recusadas ❌';
+        const pushBody  = approved ? 'Sua solicitação de férias foi aprovada.' : 'Sua solicitação de férias foi recusada.';
+        await sendPush(tokens.map((t: any) => t.token), pushTitle, pushBody, { route: '/(tabs)/ferias' });
+      }
+
       return res.json(rows[0]);
     }
 

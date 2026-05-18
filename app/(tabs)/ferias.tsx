@@ -12,6 +12,7 @@ import { Absence, AbsenceType, ABSENCE_TYPE_LABELS, CreateAbsenceData, Employee 
 import { theme } from '../../estilo/cores';
 import { formatDateShort } from '../../helpers/datas';
 import { exportAbsencesPDF } from '../../helpers/pdf';
+import { useToast } from '../../contextos/Toast';
 
 const TYPE_COLORS: Record<AbsenceType, string> = {
   ferias:               theme.gold,
@@ -51,6 +52,7 @@ const EMPTY_FORM = {
 };
 
 export default function FeriasScreen() {
+  const toast = useToast();
   const [absences,   setAbsences]   = useState<Absence[]>([]);
   const [employees,  setEmployees]  = useState<Employee[]>([]);
   const [empNames,   setEmpNames]   = useState<Record<number, string>>({});
@@ -123,6 +125,7 @@ export default function FeriasScreen() {
       const created = await createAbsence(data);
       setAbsences(prev => [created, ...prev]);
       setShowModal(false);
+      toast.success('Lançamento registrado com sucesso!');
       setForm(EMPTY_FORM);
       setEmpSearch('');
     } catch (e: any) {

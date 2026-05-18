@@ -1,5 +1,28 @@
 # Changelog — SuperRH
 
+## [2026-05-18] — UX, IA Proativa e Push Notifications
+
+### Adicionado
+- **Sistema de Toast** (`contextos/Toast.tsx`, `componentes/Toast.tsx`): substitui todos os `Alert.alert` bloqueantes por notificações não-bloqueantes com slide animado, 4 tipos (success/error/warning/info), fila de até 3 toasts, auto-dismiss em 3.2s
+- **Insights da IA** (`api/insights.ts`, `conexoes/insights.ts`): endpoint GET com cache de 6h por empresa; usa Groq (llama-3.3-70b) para gerar 4 insights prioritários a partir de dados de turnover, clima, onboarding e pesquisas; seção visual no dashboard com botão de atualização forçada
+- **Push Notifications** (`componentes/PushProvider.tsx`): solicita permissão Expo, registra token via `POST /api/push`, ouve notificações em foreground e navega ao toque; totalmente não-crítico (falha silenciosa)
+- `api/push/index.ts`: endpoint `POST /api/push` salva token Expo com upsert por `(user_id, token)`
+- `api/_lib.ts`: helper `sendPush(tokens, title, body, data?)` envia push via Expo Push API (gratuito)
+- `banco/migrations/007_ai_insights.sql`: tabela `ai_insights` com TTL de 6h e índice por `(company_id, expires_at)`
+- `banco/migrations/008_push_tokens.sql`: tabela `push_tokens` com UNIQUE por `(user_id, token)`
+
+### Modificado
+- `app/_layout.tsx`: adicionados `<ToastProvider>` e `<PushProvider>` no root
+- `app/(tabs)/index.tsx`: seção "Insights da IA" com cards coloridos por severidade (alto=vermelho, médio=amarelo, baixo=azul)
+- `api/absences/index.ts`: ao aprovar/recusar férias → push para o solicitante
+- `api/notices/index.ts`: ao fixar aviso → push para todos da empresa
+- `api/surveys/index.ts`: ao criar pesquisa → push para todos da empresa
+- `api/cron.ts`: onboarding atrasado → push para o responsável + email (anterior)
+- `app.json`: plugin `expo-notifications` adicionado com cor dourada
+
+### Substituído
+- Todos os `Alert.alert('Erro', ...)` e `Alert.alert('Sucesso', ...)` em 9 arquivos substituídos por `toast.error()` / `toast.success()` / `toast.warning()` — `Alert.alert` mantido apenas para diálogos de confirmação destrutiva
+
 ## [2026-05-18] — Qualidade de Código e Documentação
 
 ### Adicionado

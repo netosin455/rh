@@ -5,7 +5,7 @@
 // ============================================================
 
 import type { Request as VercelRequest, Response as VercelResponse } from 'express';
-import { sql, cors } from './_lib';
+import { sql, cors, sendPush } from './_lib';
 import Groq from 'groq-sdk';
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY ?? '';
@@ -87,6 +87,15 @@ async function runOnboardingReminders(): Promise<{ checked: number; emails_sent:
       for (const user of users as UserRow[]) {
         if (!user.email) continue;
         const diasAtraso = Math.floor((today.getTime() - deadline.getTime()) / 86_400_000);
+        // Push notification além do email
+        const pushTokens = await sql`SELECT token FROM push_tokens WHERE user_id = ${user.id}`.catch(() => []);
+        await sendPush(
+          (pushTokens as any[]).map(t => t.token),
+          `⚠️ Onboarding atrasado`,
+          `Etapa "${step.title}" de ${proc.employee_name} está atrasada`,
+          { route: `/onboarding/${proc.id}` },
+        );
+
         await sendEmail(
           user.email,
           `⚠️ Onboarding de ${proc.employee_name} — etapa atrasada`,

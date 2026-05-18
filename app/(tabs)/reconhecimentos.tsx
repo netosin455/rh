@@ -8,6 +8,7 @@ import {
   TextInput, StyleSheet, ActivityIndicator, Alert,
   RefreshControl, KeyboardAvoidingView, Platform, FlatList,
 } from 'react-native';
+import { useToast } from '../../contextos/Toast';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { getRecognitions, createRecognition, deleteRecognition } from '../../conexoes/reconhecimentos';
@@ -35,6 +36,7 @@ function initials(name: string) {
 
 export default function RecognitionsScreen() {
   const { user } = useAuth();
+  const toast = useToast();
   const [items,      setItems]      = useState<Recognition[]>([]);
   const [total,      setTotal]      = useState(0);
   const [loading,    setLoading]    = useState(true);
@@ -56,7 +58,7 @@ export default function RecognitionsScreen() {
       setItems(res.data);
       setTotal(res.total);
     } catch (e: any) {
-      Alert.alert('Erro', e?.message ?? 'Não foi possível carregar');
+      toast.error(e?.message ?? 'Não foi possível carregar reconhecimentos');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -84,9 +86,10 @@ export default function RecognitionsScreen() {
     try {
       await createRecognition({ to_employee_id: selectedEmp.id, message: message.trim(), category });
       setModalOpen(false);
+      toast.success('Reconhecimento publicado! 🏆');
       load();
     } catch (e: any) {
-      Alert.alert('Erro', e?.message);
+      toast.error(e?.message ?? 'Não foi possível publicar o reconhecimento');
     } finally {
       setSaving(false);
     }
@@ -99,8 +102,8 @@ export default function RecognitionsScreen() {
       { text: 'Cancelar', style: 'cancel' },
       {
         text: 'Remover', style: 'destructive', onPress: async () => {
-          try { await deleteRecognition(r.id); load(); }
-          catch (e: any) { Alert.alert('Erro', e?.message); }
+          try { await deleteRecognition(r.id); toast.success('Reconhecimento removido'); load(); }
+          catch (e: any) { toast.error(e?.message ?? 'Não foi possível remover'); }
         },
       },
     ]);

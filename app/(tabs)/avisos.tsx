@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contextos/Autenticacao';
 import { getNotices, createNotice, pinNotice, deleteNotice } from '../../conexoes/avisos';
 import { Notice, CreateNoticeData, NoticePriority, NOTICE_PRIORITY_LABELS } from '../../tipos/modelos';
+import { useToast } from '../../contextos/Toast';
 import { theme } from '../../estilo/cores';
 
 const PRIORITY_COLORS: Record<NoticePriority, string> = {
@@ -56,6 +57,7 @@ function timeAgo(iso: string): string {
 
 export default function AvisosScreen() {
   const { user } = useAuth();
+  const toast = useToast();
   const canManage = ['super_admin','admin','rh','adm'].includes(user?.role ?? '');
 
   const [notices,    setNotices]    = useState<Notice[]>([]);
@@ -108,6 +110,7 @@ export default function AvisosScreen() {
       const created = await createNotice(data);
       setNotices(prev => [created, ...prev]);
       setShowModal(false);
+      toast.success('Aviso publicado para a equipe!');
       setForm(EMPTY_FORM);
     } catch (e: any) {
       setFormError(e.message || 'Não foi possível salvar. Tente novamente.');

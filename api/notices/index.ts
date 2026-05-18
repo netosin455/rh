@@ -3,7 +3,7 @@
 // ============================================================
 
 import type { Request as VercelRequest, Response as VercelResponse } from 'express';
-import { sql, cors, authenticate, err, CAN_MANAGE_EMPLOYEES, parsePagination } from '../_lib';
+import { sql, cors, authenticate, err, CAN_MANAGE_EMPLOYEES, parsePagination, sendPush } from '../_lib';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   cors(res);
@@ -54,6 +54,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         RETURNING *
       `;
       if (!rows[0]) return err(res, 404, 'Aviso não encontrado');
+
+      // Push para todos da empresa quando aviso é fixado
+      if (pinned) {
+        const tokens = await sql`
+          SELECT pt.token FROM push_tokens pt
+          JOIN users u ON u.id = pt.user_id
+          WHERE u.company_id = ${ctx.company_id}
+        `;
+        await sendPush(
+          tokens.map((t: any) => t.token),
+          '📌 Aviso fixado',
+          String((rows[0] as any).title),
+          { route: '/(tabs)/avisos' },
+        );
+      }
       return res.json(rows[0]);
     }
 

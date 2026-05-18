@@ -13,6 +13,7 @@ import { useRouter } from 'expo-router';
 import { getOnboardings, deleteOnboarding } from '../../conexoes/onboarding';
 import { OnboardingProcess } from '../../tipos/modelos';
 import { theme } from '../../estilo/cores';
+import { useToast } from '../../contextos/Toast';
 
 function calcProgress(proc: OnboardingProcess): { done: number; total: number; pct: number } {
   const total = proc.steps_snapshot.length;
@@ -26,6 +27,7 @@ function daysSince(dateStr: string) {
 
 export default function OnboardingListScreen() {
   const router = useRouter();
+  const toast  = useToast();
   const [processes,  setProcesses]  = useState<OnboardingProcess[]>([]);
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -35,7 +37,7 @@ export default function OnboardingListScreen() {
     try {
       setProcesses(await getOnboardings(false));
     } catch (e: any) {
-      Alert.alert('Erro', e?.message ?? 'Não foi possível carregar');
+      toast.error(e?.message ?? 'Não foi possível carregar');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -52,7 +54,7 @@ export default function OnboardingListScreen() {
       {
         text: 'Encerrar', style: 'destructive', onPress: async () => {
           try { await deleteOnboarding(proc.id); load(); }
-          catch (e: any) { Alert.alert('Erro', e?.message); }
+          catch (e: any) { toast.error(e?.message ?? 'Erro ao encerrar onboarding'); }
         },
       },
     ]);
