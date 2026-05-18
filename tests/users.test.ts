@@ -12,6 +12,12 @@ vi.mock('../api/_lib', () => ({
   authenticate: (req: any) => mockAuthenticate(req),
   err: (res: any, status: number, message: string) => res.status(status).json({ error: message }),
   VALID_ROLES: ['super_admin','admin','rh','gestor','colaborador','financeiro','juridico','ti','adm'],
+  parsePagination: (query: any, opts: any = {}) => {
+    const { defaultLimit = 50, maxLimit = 100 } = opts;
+    const page  = Math.max(1, Number(query.page)  || 1);
+    const limit = Math.min(maxLimit, Math.max(1, Number(query.limit) || defaultLimit));
+    return { page, limit, offset: (page - 1) * limit };
+  },
 }));
 
 vi.mock('bcryptjs', () => ({
@@ -107,7 +113,7 @@ describe('PUT /api/users/:id', () => {
 
   it('test_update_user_falha_com_nome_vazio — retorna 400', async () => {
     mockAuthenticate.mockReturnValue(superAdminCtx);
-    const { default: handler } = await import('../api/users/[id]');
+    const { default: handler } = await import('../api/users/index');
     const req = makeReq('PUT', { name: '   ' }, { id: '99' });
     const res = makeRes();
     await handler(req, res);
@@ -120,7 +126,7 @@ describe('DELETE /api/users/:id', () => {
 
   it('test_delete_user_falha_auto_exclusao — retorna 400', async () => {
     mockAuthenticate.mockReturnValue(superAdminCtx); // sub: 1
-    const { default: handler } = await import('../api/users/[id]');
+    const { default: handler } = await import('../api/users/index');
     const req = makeReq('DELETE', {}, { id: '1' }); // mesma id do sub
     const res = makeRes();
     await handler(req, res);

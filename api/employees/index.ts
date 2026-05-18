@@ -3,7 +3,7 @@
 // ============================================================
 
 import type { Request as VercelRequest, Response as VercelResponse } from 'express';
-import { sql, cors, authenticate, err, CAN_MANAGE_EMPLOYEES } from '../_lib';
+import { sql, cors, authenticate, err, CAN_MANAGE_EMPLOYEES, parsePagination } from '../_lib';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   cors(res);
@@ -68,9 +68,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // ── Collection routes ─────────────────────────────────────
   if (req.method === 'GET') {
-    const page   = Math.max(1, Number(req.query.page)  || 1);
-    const limit  = Math.min(100, Math.max(1, Number(req.query.limit) || 50));
-    const offset = (page - 1) * limit;
+    const { page, limit, offset } = parsePagination(req.query);
 
     const [countRow, rows] = await Promise.all([
       sql`SELECT COUNT(*)::int AS total FROM employees WHERE company_id = ${ctx.company_id}`,

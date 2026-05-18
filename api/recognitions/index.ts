@@ -6,7 +6,7 @@
 // ============================================================
 
 import type { Request as VercelRequest, Response as VercelResponse } from 'express';
-import { sql, cors, authenticate, err, IS_ADMIN } from '../_lib';
+import { sql, cors, authenticate, err, IS_ADMIN, parsePagination } from '../_lib';
 
 const VALID_CATEGORIES = ['trabalho_em_equipe', 'inovacao', 'lideranca', 'atendimento', 'resultado', 'outro'];
 const CAN_MANAGE_PAYSLIPS = ['super_admin', 'admin', 'rh', 'adm'];
@@ -96,9 +96,7 @@ async function handleRecognitions(req: VercelRequest, res: VercelResponse, ctx: 
 
   if (req.method === 'GET') {
     const toId   = req.query.to_employee_id ? Number(req.query.to_employee_id) : null;
-    const page   = Math.max(1, Number(req.query.page) || 1);
-    const limit  = Math.min(50, Math.max(1, Number(req.query.limit) || 20));
-    const offset = (page - 1) * limit;
+    const { page, limit, offset } = parsePagination(req.query, { defaultLimit: 20, maxLimit: 50 });
 
     const rows = toId
       ? await sql`

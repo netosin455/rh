@@ -124,6 +124,34 @@ interface ReportUserRow { id: number; name: string; email: string }
 
 const REPORT_ROLES = ['rh', 'admin', 'super_admin'];
 
+async function fetchOnboardingStatus(companyId: number): Promise<{ active: number; long_running: number }> {
+  const rows = await sql`
+    SELECT COUNT(*)::int AS active,
+           COUNT(*) FILTER (WHERE started_at < NOW() - INTERVAL '14 days')::int AS long_running
+    FROM onboarding_processes
+    WHERE company_id = ${companyId} AND completed_at IS NULL
+  `.catch((e: unknown) => {
+    console.error(`[${new Date().toISOString()}] [ERROR] cron/fetchOnboardingStatus company=${companyId}:`, e);
+    return [{ active: 0, long_running: 0 }];
+  });
+  return (rows as { active: number; long_running: number }[])[0] ?? { active: 0, long_running: 0 };
+}
+
+async function fetchClimateScore(companyId: number): Promise<{ avg_score: number | null; responses: number }> {
+  const rows = await sql`
+    SELECT ROUND(AVG(pr.score::numeric), 2) AS avg_score, COUNT(*)::int AS responses
+    FROM pulse_responses pr
+    JOIN pulse_surveys ps ON ps.id = pr.survey_id AND ps.type = 'scale'
+    WHERE ps.company_id = ${companyId}
+      AND pr.responded_at >= NOW() - INTERVAL '30 days'
+      AND pr.score IS NOT NULL
+  `.catch((e: unknown) => {
+    console.error(`[${new Date().toISOString()}] [ERROR] cron/fetchClimateScore company=${companyId}:`, e);
+    return [{ avg_score: null, responses: 0 }];
+  });
+  return (rows as { avg_score: number | null; responses: number }[])[0] ?? { avg_score: null, responses: 0 };
+}
+
 async function buildWeeklyContext(companyId: number): Promise<string> {
   const [summary, absences, risks, onboarding, climate] = await Promise.all([
     sql`SELECT status, COUNT(*)::int AS count FROM employees WHERE company_id = ${companyId} GROUP BY status`,
@@ -138,26 +166,12 @@ async function buildWeeklyContext(companyId: number): Promise<string> {
       WHERE company_id = ${companyId} AND turnover_risk = 'alto'
       ORDER BY total_absences_90d DESC LIMIT 5
     `,
-    sql`
-      SELECT COUNT(*)::int AS active,
-             COUNT(*) FILTER (WHERE started_at < NOW() - INTERVAL '14 days')::int AS long_running
-      FROM onboarding_processes
-      WHERE company_id = ${companyId} AND completed_at IS NULL
-    `.catch(() => [{ active: 0, long_running: 0 }]),
-    sql`
-      SELECT ROUND(AVG(pr.score::numeric), 2) AS avg_score, COUNT(*)::int AS responses
-      FROM pulse_responses pr
-      JOIN pulse_surveys ps ON ps.id = pr.survey_id AND ps.type = 'scale'
-      WHERE ps.company_id = ${companyId}
-        AND pr.responded_at >= NOW() - INTERVAL '30 days'
-        AND pr.score IS NOT NULL
-    `.catch(() => [{ avg_score: null, responses: 0 }]),
+    fetchOnboardingStatus(companyId),
+    fetchClimateScore(companyId),
   ]);
 
   const statusMap = Object.fromEntries((summary as { status: string; count: number }[]).map(r => [r.status, r.count]));
   const total     = Object.values(statusMap).reduce((a, b) => a + b, 0);
-  const clim      = (climate as { avg_score: number | null; responses: number }[])[0];
-  const ob        = (onboarding as { active: number; long_running: number }[])[0] ?? { active: 0, long_running: 0 };
   const absWeek   = (absences as { total: number }[])[0]?.total ?? 0;
 
   const riskList = (risks as { name: string; role_title: string; days_in_company: number; total_absences_90d: number }[])
@@ -168,8 +182,8 @@ async function buildWeeklyContext(companyId: number): Promise<string> {
 Dados da semana para o escritório (empresa_id: ${companyId}):
 - Total de colaboradores: ${total} (ativos: ${statusMap['ativo'] ?? 0}, férias: ${statusMap['ferias'] ?? 0}, licença: ${statusMap['licenca'] ?? 0})
 - Ausências aprovadas esta semana: ${absWeek}
-- Onboardings em andamento: ${ob.active} (${ob.long_running} há mais de 14 dias)
-- Clima organizacional (últimos 30d): ${clim?.avg_score != null ? `${clim.avg_score}/5 (${clim.responses} respostas)` : 'sem dados'}
+- Onboardings em andamento: ${onboarding.active} (${onboarding.long_running} há mais de 14 dias)
+- Clima organizacional (últimos 30d): ${climate.avg_score != null ? `${climate.avg_score}/5 (${climate.responses} respostas)` : 'sem dados'}
 - Colaboradores com risco de turnover alto:
 ${riskList}
 `.trim();

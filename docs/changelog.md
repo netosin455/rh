@@ -1,5 +1,24 @@
 # Changelog — SuperRH
 
+## [2026-05-18] — Qualidade de Código e Documentação
+
+### Adicionado
+- `docs/architecture.md` — documentação completa de arquitetura: stack, fluxo de dados, multitenancy, RBAC, JWT, módulos, decisões técnicas
+- `reports/bugs_found.md` — registro formal de todos os bugs encontrados e corrigidos (10 bugs documentados)
+- `api/_lib.ts`: helper `parsePagination(query, opts?)` centraliza lógica de paginação com suporte a limites customizáveis por endpoint
+- `api/cron.ts`: funções `fetchOnboardingStatus()` e `fetchClimateScore()` extraídas de `buildWeeklyContext()` para respeitar o limite de responsabilidade única
+
+### Corrigido
+- `api/chat.ts`: `.catch(() => [])` substituído por `.catch((e) => { log; return []; })` em 3 queries — erros de banco agora são logados com timestamp e contexto
+- `api/cron.ts`: mesmo padrão aplicado em `buildWeeklyContext()` — falhas nas queries de onboarding e clima agora são rastreáveis
+
+### Refatorado
+- `api/employees/index.ts`: paginação substituída por `parsePagination(req.query)`
+- `api/users/index.ts`: paginação substituída por `parsePagination(req.query)`
+- `api/notices/index.ts`: paginação substituída por `parsePagination(req.query)`
+- `api/recognitions/index.ts`: paginação substituída por `parsePagination(req.query, { defaultLimit: 20, maxLimit: 50 })`
+- `api/absences/index.ts`: paginação substituída por `parsePagination(req.query)`
+
 ## [2026-05-15] — Melhorias v2.0 (Feedback Técnico)
 
 ### Adicionado

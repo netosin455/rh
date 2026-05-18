@@ -59,3 +59,14 @@ export const IS_ADMIN = ['super_admin', 'admin'];
 /** Todos os cargos válidos do sistema */
 export const VALID_ROLES = ['super_admin','admin','rh','gestor','colaborador','financeiro','juridico','ti','adm'] as const;
 export type SystemRole = typeof VALID_ROLES[number];
+
+/** Extrai e normaliza parâmetros de paginação de query strings */
+export function parsePagination(
+  query: Record<string, unknown>,
+  opts: { defaultLimit?: number; maxLimit?: number } = {},
+): { page: number; limit: number; offset: number } {
+  const { defaultLimit = 50, maxLimit = 100 } = opts;
+  const page  = Math.max(1, Number(query.page)  || 1);
+  const limit = Math.min(maxLimit, Math.max(1, Number(query.limit) || defaultLimit));
+  return { page, limit, offset: (page - 1) * limit };
+}

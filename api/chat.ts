@@ -56,7 +56,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         CASE turnover_risk WHEN 'alto' THEN 0 ELSE 1 END,
         total_absences_90d DESC
       LIMIT 8
-    `.catch(() => []),
+    `.catch((e: unknown) => {
+      console.error(`[${new Date().toISOString()}] [ERROR] chat/riskRows:`, e);
+      return [];
+    }),
 
     // Onboarding em andamento
     sql`
@@ -70,7 +73,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       JOIN employees e ON e.id = op.employee_id
       WHERE op.company_id = ${ctx.company_id} AND op.completed_at IS NULL
       LIMIT 6
-    `.catch(() => []),
+    `.catch((e: unknown) => {
+      console.error(`[${new Date().toISOString()}] [ERROR] chat/onboardingRows:`, e);
+      return [];
+    }),
 
     // Pesquisas de pulso recentes com resultados
     sql`
@@ -84,7 +90,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       GROUP BY ps.id, ps.title, ps.question, ps.type
       ORDER BY ps.created_at DESC
       LIMIT 4
-    `.catch(() => []),
+    `.catch((e: unknown) => {
+      console.error(`[${new Date().toISOString()}] [ERROR] chat/surveyRows:`, e);
+      return [];
+    }),
   ]);
 
   const today = new Date().toLocaleDateString('pt-BR', {

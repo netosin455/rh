@@ -3,7 +3,7 @@
 // ============================================================
 
 import type { Request as VercelRequest, Response as VercelResponse } from 'express';
-import { sql, cors, authenticate, err, CAN_MANAGE_EMPLOYEES, CAN_APPROVE_ABSENCES } from '../_lib';
+import { sql, cors, authenticate, err, CAN_MANAGE_EMPLOYEES, CAN_APPROVE_ABSENCES, parsePagination } from '../_lib';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   cors(res);
@@ -52,9 +52,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const empId   = employee_id ? Number(employee_id) : null;
     const typeVal = type   ? String(type)   : null;
     const monthVal= month  ? String(month)  : null; // YYYY-MM
-    const page    = Math.max(1, Number(req.query.page)  || 1);
-    const limit   = Math.min(100, Math.max(1, Number(req.query.limit) || 50));
-    const offset  = (page - 1) * limit;
+    const { page, limit, offset } = parsePagination(req.query);
 
     const [countRow, rows] = await Promise.all([
       sql`

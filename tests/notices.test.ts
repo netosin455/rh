@@ -55,7 +55,7 @@ describe('PATCH /api/notices/:id', () => {
 
   it('test_pin_falha_sem_boolean — retorna 400 com body vazio', async () => {
     mockAuthenticate.mockReturnValue(adminCtx);
-    const { default: handler } = await import('../api/notices/[id]');
+    const { default: handler } = await import('../api/notices/index');
     const req = makeReq('PATCH', {}, { id: '1' });
     const res = makeRes();
     await handler(req, res);
