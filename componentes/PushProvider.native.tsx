@@ -1,5 +1,5 @@
 // ============================================================
-// componentes/PushProvider.tsx
+// componentes/PushProvider.native.tsx — iOS e Android apenas
 // Solicita permissão, registra token Expo e ouve notificações
 // ============================================================
 
@@ -10,26 +10,23 @@ import { useRouter } from 'expo-router';
 import { apiFetch } from '../conexoes/http';
 import { useAuth } from '../contextos/Autenticacao';
 
-// Só configura handler em mobile — no web não há suporte e gera warning no SSR
-if (Platform.OS !== 'web') {
-  Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldShowBanner: true,
-      shouldShowList:   true,
-      shouldPlaySound:  true,
-      shouldSetBadge:   false,
-    }),
-  });
-}
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowBanner: true,
+    shouldShowList:   true,
+    shouldPlaySound:  true,
+    shouldSetBadge:   false,
+  }),
+});
 
 export function PushProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const router   = useRouter();
-  const notifListener = useRef<ReturnType<typeof Notifications.addNotificationReceivedListener>>();
+  const notifListener    = useRef<ReturnType<typeof Notifications.addNotificationReceivedListener>>();
   const responseListener = useRef<ReturnType<typeof Notifications.addNotificationResponseReceivedListener>>();
 
   useEffect(() => {
-    if (!user || Platform.OS === 'web') return;
+    if (!user) return;
 
     async function registerToken() {
       try {
@@ -53,12 +50,8 @@ export function PushProvider({ children }: { children: React.ReactNode }) {
 
     registerToken();
 
-    // Notificação recebida em foreground
-    notifListener.current = Notifications.addNotificationReceivedListener(() => {
-      // Toasts são mostrados pelo sistema — nenhuma ação extra necessária
-    });
+    notifListener.current = Notifications.addNotificationReceivedListener(() => {});
 
-    // Toque na notificação → navega para a rota
     responseListener.current = Notifications.addNotificationResponseReceivedListener(response => {
       const route = response.notification.request.content.data?.route as string | undefined;
       if (route) router.push(route as any);
