@@ -10,14 +10,17 @@ import { useRouter } from 'expo-router';
 import { apiFetch } from '../conexoes/http';
 import { useAuth } from '../contextos/Autenticacao';
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowBanner: true,
-    shouldShowList:   true,
-    shouldPlaySound:  true,
-    shouldSetBadge:   false,
-  }),
-});
+// Só configura handler em mobile — no web não há suporte e gera warning no SSR
+if (Platform.OS !== 'web') {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowBanner: true,
+      shouldShowList:   true,
+      shouldPlaySound:  true,
+      shouldSetBadge:   false,
+    }),
+  });
+}
 
 export function PushProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
