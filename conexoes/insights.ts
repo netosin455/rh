@@ -13,6 +13,6 @@ export interface InsightsResponse {
 }
 
 export async function buscarInsights(forceRefresh = false): Promise<InsightsResponse> {
-  const qs = forceRefresh ? '?refresh=1' : '';
-  return apiFetch<InsightsResponse>(`/api/insights${qs}`);
+  const qs = forceRefresh ? '&refresh=1' : '';
+  return apiFetch<InsightsResponse>(`/api/analytics?view=insights${qs}`);
 }

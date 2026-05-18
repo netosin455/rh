@@ -39,7 +39,7 @@ export function PushProvider({ children }: { children: React.ReactNode }) {
         if (finalStatus !== 'granted') return;
 
         const tokenData = await Notifications.getExpoPushTokenAsync();
-        await apiFetch('/api/push', {
+        await apiFetch('/api/users?push=1', {
           method: 'POST',
           body:   JSON.stringify({ token: tokenData.data, platform: Platform.OS }),
         });

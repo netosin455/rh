@@ -7,12 +7,39 @@ import type { Request as VercelRequest, Response as VercelResponse } from 'expre
 import bcrypt from 'bcryptjs';
 import { sql, cors, authenticate, err, VALID_ROLES, parsePagination } from '../_lib';
 
+// POST /api/users?push=1 — registra push token (qualquer role autenticado)
+async function handlePushToken(req: VercelRequest, res: VercelResponse, userId: number) {
+  const { token, platform } = req.body ?? {};
+  if (typeof token !== 'string' || !token.startsWith('ExponentPushToken[')) {
+    return err(res, 400, 'token Expo inválido');
+  }
+  if (platform && !['ios', 'android'].includes(platform)) {
+    return err(res, 400, 'platform deve ser "ios" ou "android"');
+  }
+  try {
+    await sql`
+      INSERT INTO push_tokens (user_id, token, platform)
+      VALUES (${userId}, ${token}, ${platform ?? null})
+      ON CONFLICT (user_id, token) DO NOTHING
+    `;
+    return res.status(200).json({ ok: true });
+  } catch (e: unknown) {
+    console.error(`[${new Date().toISOString()}] [ERROR] push token:`, e);
+    return err(res, 500, 'Erro ao salvar token');
+  }
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   cors(res);
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   let ctx;
   try { ctx = authenticate(req); } catch (e: any) { return err(res, e.status ?? 401, e.message); }
+
+  // Rota de push token — qualquer usuário autenticado pode registrar
+  if (req.query.push === '1' && req.method === 'POST') {
+    return handlePushToken(req, res, ctx.sub);
+  }
 
   if (ctx.role !== 'super_admin') return err(res, 403, 'Acesso restrito ao administrador do sistema');
 

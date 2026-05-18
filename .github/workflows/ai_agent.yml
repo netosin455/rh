@@ -1,0 +1,56 @@
+name: Agente IA — Análise do Repositório
+
+on:
+  push:
+    branches: [main, master]
+  schedule:
+    - cron: "0 11 * * *"  # Todo dia às 8h (horário de Brasília = UTC-3)
+  workflow_dispatch:        # Permite rodar manualmente pelo GitHub
+
+jobs:
+  analisar:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout SuperRH
+        uses: actions/checkout@v4
+
+      - name: Checkout Agente IA
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/github_ai_agent
+          path: github_ai_agent
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Instalar dependências
+        run: pip install -r github_ai_agent/requirements.txt
+
+      - name: Rodar agente
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          REPO_PATH: ${{ github.workspace }}
+        run: python github_ai_agent/main_agent.py
+
+      - name: Salvar relatório como artefato
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-report-${{ github.run_number }}
+          path: github_ai_agent/ai_report.md
+          retention-days: 30
+
+      - name: Copiar relatório para o repositório
+        run: |
+          mkdir -p reports
+          cp github_ai_agent/ai_report.md reports/ai_report_$(date +%Y-%m-%d).md
+
+      - name: Commit do relatório
+        run: |
+          git config user.name "Agente IA"
+          git config user.email "ai-agent@superrh"
+          git add reports/
+          git diff --staged --quiet || git commit -m "chore: relatório de IA $(date +%Y-%m-%d)"
+          git push
