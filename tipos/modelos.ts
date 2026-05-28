@@ -124,7 +124,7 @@ export interface Absence {
   created_at: string;
 }
 
-export type CreateAbsenceData = Omit<Absence, 'id' | 'company_id' | 'days_count' | 'approved_by' | 'approved_at' | 'created_at'>;
+export type CreateAbsenceData = Omit<Absence, 'id' | 'company_id' | 'days_count' | 'approved_by' | 'approved_at' | 'created_at' | 'status'> & { status?: AbsenceStatus };
 
 // ── Rotina ───────────────────────────────────────────────────
 export interface Routine {

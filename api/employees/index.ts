@@ -18,7 +18,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (id) {
     if (req.method === 'GET') {
       const rows = await sql`
-        SELECT e.*, d.name AS department_name
+        SELECT e.*,
+          d.name AS department_name,
+          CASE
+            WHEN e.status IN ('desligado', 'afastado') THEN e.status
+            WHEN EXISTS (
+              SELECT 1 FROM absences a
+              WHERE a.employee_id = e.id AND a.status = 'aprovado'
+                AND a.type = 'ferias'
+                AND CURRENT_DATE BETWEEN a.start_date AND a.end_date
+            ) THEN 'ferias'
+            WHEN EXISTS (
+              SELECT 1 FROM absences a
+              WHERE a.employee_id = e.id AND a.status = 'aprovado'
+                AND a.type IN ('licenca_medica','licenca_maternidade','licenca_paternidade')
+                AND CURRENT_DATE BETWEEN a.start_date AND a.end_date
+            ) THEN 'licenca'
+            ELSE 'ativo'
+          END AS status
         FROM employees e
         LEFT JOIN departments d ON d.id = e.department_id
         WHERE e.id = ${id} AND e.company_id = ${ctx.company_id}
@@ -73,7 +90,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const [countRow, rows] = await Promise.all([
       sql`SELECT COUNT(*)::int AS total FROM employees WHERE company_id = ${ctx.company_id}`,
       sql`
-        SELECT e.*, d.name AS department_name
+        SELECT e.*,
+          d.name AS department_name,
+          CASE
+            WHEN e.status IN ('desligado', 'afastado') THEN e.status
+            WHEN EXISTS (
+              SELECT 1 FROM absences a
+              WHERE a.employee_id = e.id AND a.status = 'aprovado'
+                AND a.type = 'ferias'
+                AND CURRENT_DATE BETWEEN a.start_date AND a.end_date
+            ) THEN 'ferias'
+            WHEN EXISTS (
+              SELECT 1 FROM absences a
+              WHERE a.employee_id = e.id AND a.status = 'aprovado'
+                AND a.type IN ('licenca_medica','licenca_maternidade','licenca_paternidade')
+                AND CURRENT_DATE BETWEEN a.start_date AND a.end_date
+            ) THEN 'licenca'
+            ELSE 'ativo'
+          END AS status
         FROM employees e
         LEFT JOIN departments d ON d.id = e.department_id
         WHERE e.company_id = ${ctx.company_id}

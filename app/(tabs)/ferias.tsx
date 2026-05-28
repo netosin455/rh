@@ -119,7 +119,6 @@ export default function FeriasScreen() {
         type:        form.type,
         start_date:  form.start_date,
         end_date:    form.end_date,
-        status:      'aprovado',
         reason:      form.reason.trim() || undefined,
       };
       const created = await createAbsence(data);

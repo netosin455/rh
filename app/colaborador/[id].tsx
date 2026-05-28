@@ -23,8 +23,6 @@ import { ymd, brToIso, isoToBr, maskDate } from '../../helpers/datas';
 // ── Constantes ────────────────────────────────────────────────
 const STATUS_OPTIONS: { key: EmployeeStatus; label: string }[] = [
   { key: 'ativo',     label: 'Ativo' },
-  { key: 'ferias',    label: 'Férias' },
-  { key: 'licenca',   label: 'Licença' },
   { key: 'afastado',  label: 'Afastado' },
   { key: 'desligado', label: 'Desligado' },
 ];
