@@ -15,7 +15,7 @@ import { getEmployees } from '../../conexoes/colaboradores';
 import { getUpcomingEvents } from '../../conexoes/eventos';
 import { getNotices } from '../../conexoes/avisos';
 import { getAlerts } from '../../conexoes/analytics';
-import { countAbsences } from '../../conexoes/ausencias';
+import { countAbsences, countPendentes } from '../../conexoes/ausencias';
 import { buscarInsights, Insight } from '../../conexoes/insights';
 import { buscarNotificacoes } from '../../conexoes/notificacoes';
 import { Employee, Event, Notice, ProactiveAlert } from '../../tipos/modelos';
@@ -81,12 +81,13 @@ export default function DashboardScreen() {
   const [events,     setEvents]     = useState<Event[]>([]);
   const [notices,    setNotices]    = useState<Notice[]>([]);
   const [alerts,     setAlerts]     = useState<ProactiveAlert[]>([]);
-  const [faltaCount,       setFaltaCount]       = useState<number>(0);
-  const [insights,         setInsights]         = useState<Insight[]>([]);
-  const [insightsLoading,  setInsightsLoading]  = useState(false);
-  const [unreadCount,      setUnreadCount]      = useState(0);
-  const [loading,          setLoading]          = useState(true);
-  const [refreshing,       setRefreshing]       = useState(false);
+  const [faltaCount,        setFaltaCount]        = useState<number>(0);
+  const [pendentesCount,    setPendentesCount]    = useState<number>(0);
+  const [insights,          setInsights]          = useState<Insight[]>([]);
+  const [insightsLoading,   setInsightsLoading]   = useState(false);
+  const [unreadCount,       setUnreadCount]       = useState(0);
+  const [loading,           setLoading]           = useState(true);
+  const [refreshing,        setRefreshing]        = useState(false);
 
   const canSeeInsights = ['super_admin','admin','rh'].includes(user?.role ?? '');
 
@@ -104,6 +105,10 @@ export default function DashboardScreen() {
       getAlerts().then(setAlerts).catch(() => {});
       const currentMonth = getTodayString().slice(0, 7); // YYYY-MM
       countAbsences('falta', currentMonth).then(setFaltaCount).catch(() => {});
+      // Pendentes de aprovação (visível apenas para RH/admin)
+      if (['super_admin','admin','rh','adm','gestor'].includes(user?.role ?? '')) {
+        countPendentes().then(setPendentesCount).catch(() => {});
+      }
       // Contador de notificações não lidas
       buscarNotificacoes().then(r => setUnreadCount(r.unread)).catch(() => {});
 
@@ -228,6 +233,28 @@ export default function DashboardScreen() {
           accent={onLeave > 0 ? theme.warning : undefined}
         />
       </View>
+
+      {/* Card de aprovações pendentes para RH/admin */}
+      {canSeeInsights && pendentesCount > 0 && (
+        <Animated.View entering={FadeInDown.delay(235).duration(350)}>
+          <TouchableOpacity
+            style={styles.pendentesCard}
+            onPress={() => router.push('/(tabs)/ferias')}
+            activeOpacity={0.8}
+          >
+            <View style={styles.pendentesCardIcon}>
+              <Ionicons name="time" size={16} color={theme.warning} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.pendentesCardTitle}>
+                {pendentesCount} solicitaç{pendentesCount === 1 ? 'ão' : 'ões'} pendente{pendentesCount === 1 ? '' : 's'}
+              </Text>
+              <Text style={styles.pendentesCardSub}>Toque para aprovar ou recusar</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={15} color={theme.warning} />
+          </TouchableOpacity>
+        </Animated.View>
+      )}
 
       {/* Alertas IA */}
       {alerts.length > 0 && (
@@ -575,4 +602,18 @@ const styles = StyleSheet.create({
   empRole:     { fontSize: 11, color: theme.textMuted, marginTop: 1 },
   statusPill:  { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 5 },
   statusText:  { fontSize: 10, fontWeight: '700', letterSpacing: 0.3 },
+
+  pendentesCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: 'rgba(251,191,36,0.08)',
+    borderWidth: 1, borderColor: 'rgba(251,191,36,0.3)',
+    borderRadius: 12, padding: 14, marginBottom: 14,
+  },
+  pendentesCardIcon: {
+    width: 34, height: 34, borderRadius: 10,
+    backgroundColor: 'rgba(251,191,36,0.15)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  pendentesCardTitle: { fontSize: 13, color: theme.warning, fontWeight: '700', marginBottom: 2 },
+  pendentesCardSub:   { fontSize: 11, color: theme.textMuted },
 });

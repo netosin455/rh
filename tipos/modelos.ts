@@ -112,6 +112,8 @@ export interface Absence {
   id: number;
   company_id: number;
   employee_id: number;
+  employee_name?: string;  // via JOIN
+  role_title?: string;     // via JOIN
   type: AbsenceType;
   start_date: string;
   end_date: string;

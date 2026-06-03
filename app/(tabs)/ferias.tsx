@@ -6,13 +6,14 @@ import {
 } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
-import { getAbsences, createAbsence } from '../../conexoes/ausencias';
+import { getAbsences, getPendingAbsences, createAbsence, approveAbsence } from '../../conexoes/ausencias';
 import { getEmployees } from '../../conexoes/colaboradores';
 import { Absence, AbsenceType, ABSENCE_TYPE_LABELS, CreateAbsenceData, Employee } from '../../tipos/modelos';
 import { theme } from '../../estilo/cores';
 import { formatDateShort } from '../../helpers/datas';
 import { exportAbsencesPDF } from '../../helpers/pdf';
 import { useToast } from '../../contextos/Toast';
+import { useAuth } from '../../contextos/Autenticacao';
 
 const TYPE_COLORS: Record<AbsenceType, string> = {
   ferias:               theme.gold,
@@ -51,9 +52,15 @@ const EMPTY_FORM = {
   reason:     '',
 };
 
+const CAN_APPROVE = ['super_admin', 'admin', 'rh', 'adm', 'gestor'];
+
 export default function FeriasScreen() {
   const toast = useToast();
+  const { user } = useAuth();
+  const canApprove = CAN_APPROVE.includes(user?.role ?? '');
+
   const [absences,   setAbsences]   = useState<Absence[]>([]);
+  const [pendentes,  setPendentes]  = useState<Absence[]>([]);
   const [employees,  setEmployees]  = useState<Employee[]>([]);
   const [empNames,   setEmpNames]   = useState<Record<number, string>>({});
   const [loading,    setLoading]    = useState(true);
@@ -61,17 +68,21 @@ export default function FeriasScreen() {
   const [activeTab,  setActiveTab]  = useState<AbsenceType | 'todos'>('todos');
   const [showModal,  setShowModal]  = useState(false);
   const [saving,     setSaving]     = useState(false);
+  const [approvingId, setApprovingId] = useState<number | null>(null);
   const [form,       setForm]       = useState(EMPTY_FORM);
   const [empSearch,  setEmpSearch]  = useState('');
   const [formError,  setFormError]  = useState('');
 
   const load = useCallback(async () => {
     try {
-      const [abs, emps] = await Promise.all([getAbsences(), getEmployees()]);
+      const promises: Promise<any>[] = [getAbsences(), getEmployees()];
+      if (canApprove) promises.push(getPendingAbsences());
+      const [abs, emps, pend] = await Promise.all(promises);
       setAbsences(abs);
       setEmployees(emps);
+      if (canApprove) setPendentes(pend ?? []);
       const names: Record<number, string> = {};
-      emps.forEach(e => { names[e.id] = e.name; });
+      emps.forEach((e: Employee) => { names[e.id] = e.name; });
       setEmpNames(names);
     } catch (e) {
       console.error('[Ferias]', e);
@@ -79,7 +90,7 @@ export default function FeriasScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [canApprove]);
 
   useEffect(() => { load(); }, [load]);
   const onRefresh = useCallback(() => { setRefreshing(true); load(); }, [load]);
@@ -104,6 +115,22 @@ export default function FeriasScreen() {
     setEmpSearch('');
     setFormError('');
     setShowModal(true);
+  }
+
+  async function handleApprove(id: number, approved: boolean) {
+    setApprovingId(id);
+    try {
+      await approveAbsence(id, approved);
+      toast.success(approved ? 'Solicitação aprovada!' : 'Solicitação recusada.');
+      // Recarregar lista e pendentes após ação
+      const [abs, pend] = await Promise.all([getAbsences(), getPendingAbsences()]);
+      setAbsences(abs);
+      setPendentes(pend);
+    } catch (e: any) {
+      toast.error(e.message || 'Não foi possível processar a solicitação.');
+    } finally {
+      setApprovingId(null);
+    }
   }
 
   async function handleSave() {
@@ -144,6 +171,76 @@ export default function FeriasScreen() {
 
   return (
     <View style={styles.container}>
+
+      {/* Seção de pendentes para RH/Admin */}
+      {canApprove && pendentes.length > 0 && (
+        <View style={styles.pendentesSection}>
+          <View style={styles.pendentesHeader}>
+            <View style={styles.pendentesHeaderLeft}>
+              <View style={styles.pendenteBadge}>
+                <Text style={styles.pendenteBadgeText}>{pendentes.length}</Text>
+              </View>
+              <Text style={styles.pendentesTitle}>AGUARDANDO APROVAÇÃO</Text>
+            </View>
+          </View>
+          {pendentes.map(p => {
+            const color = TYPE_COLORS[p.type];
+            const isProcessing = approvingId === p.id;
+            return (
+              <View key={p.id} style={styles.pendenteCard}>
+                <View style={[styles.cardAccent, { backgroundColor: color }]} />
+                <View style={styles.pendenteBody}>
+                  <View style={styles.pendenteTop}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.empName}>{p.employee_name || empNames[p.employee_id] || `Colaborador #${p.employee_id}`}</Text>
+                      <View style={[styles.typePill, { backgroundColor: `${color}18` }]}>
+                        <Text style={[styles.typeText, { color }]}>{ABSENCE_TYPE_LABELS[p.type]}</Text>
+                      </View>
+                    </View>
+                    <View style={styles.daysChip}>
+                      <Text style={styles.daysText}>{p.days_count}d</Text>
+                    </View>
+                  </View>
+                  <View style={styles.datesRow}>
+                    <View style={styles.dateBlock}>
+                      <Text style={styles.dateLabel}>INÍCIO</Text>
+                      <Text style={styles.dateValue}>{formatDateShort(p.start_date)}</Text>
+                    </View>
+                    <Ionicons name="arrow-forward" size={12} color={theme.textMuted} />
+                    <View style={styles.dateBlock}>
+                      <Text style={styles.dateLabel}>FIM</Text>
+                      <Text style={styles.dateValue}>{formatDateShort(p.end_date)}</Text>
+                    </View>
+                  </View>
+                  {p.reason ? <Text style={styles.reason} numberOfLines={1}>{p.reason}</Text> : null}
+                  <View style={styles.approveRow}>
+                    {isProcessing ? (
+                      <ActivityIndicator size="small" color={theme.gold} style={{ flex: 1, alignSelf: 'center' }} />
+                    ) : (
+                      <>
+                        <TouchableOpacity
+                          style={styles.btnRecusar}
+                          onPress={() => handleApprove(p.id, false)}
+                        >
+                          <Ionicons name="close" size={13} color={theme.danger} />
+                          <Text style={styles.btnRecusarText}>Recusar</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.btnAprovar}
+                          onPress={() => handleApprove(p.id, true)}
+                        >
+                          <Ionicons name="checkmark" size={13} color="#000" />
+                          <Text style={styles.btnAprovarText}>Aprovar</Text>
+                        </TouchableOpacity>
+                      </>
+                    )}
+                  </View>
+                </View>
+              </View>
+            );
+          })}
+        </View>
+      )}
 
       {/* Abas de filtro por tipo */}
       <ScrollView
@@ -464,4 +561,48 @@ const styles = StyleSheet.create({
   btnCancelText: { fontSize: 14, color: theme.textMuted, fontWeight: '600' },
   btnSave:       { flex: 2, paddingVertical: 12, borderRadius: 8, backgroundColor: theme.gold, alignItems: 'center' },
   btnSaveText:   { fontSize: 14, fontWeight: '700', color: '#000' },
+
+  // ── Seção de pendentes ──
+  pendentesSection: {
+    backgroundColor: 'rgba(201,168,76,0.06)',
+    borderBottomWidth: 1, borderBottomColor: 'rgba(201,168,76,0.2)',
+  },
+  pendentesHeader: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8,
+  },
+  pendentesHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  pendenteBadge: {
+    minWidth: 20, height: 20, borderRadius: 10,
+    backgroundColor: theme.danger, alignItems: 'center', justifyContent: 'center',
+    paddingHorizontal: 5,
+  },
+  pendenteBadgeText: { fontSize: 10, color: '#fff', fontWeight: '800' },
+  pendentesTitle:    { fontSize: 10, color: theme.gold, fontWeight: '800', letterSpacing: 1.2 },
+
+  pendenteCard: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(24,27,33,0.95)',
+    borderBottomWidth: 1, borderBottomColor: theme.border,
+    overflow: 'hidden',
+  },
+  pendenteBody: { flex: 1, padding: 12 },
+  pendenteTop:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 },
+
+  approveRow: {
+    flexDirection: 'row', gap: 8, marginTop: 10,
+  },
+  btnRecusar: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4,
+    paddingVertical: 7, borderRadius: 7,
+    borderWidth: 1, borderColor: 'rgba(224,82,82,0.4)',
+    backgroundColor: 'rgba(224,82,82,0.08)',
+  },
+  btnRecusarText: { fontSize: 12, color: theme.danger, fontWeight: '700' },
+  btnAprovar: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4,
+    paddingVertical: 7, borderRadius: 7,
+    backgroundColor: theme.gold,
+  },
+  btnAprovarText: { fontSize: 12, color: '#000', fontWeight: '700' },
 });

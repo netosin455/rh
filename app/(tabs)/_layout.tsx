@@ -2,11 +2,13 @@
 // app/(tabs)/_layout.tsx — SuperRH
 // ============================================================
 import { Tabs } from 'expo-router';
-import { Platform, TouchableOpacity, Alert } from 'react-native';
+import { Platform, TouchableOpacity, Alert, View, Text, StyleSheet } from 'react-native';
 
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contextos/Autenticacao';
 import { theme } from '../../estilo/cores';
+import { useEffect, useState } from 'react';
+import { countPendentes } from '../../conexoes/ausencias';
 
 // roles: null = visível para todos | string[] = visível apenas para esses roles
 const TABS = [
@@ -21,8 +23,21 @@ const TABS = [
   { name: 'admin',         title: 'Admin',       icon: 'shield-checkmark', roles: ['super_admin'] },
 ] as const;
 
+const CAN_APPROVE = ['super_admin', 'admin', 'rh', 'adm', 'gestor'];
+
 export default function TabLayout() {
   const { user, logout } = useAuth();
+  const [pendentesCount, setPendentesCount] = useState(0);
+
+  useEffect(() => {
+    if (!CAN_APPROVE.includes(user?.role ?? '')) return;
+    countPendentes().then(setPendentesCount).catch(() => {});
+    // Atualizar a cada 2 minutos enquanto o app está aberto
+    const interval = setInterval(() => {
+      countPendentes().then(setPendentesCount).catch(() => {});
+    }, 120_000);
+    return () => clearInterval(interval);
+  }, [user?.role]);
 
   function handleLogout() {
     if (Platform.OS === 'web') {
@@ -71,11 +86,18 @@ export default function TabLayout() {
             title: tab.title,
             href: tab.roles && !tab.roles.includes(user?.role as any) ? null : undefined,
             tabBarIcon: ({ color, focused }) => (
-              <Ionicons
-                name={(focused ? tab.icon : `${tab.icon}-outline`) as any}
-                size={22}
-                color={color}
-              />
+              <View>
+                <Ionicons
+                  name={(focused ? tab.icon : `${tab.icon}-outline`) as any}
+                  size={22}
+                  color={color}
+                />
+                {tab.name === 'ferias' && pendentesCount > 0 && CAN_APPROVE.includes(user?.role ?? '') && (
+                  <View style={badgeStyles.badge}>
+                    <Text style={badgeStyles.text}>{pendentesCount > 9 ? '9+' : pendentesCount}</Text>
+                  </View>
+                )}
+              </View>
             ),
           }}
         />
@@ -83,3 +105,14 @@ export default function TabLayout() {
     </Tabs>
   );
 }
+
+const badgeStyles = StyleSheet.create({
+  badge: {
+    position: 'absolute', top: -4, right: -8,
+    minWidth: 15, height: 15, borderRadius: 8,
+    backgroundColor: theme.danger,
+    alignItems: 'center', justifyContent: 'center',
+    paddingHorizontal: 2,
+  },
+  text: { fontSize: 9, color: '#fff', fontWeight: '800' },
+});

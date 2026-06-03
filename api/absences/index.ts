@@ -24,6 +24,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const { approved } = req.body ?? {};
       if (typeof approved !== 'boolean') return err(res, 400, 'Campo "approved" (boolean) é obrigatório');
       const newStatus = approved ? 'aprovado' : 'recusado';
+
+      // Buscar dados da ausência antes de atualizar (tipo, dias, status atual)
+      const existing = await sql`
+        SELECT type, days_count, status, employee_id
+        FROM absences WHERE id = ${id} AND company_id = ${ctx.company_id}
+      `;
+      if (!existing[0]) return err(res, 404, 'Solicitação não encontrada');
+      const absenceData = existing[0] as any;
+
       const rows = await sql`
         UPDATE absences SET
           status      = ${newStatus},
@@ -33,6 +42,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         RETURNING *, (SELECT user_id FROM employees WHERE id = absences.employee_id) AS employee_user_id
       `;
       if (!rows[0]) return err(res, 404, 'Solicitação não encontrada');
+
+      // Descontar ou restaurar vacation_days ao aprovar/recusar férias
+      if (absenceData.type === 'ferias') {
+        if (approved) {
+          await sql`
+            UPDATE employees SET vacation_days = GREATEST(0, vacation_days - ${absenceData.days_count})
+            WHERE id = ${absenceData.employee_id} AND company_id = ${ctx.company_id}
+          `.catch(() => {});
+        } else if (absenceData.status === 'aprovado') {
+          // Reverter desconto se estava aprovado e foi recusado agora
+          await sql`
+            UPDATE employees SET vacation_days = vacation_days + ${absenceData.days_count}
+            WHERE id = ${absenceData.employee_id} AND company_id = ${ctx.company_id}
+          `.catch(() => {});
+        }
+      }
 
       const empUserId = (rows[0] as any).employee_user_id;
       const notifTitle = approved ? 'Férias aprovadas ✅' : 'Férias recusadas ❌';
@@ -114,9 +139,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const empCheck = await sql`
-      SELECT id FROM employees WHERE id = ${Number(employee_id)} AND company_id = ${ctx.company_id}
+      SELECT id, name, vacation_days FROM employees
+      WHERE id = ${Number(employee_id)} AND company_id = ${ctx.company_id}
     `;
     if (!empCheck[0]) return err(res, 404, 'Funcionário não encontrado');
+    const emp = empCheck[0] as any;
+
+    // Calcular dias solicitados
+    const msPerDay = 86_400_000;
+    const daysRequested = Math.round((new Date(end_date).getTime() - new Date(start_date).getTime()) / msPerDay) + 1;
+
+    // Validar saldo de férias disponível
+    if (type === 'ferias' && daysRequested > emp.vacation_days) {
+      return err(res, 422, `Saldo insuficiente. ${emp.name} tem ${emp.vacation_days} dia(s) disponível(is), mas foram solicitados ${daysRequested}.`);
+    }
+
+    // Validar sobreposição com ausências existentes no mesmo período
+    const overlap = await sql`
+      SELECT id FROM absences
+      WHERE employee_id = ${Number(employee_id)}
+        AND status NOT IN ('recusado', 'cancelado')
+        AND start_date <= ${end_date}
+        AND end_date   >= ${start_date}
+    `;
+    if (overlap[0]) {
+      return err(res, 409, 'O colaborador já possui uma ausência registrada neste período.');
+    }
 
     const rows = await sql`
       INSERT INTO absences
@@ -126,6 +174,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
          ${reason ?? null}, ${attachment_url ?? null})
       RETURNING *
     `;
+
+    // Notificar equipe de RH/admin sobre nova solicitação
+    const rhUsers = await sql`
+      SELECT u.id FROM users u
+      WHERE u.company_id = ${ctx.company_id}
+        AND u.role IN ('super_admin', 'admin', 'rh')
+        AND u.id != ${ctx.sub}
+    `.catch(() => []);
+
+    const typeLabel = type === 'ferias' ? 'Férias' : type === 'licenca_medica' ? 'Licença Médica' : type === 'licenca_maternidade' ? 'Lic. Maternidade' : type === 'licenca_paternidade' ? 'Lic. Paternidade' : type === 'folga' ? 'Folga' : type === 'falta' ? 'Falta' : 'Ausência';
+    const notifTitle = `Nova solicitação de ${typeLabel}`;
+    const notifBody  = `${emp.name} solicitou ${typeLabel.toLowerCase()} de ${start_date} a ${end_date} (${daysRequested} dia${daysRequested > 1 ? 's' : ''})`;
+
+    for (const u of rhUsers as any[]) {
+      await sql`
+        INSERT INTO notifications (company_id, user_id, title, body, type, route)
+        VALUES (${ctx.company_id}, ${u.id}, ${notifTitle}, ${notifBody}, 'ferias', '/(tabs)/ferias')
+      `.catch(() => {});
+      const tokens = await sql`SELECT token FROM push_tokens WHERE user_id = ${u.id}`.catch(() => []);
+      await sendPush((tokens as any[]).map(t => t.token), notifTitle, notifBody, { route: '/(tabs)/ferias' });
+    }
+
     return res.status(201).json(rows[0]);
   }
 

@@ -133,6 +133,67 @@ async function runOnboardingReminders(): Promise<{ checked: number; emails_sent:
   return { checked, emails_sent: emailsSent };
 }
 
+// ── Job: vacation-expiry-check ────────────────────────────────
+
+async function runVacationExpiryCheck(): Promise<{ companies: number; alerts_sent: number }> {
+  let alertsSent = 0;
+  const companies = await sql`SELECT id, name FROM companies` as { id: number; name: string }[];
+
+  for (const company of companies) {
+    // Colaboradores ativos com férias vencendo em 30 dias (aniversário de admissão)
+    const expiring = await sql`
+      SELECT e.id, e.name, e.hire_date, e.vacation_days
+      FROM employees e
+      WHERE e.company_id = ${company.id}
+        AND e.status = 'ativo'
+        AND e.vacation_days > 0
+        AND (
+          DATE_PART('day',
+            (DATE_TRUNC('year', NOW()) +
+             (e.hire_date - DATE_TRUNC('year', e.hire_date)) + INTERVAL '1 year')
+            - NOW()
+          ) BETWEEN 0 AND 30
+          OR
+          DATE_PART('day',
+            (DATE_TRUNC('year', NOW()) + INTERVAL '1 year' +
+             (e.hire_date - DATE_TRUNC('year', e.hire_date)))
+            - NOW()
+          ) BETWEEN 0 AND 30
+        )
+    `.catch(() => []) as { id: number; name: string; hire_date: string; vacation_days: number }[];
+
+    if (expiring.length === 0) continue;
+
+    // Notificar usuários RH/admin desta empresa
+    const rhUsers = await sql`
+      SELECT id FROM users
+      WHERE company_id = ${company.id}
+        AND role IN ('super_admin', 'admin', 'rh')
+    `.catch(() => []) as { id: number }[];
+
+    const names = expiring.map(e => e.name).join(', ');
+    const notifTitle = `Férias vencendo em 30 dias`;
+    const notifBody  = `${expiring.length} colaborador${expiring.length > 1 ? 'es' : ''} com férias a vencer: ${names.length > 60 ? names.slice(0, 60) + '...' : names}`;
+
+    for (const u of rhUsers) {
+      await sql`
+        INSERT INTO notifications (company_id, user_id, title, body, type, route)
+        VALUES (${company.id}, ${u.id}, ${notifTitle}, ${notifBody}, 'ferias', '/(tabs)/ferias')
+      `.catch(() => {});
+      const tokens = await sql`SELECT token FROM push_tokens WHERE user_id = ${u.id}`.catch(() => []);
+      await sendPush(
+        (tokens as any[]).map(t => t.token),
+        notifTitle,
+        notifBody,
+        { route: '/(tabs)/ferias' },
+      );
+      alertsSent++;
+    }
+  }
+
+  return { companies: companies.length, alerts_sent: alertsSent };
+}
+
 // ── Job: weekly-report ────────────────────────────────────────
 
 interface CompanyRow { id: number; name: string }
@@ -169,7 +230,7 @@ async function fetchClimateScore(companyId: number): Promise<{ avg_score: number
 }
 
 async function buildWeeklyContext(companyId: number): Promise<string> {
-  const [summary, absences, risks, onboarding, climate] = await Promise.all([
+  const [summary, absences, risks, onboarding, climate, pendentes, expiringVacations] = await Promise.all([
     sql`SELECT status, COUNT(*)::int AS count FROM employees WHERE company_id = ${companyId} GROUP BY status`,
     sql`
       SELECT COUNT(*)::int AS total FROM absences
@@ -184,11 +245,22 @@ async function buildWeeklyContext(companyId: number): Promise<string> {
     `,
     fetchOnboardingStatus(companyId),
     fetchClimateScore(companyId),
+    sql`SELECT COUNT(*)::int AS total FROM absences WHERE company_id = ${companyId} AND status = 'pendente'`.catch(() => [{ total: 0 }]),
+    sql`
+      SELECT name FROM employees
+      WHERE company_id = ${companyId} AND status = 'ativo' AND vacation_days > 0
+        AND DATE_PART('day',
+          (DATE_TRUNC('year', NOW()) + (hire_date - DATE_TRUNC('year', hire_date)) + INTERVAL '1 year') - NOW()
+        ) BETWEEN 0 AND 30
+      LIMIT 5
+    `.catch(() => []),
   ]);
 
   const statusMap = Object.fromEntries((summary as { status: string; count: number }[]).map(r => [r.status, r.count]));
-  const total     = Object.values(statusMap).reduce((a, b) => a + b, 0);
-  const absWeek   = (absences as { total: number }[])[0]?.total ?? 0;
+  const total       = Object.values(statusMap).reduce((a, b) => a + b, 0);
+  const absWeek     = (absences as { total: number }[])[0]?.total ?? 0;
+  const pendTotal   = (pendentes as { total: number }[])[0]?.total ?? 0;
+  const expiringNames = (expiringVacations as { name: string }[]).map(e => e.name).join(', ') || 'Nenhum';
 
   const riskList = (risks as { name: string; role_title: string; days_in_company: number; total_absences_90d: number }[])
     .map(r => `- ${r.name} (${r.role_title}): ${r.total_absences_90d} faltas em 90d, ${r.days_in_company} dias de empresa`)
@@ -198,6 +270,8 @@ async function buildWeeklyContext(companyId: number): Promise<string> {
 Dados da semana para o escritório (empresa_id: ${companyId}):
 - Total de colaboradores: ${total} (ativos: ${statusMap['ativo'] ?? 0}, férias: ${statusMap['ferias'] ?? 0}, licença: ${statusMap['licenca'] ?? 0})
 - Ausências aprovadas esta semana: ${absWeek}
+- Solicitações PENDENTES de aprovação: ${pendTotal}
+- Férias vencendo em 30 dias: ${expiringNames}
 - Onboardings em andamento: ${onboarding.active} (${onboarding.long_running} há mais de 14 dias)
 - Clima organizacional (últimos 30d): ${climate.avg_score != null ? `${climate.avg_score}/5 (${climate.responses} respostas)` : 'sem dados'}
 - Colaboradores com risco de turnover alto:
@@ -291,7 +365,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.json({ ok: true, job, ...result });
     }
 
-    return res.status(400).json({ error: 'job inválido. Use ?job=onboarding-reminders ou ?job=weekly-report' });
+    if (job === 'vacation-expiry-check') {
+      const result = await runVacationExpiryCheck();
+      return res.json({ ok: true, job, ...result });
+    }
+
+    return res.status(400).json({ error: 'job inválido. Use ?job=onboarding-reminders, ?job=weekly-report ou ?job=vacation-expiry-check' });
   } catch (e: unknown) {
     const er = e as { message?: string };
     console.error(`[cron/${job}]`, er.message);

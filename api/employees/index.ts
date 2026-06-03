@@ -4,6 +4,7 @@
 
 import type { Request as VercelRequest, Response as VercelResponse } from 'express';
 import { sql, cors, authenticate, err, CAN_MANAGE_EMPLOYEES, parsePagination } from '../_lib';
+import { validarCPF } from '../../helpers/validacoes';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   cors(res);
@@ -38,7 +39,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           END AS status
         FROM employees e
         LEFT JOIN departments d ON d.id = e.department_id
-        WHERE e.id = ${id} AND e.company_id = ${ctx.company_id}
+        WHERE e.id = ${id} AND e.company_id = ${ctx.company_id} AND e.deleted_at IS NULL
       `;
       if (!rows[0]) return err(res, 404, 'Colaborador não encontrado');
       return res.json(rows[0]);
@@ -51,6 +52,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         role_title, legal_area, oab_number, manager_id,
         status, photo_url, phone, salary, vacation_days,
       } = req.body ?? {};
+
+      if (cpf && !validarCPF(cpf)) {
+        return err(res, 422, 'CPF inválido. Verifique os dígitos informados.');
+      }
+
+      // Registrar histórico se salário foi alterado
+      if (salary != null) {
+        const current = await sql`
+          SELECT salary FROM employees WHERE id = ${id} AND company_id = ${ctx.company_id} AND deleted_at IS NULL
+        `;
+        if (current[0] && String(current[0].salary) !== String(salary)) {
+          await sql`
+            INSERT INTO salary_history (company_id, employee_id, old_salary, new_salary, changed_by)
+            VALUES (${ctx.company_id}, ${id}, ${current[0].salary ?? null}, ${salary}, ${ctx.sub})
+          `.catch(() => {});
+        }
+      }
+
       const rows = await sql`
         UPDATE employees SET
           name          = COALESCE(${name          ?? null}, name),
@@ -67,7 +86,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           phone         = COALESCE(${phone         ?? null}, phone),
           salary        = COALESCE(${salary        ?? null}, salary),
           vacation_days = COALESCE(${vacation_days ?? null}, vacation_days)
-        WHERE id = ${id} AND company_id = ${ctx.company_id}
+        WHERE id = ${id} AND company_id = ${ctx.company_id} AND deleted_at IS NULL
         RETURNING *
       `;
       if (!rows[0]) return err(res, 404, 'Colaborador não encontrado');
@@ -76,7 +95,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (req.method === 'DELETE') {
       if (!['super_admin', 'admin'].includes(ctx.role)) return err(res, 403, 'Sem permissão');
-      await sql`DELETE FROM employees WHERE id = ${id} AND company_id = ${ctx.company_id}`;
+      // Soft-delete: preserva histórico e dados associados
+      const deleted = await sql`
+        UPDATE employees SET deleted_at = now()
+        WHERE id = ${id} AND company_id = ${ctx.company_id} AND deleted_at IS NULL
+        RETURNING id
+      `;
+      if (!deleted[0]) return err(res, 404, 'Colaborador não encontrado');
       return res.status(204).end();
     }
 
@@ -88,7 +113,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const { page, limit, offset } = parsePagination(req.query);
 
     const [countRow, rows] = await Promise.all([
-      sql`SELECT COUNT(*)::int AS total FROM employees WHERE company_id = ${ctx.company_id}`,
+      sql`SELECT COUNT(*)::int AS total FROM employees WHERE company_id = ${ctx.company_id} AND deleted_at IS NULL`,
       sql`
         SELECT e.*,
           d.name AS department_name,
@@ -110,7 +135,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           END AS status
         FROM employees e
         LEFT JOIN departments d ON d.id = e.department_id
-        WHERE e.company_id = ${ctx.company_id}
+        WHERE e.company_id = ${ctx.company_id} AND e.deleted_at IS NULL
         ORDER BY e.name
         LIMIT ${limit} OFFSET ${offset}
       `,
@@ -130,6 +155,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (!name || !hire_date || !role_title) {
       return err(res, 400, 'name, hire_date e role_title são obrigatórios');
+    }
+    if (cpf && !validarCPF(cpf)) {
+      return err(res, 422, 'CPF inválido. Verifique os dígitos informados.');
     }
 
     const rows = await sql`

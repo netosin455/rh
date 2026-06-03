@@ -65,6 +65,7 @@ CREATE TABLE IF NOT EXISTS employees (
   phone           text,
   salary          numeric(12,2),
   vacation_days   integer NOT NULL DEFAULT 30, -- dias de férias disponíveis
+  deleted_at      timestamptz,                 -- soft-delete: NULL = ativo, preenchido = removido
   created_at      timestamptz NOT NULL DEFAULT now(),
   updated_at      timestamptz NOT NULL DEFAULT now()
 );
@@ -72,6 +73,24 @@ CREATE TABLE IF NOT EXISTS employees (
 CREATE INDEX IF NOT EXISTS employees_company_idx    ON employees (company_id);
 CREATE INDEX IF NOT EXISTS employees_department_idx ON employees (department_id);
 CREATE INDEX IF NOT EXISTS employees_status_idx     ON employees (company_id, status);
+CREATE INDEX IF NOT EXISTS employees_active_idx     ON employees (company_id) WHERE deleted_at IS NULL;
+
+-- ──────────────────────────────────────────────────────────
+-- HISTÓRICO DE SALÁRIO
+-- ──────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS salary_history (
+  id            serial PRIMARY KEY,
+  company_id    integer NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  employee_id   integer NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+  old_salary    numeric(12,2),
+  new_salary    numeric(12,2) NOT NULL,
+  effective_date date NOT NULL DEFAULT CURRENT_DATE,
+  reason        text,
+  changed_by    integer REFERENCES users(id) ON DELETE SET NULL,
+  created_at    timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS salary_history_employee_idx ON salary_history (employee_id);
 
 -- ──────────────────────────────────────────────────────────
 -- PROCESSOS JURÍDICOS

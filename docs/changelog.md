@@ -1,5 +1,30 @@
 # Changelog — SuperRH
 
+## [2026-06-03] — Automação de RH: Fluxo de Aprovação Completo + Rastreabilidade
+
+### Adicionado
+- **Seção "Aguardando Aprovação"** em `app/(tabs)/ferias.tsx`: visível apenas para RH/admin/gestor; lista ausências pendentes com botões "Aprovar" e "Recusar" inline — a profissional não precisa mais buscar aprovações manualmente
+- **Badge vermelho** na aba Férias em `app/(tabs)/_layout.tsx`: mostra contagem de pendentes em tempo real, atualizada a cada 2 minutos
+- **Card de aprovações pendentes** no Dashboard (`app/(tabs)/index.tsx`): visível para RH/admin, clicável e navega direto para a lista de pendentes
+- **Notificação push para RH** quando colaborador cria nova ausência (`api/absences/index.ts` POST): equipe RH/admin recebe alerta imediato com tipo, nome e período
+- **Validação de saldo de férias** (`api/absences/index.ts` POST): rejeita solicitação com 422 se dias pedidos excedem `vacation_days` disponíveis
+- **Validação de sobreposição** (`api/absences/index.ts` POST): rejeita com 409 se já existe ausência no mesmo período
+- **Desconto automático de `vacation_days`** ao aprovar férias (`api/absences/index.ts` PATCH): saldo é deduzido automaticamente; se recusado, é restaurado
+- **Job cron `vacation-expiry-check`** (`api/cron.ts`): executa diariamente às 8h BRT; detecta colaboradores com férias vencendo em 30 dias e notifica RH
+- **Tabela `salary_history`** (`banco/schema.sql`): registra todo histórico de alterações salariais com old_salary, new_salary, data e responsável
+- **Soft-delete em `employees`** (`banco/schema.sql`): coluna `deleted_at` preserva dados históricos — DELETE agora é recuperável
+- **Validação de CPF** (`helpers/validacoes.ts`): algoritmo de dígitos verificadores, usado em POST e PUT de colaboradores
+- `conexoes/ausencias.ts`: funções `countPendentes()` e `getPendingAbsences()` para queries de pendentes
+
+### Corrigido
+- **Bug crítico**: `approveAbsence` chamava URL inexistente `/api/absences/:id/approve` — corrigido para `/api/absences/:id` com PATCH
+- Tipo `Absence` em `tipos/modelos.ts` não incluía `employee_name` e `role_title` retornados pelo JOIN da API
+
+### Modificado
+- `api/employees/index.ts`: PUT registra salary_history ao alterar salário; DELETE usa soft-delete; todas queries filtram `deleted_at IS NULL`
+- `api/cron.ts`: relatório semanal agora inclui pendentes de aprovação, férias vencendo e envia info mais rica para IA
+- `vercel.json`: novo cron `vacation-expiry-check` agendado para 0 11 * * * (diário 8h BRT)
+
 ## [2026-05-18] — UX, IA Proativa e Push Notifications
 
 ### Adicionado

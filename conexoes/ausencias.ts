@@ -24,12 +24,23 @@ export async function countAbsences(type?: string, month?: string): Promise<numb
   return res?.total ?? 0;
 }
 
+export async function countPendentes(): Promise<number> {
+  const params = new URLSearchParams({ page: '1', limit: '1', status: 'pendente' });
+  const res = await apiFetch(`/api/absences?${params}`);
+  return res?.total ?? 0;
+}
+
+export async function getPendingAbsences(): Promise<Absence[]> {
+  const res = await apiFetch(`/api/absences?status=pendente&limit=50`);
+  return res?.data ?? res;
+}
+
 export async function createAbsence(data: CreateAbsenceData): Promise<Absence> {
   return apiFetch('/api/absences', { method: 'POST', body: JSON.stringify(data) });
 }
 
 export async function approveAbsence(id: number, approved: boolean): Promise<Absence> {
-  return apiFetch(`/api/absences/${id}/approve`, { method: 'PATCH', body: JSON.stringify({ approved }) });
+  return apiFetch(`/api/absences/${id}`, { method: 'PATCH', body: JSON.stringify({ approved }) });
 }
 
 export async function deleteAbsence(id: number): Promise<void> {
