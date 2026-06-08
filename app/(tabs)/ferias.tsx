@@ -6,7 +6,7 @@ import {
 } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
-import { getAbsences, getPendingAbsences, createAbsence, approveAbsence } from '../../conexoes/ausencias';
+import { getAbsences, getPendingAbsences, createAbsence, approveAbsence, updateAbsence, deleteAbsence } from '../../conexoes/ausencias';
 import { getEmployees } from '../../conexoes/colaboradores';
 import { Absence, AbsenceType, ABSENCE_TYPE_LABELS, CreateAbsenceData, Employee } from '../../tipos/modelos';
 import { theme } from '../../estilo/cores';
@@ -58,6 +58,7 @@ export default function FeriasScreen() {
   const toast = useToast();
   const { user } = useAuth();
   const canApprove = CAN_APPROVE.includes(user?.role ?? '');
+  const canManage = ['super_admin','admin','rh','adm'].includes(user?.role ?? '');
 
   const [absences,   setAbsences]   = useState<Absence[]>([]);
   const [pendentes,  setPendentes]  = useState<Absence[]>([]);
@@ -72,6 +73,8 @@ export default function FeriasScreen() {
   const [form,       setForm]       = useState(EMPTY_FORM);
   const [empSearch,  setEmpSearch]  = useState('');
   const [formError,  setFormError]  = useState('');
+  const [editId,     setEditId]     = useState<number | null>(null);
+  const [vacDays,    setVacDays]    = useState<number | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -110,11 +113,38 @@ export default function FeriasScreen() {
     setForm(f => ({ ...f, [field]: value }));
   }
 
-  function openModal() {
-    setForm(EMPTY_FORM);
-    setEmpSearch('');
+  function openModal(abs?: Absence) {
+    if (abs) {
+      setEditId(abs.id);
+      setForm({
+        employee_id: abs.employee_id,
+        type:        abs.type,
+        start_date:  abs.start_date,
+        end_date:    abs.end_date,
+        reason:      abs.reason || '',
+      });
+      setEmpSearch(empNames[abs.employee_id] || '');
+      const emp = employees.find(e => e.id === abs.employee_id);
+      setVacDays(emp?.vacation_days ?? null);
+    } else {
+      setEditId(null);
+      setForm(EMPTY_FORM);
+      setEmpSearch('');
+      setVacDays(null);
+    }
     setFormError('');
     setShowModal(true);
+  }
+
+  async function handleDeleteAbsence(id: number) {
+    try {
+      await deleteAbsence(id);
+      setAbsences(prev => prev.filter(a => a.id !== id));
+      setPendentes(prev => prev.filter(a => a.id !== id));
+      toast.success('Solicitação excluída.');
+    } catch (e: any) {
+      toast.error(e.message || 'Erro ao excluir.');
+    }
   }
 
   async function handleApprove(id: number, approved: boolean) {
@@ -141,19 +171,32 @@ export default function FeriasScreen() {
 
     setSaving(true);
     try {
-      const data: CreateAbsenceData = {
-        employee_id: form.employee_id,
-        type:        form.type,
-        start_date:  form.start_date,
-        end_date:    form.end_date,
-        reason:      form.reason.trim() || undefined,
-      };
-      const created = await createAbsence(data);
-      setAbsences(prev => [created, ...prev]);
+      if (editId) {
+        const updated = await updateAbsence(editId, {
+          type: form.type,
+          start_date: form.start_date,
+          end_date: form.end_date,
+          reason: form.reason.trim() || undefined,
+        });
+        setAbsences(prev => prev.map(a => a.id === editId ? { ...a, ...updated } : a));
+        toast.success('Lançamento atualizado!');
+      } else {
+        const data: CreateAbsenceData = {
+          employee_id: form.employee_id,
+          type:        form.type,
+          start_date:  form.start_date,
+          end_date:    form.end_date,
+          reason:      form.reason.trim() || undefined,
+        };
+        const created = await createAbsence(data);
+        setAbsences(prev => [created, ...prev]);
+        toast.success('Lançamento registrado com sucesso!');
+      }
       setShowModal(false);
-      toast.success('Lançamento registrado com sucesso!');
       setForm(EMPTY_FORM);
       setEmpSearch('');
+      setEditId(null);
+      setVacDays(null);
     } catch (e: any) {
       setFormError(e.message || 'Não foi possível salvar. Tente novamente.');
     } finally {
@@ -289,20 +332,44 @@ export default function FeriasScreen() {
         ) : (
           filtered.map((absence, i) => {
             const color = TYPE_COLORS[absence.type];
+            const isEditable = absence.status === 'pendente' && canManage;
             return (
               <Animated.View key={absence.id} entering={FadeInDown.delay(i * 40).duration(300)}>
-                <View style={styles.card}>
+                <TouchableOpacity
+                  style={styles.card}
+                  onPress={() => isEditable ? openModal(absence) : null}
+                  onLongPress={() => {
+                    if (!canManage) return;
+                    Alert.alert(
+                      absence.employee_name || empNames[absence.employee_id] || 'Ausência',
+                      `${ABSENCE_TYPE_LABELS[absence.type]} · ${formatDateShort(absence.start_date)} a ${formatDateShort(absence.end_date)}`,
+                      [
+                        { text: 'Cancelar', style: 'cancel' },
+                        ...(isEditable ? [{ text: '✏️ Editar', onPress: () => openModal(absence) }] : []),
+                        { text: '🗑️ Excluir', style: 'destructive', onPress: () => handleDeleteAbsence(absence.id) },
+                      ],
+                    );
+                  }}
+                  activeOpacity={0.7}
+                >
                   <View style={[styles.cardAccent, { backgroundColor: color }]} />
                   <View style={styles.cardBody}>
                     <View style={styles.cardTop}>
                       <View style={{ flex: 1 }}>
                         <Text style={styles.empName}>
-                          {empNames[absence.employee_id] || `Colaborador #${absence.employee_id}`}
+                          {empNames[absence.employee_id] || absence.employee_name || `Colaborador #${absence.employee_id}`}
                         </Text>
-                        <View style={[styles.typePill, { backgroundColor: `${color}18` }]}>
-                          <Text style={[styles.typeText, { color }]}>
-                            {ABSENCE_TYPE_LABELS[absence.type]}
-                          </Text>
+                        <View style={styles.cardTopRow}>
+                          <View style={[styles.typePill, { backgroundColor: `${color}18` }]}>
+                            <Text style={[styles.typeText, { color }]}>
+                              {ABSENCE_TYPE_LABELS[absence.type]}
+                            </Text>
+                          </View>
+                          {absence.status === 'pendente' && (
+                            <View style={[styles.statusPillSmall, { backgroundColor: 'rgba(251,191,36,0.15)' }]}>
+                              <Text style={[styles.statusPillText, { color: theme.warning }]}>PENDENTE</Text>
+                            </View>
+                          )}
                         </View>
                       </View>
                       <View style={styles.daysChip}>
@@ -325,8 +392,31 @@ export default function FeriasScreen() {
                     {absence.reason ? (
                       <Text style={styles.reason} numberOfLines={2}>{absence.reason}</Text>
                     ) : null}
+                    {isEditable && (
+                      <View style={styles.cardActions}>
+                        <TouchableOpacity
+                          style={styles.editBtn}
+                          onPress={() => openModal(absence)}
+                        >
+                          <Ionicons name="pencil-outline" size={12} color={theme.gold} />
+                          <Text style={styles.editBtnText}>Editar</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.delBtn}
+                          onPress={() => {
+                            Alert.alert('Excluir', `Excluir esta solicitação de ${ABSENCE_TYPE_LABELS[absence.type]}?`, [
+                              { text: 'Cancelar', style: 'cancel' },
+                              { text: 'Excluir', style: 'destructive', onPress: () => handleDeleteAbsence(absence.id) },
+                            ]);
+                          }}
+                        >
+                          <Ionicons name="trash-outline" size={12} color={theme.danger} />
+                          <Text style={styles.delBtnText}>Excluir</Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
                   </View>
-                </View>
+                </TouchableOpacity>
               </Animated.View>
             );
           })
@@ -344,8 +434,8 @@ export default function FeriasScreen() {
         <KeyboardAvoidingView style={styles.modal} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <View style={styles.modalHeader}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.modalTitle}>Novo Lançamento</Text>
-              <Text style={styles.modalSubtitle}>Férias, licença ou afastamento</Text>
+              <Text style={styles.modalTitle}>{editId ? 'Editar Lançamento' : 'Novo Lançamento'}</Text>
+              <Text style={styles.modalSubtitle}>{editId ? 'Altere os dados da solicitação' : 'Férias, licença ou afastamento'}</Text>
             </View>
             <TouchableOpacity onPress={() => setShowModal(false)} style={styles.modalClose}>
               <Ionicons name="close" size={20} color={theme.textMuted} />
@@ -367,7 +457,7 @@ export default function FeriasScreen() {
                   <TouchableOpacity
                     key={e.id}
                     style={styles.empOption}
-                    onPress={() => { setF('employee_id', e.id); setEmpSearch(e.name); }}
+                    onPress={() => { setF('employee_id', e.id); setEmpSearch(e.name); setVacDays(e.vacation_days); }}
                   >
                     <Text style={styles.empOptionText}>{e.name}</Text>
                     <Text style={styles.empOptionRole}>{e.role_title}</Text>
@@ -376,9 +466,19 @@ export default function FeriasScreen() {
               </View>
             )}
             {form.employee_id > 0 && (
-              <View style={styles.selectedEmp}>
-                <Ionicons name="checkmark-circle" size={14} color={theme.success} />
-                <Text style={styles.selectedEmpText}>{empNames[form.employee_id]}</Text>
+              <View>
+                <View style={styles.selectedEmp}>
+                  <Ionicons name="checkmark-circle" size={14} color={theme.success} />
+                  <Text style={styles.selectedEmpText}>{empNames[form.employee_id]}</Text>
+                </View>
+                {vacDays != null && (
+                  <View style={styles.vacDaysRow}>
+                    <Ionicons name="umbrella-outline" size={12} color={theme.gold} />
+                    <Text style={styles.vacDaysText}>
+                      {vacDays} dia{vacDays !== 1 ? 's' : ''} de férias disponível{form.type === 'ferias' && vacDays <= 5 ? ' ⚠️ Saldo baixo!' : ''}
+                    </Text>
+                  </View>
+                )}
               </View>
             )}
 
@@ -395,11 +495,27 @@ export default function FeriasScreen() {
               ))}
             </View>
 
-            <Text style={styles.label}>Data Início * (AAAA-MM-DD)</Text>
-            <TextInput style={styles.input} placeholder="2024-07-01" placeholderTextColor={theme.textMuted} value={form.start_date} onChangeText={v => setF('start_date', v)} />
+            <Text style={styles.label}>Data Início *</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Ex: 2024-07-01"
+              placeholderTextColor={theme.textMuted}
+              value={form.start_date}
+              onChangeText={v => setF('start_date', v)}
+              {...(Platform.OS === 'web' ? { inputMode: 'date' as any } : {})}
+            />
+            <Text style={styles.dateHint}>Formato: AAAA-MM-DD (ex: 2024-07-01)</Text>
 
-            <Text style={styles.label}>Data Fim * (AAAA-MM-DD)</Text>
-            <TextInput style={styles.input} placeholder="2024-07-30" placeholderTextColor={theme.textMuted} value={form.end_date} onChangeText={v => setF('end_date', v)} />
+            <Text style={styles.label}>Data Fim *</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Ex: 2024-07-30"
+              placeholderTextColor={theme.textMuted}
+              value={form.end_date}
+              onChangeText={v => setF('end_date', v)}
+              {...(Platform.OS === 'web' ? { inputMode: 'date' as any } : {})}
+            />
+            <Text style={styles.dateHint}>Formato: AAAA-MM-DD (ex: 2024-07-30)</Text>
 
             <Text style={styles.label}>Observação</Text>
             <TextInput
@@ -519,6 +635,7 @@ const styles = StyleSheet.create({
     fontSize: 14, color: theme.text,
   },
   textarea: { minHeight: 80, textAlignVertical: 'top' },
+  dateHint: { fontSize: 10, color: theme.textMuted, marginTop: 3, marginBottom: 4 },
 
   empDropdown: {
     backgroundColor: theme.surface2, borderWidth: 1, borderColor: theme.border,
@@ -533,6 +650,19 @@ const styles = StyleSheet.create({
 
   selectedEmp:     { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 },
   selectedEmpText: { fontSize: 13, color: theme.success },
+
+  vacDaysRow:   { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 },
+  vacDaysText:  { fontSize: 11, color: theme.gold, fontWeight: '500' },
+
+  cardTopRow:   { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
+  statusPillSmall: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
+  statusPillText:  { fontSize: 9, fontWeight: '700' },
+
+  cardActions:  { flexDirection: 'row', gap: 8, marginTop: 10, borderTopWidth: 1, borderTopColor: theme.border, paddingTop: 8 },
+  editBtn:      { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 4, paddingHorizontal: 8, borderRadius: 6, borderWidth: 1, borderColor: 'rgba(212,175,55,0.3)' },
+  editBtnText:  { fontSize: 11, color: theme.gold, fontWeight: '600' },
+  delBtn:       { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 4, paddingHorizontal: 8, borderRadius: 6, borderWidth: 1, borderColor: 'rgba(248,113,113,0.3)' },
+  delBtnText:   { fontSize: 11, color: theme.danger, fontWeight: '600' },
 
   chipGroup: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: {

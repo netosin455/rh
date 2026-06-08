@@ -43,6 +43,10 @@ export async function approveAbsence(id: number, approved: boolean): Promise<Abs
   return apiFetch(`/api/absences/${id}`, { method: 'PATCH', body: JSON.stringify({ approved }) });
 }
 
+export async function updateAbsence(id: number, data: Partial<CreateAbsenceData>): Promise<Absence> {
+  return apiFetch(`/api/absences/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+}
+
 export async function deleteAbsence(id: number): Promise<void> {
   return apiFetch(`/api/absences/${id}`, { method: 'DELETE' });
 }

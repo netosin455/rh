@@ -18,10 +18,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!id) return err(res, 400, 'ID inválido');
 
     if (req.method === 'PATCH') {
+      const { approved, type, start_date, end_date, reason } = req.body ?? {};
+
+      // Se for uma atualização de dados (não aprovação)
+      if (approved === undefined && (type || start_date || end_date || reason !== undefined)) {
+        if (!CAN_MANAGE_EMPLOYEES.includes(ctx.role)) {
+          return err(res, 403, 'Sem permissão para editar ausências');
+        }
+        const rows = await sql`
+          UPDATE absences SET
+            type       = COALESCE(${type ?? null}, type),
+            start_date = COALESCE(${start_date ?? null}, start_date),
+            end_date   = COALESCE(${end_date ?? null}, end_date),
+            reason     = COALESCE(${reason ?? null}, reason)
+          WHERE id = ${id} AND company_id = ${ctx.company_id}
+          RETURNING *
+        `;
+        if (!rows[0]) return err(res, 404, 'Ausência não encontrada');
+        return res.json(rows[0]);
+      }
+
       if (!CAN_APPROVE_ABSENCES.includes(ctx.role)) {
         return err(res, 403, 'Sem permissão para aprovar/recusar ausências');
       }
-      const { approved } = req.body ?? {};
       if (typeof approved !== 'boolean') return err(res, 400, 'Campo "approved" (boolean) é obrigatório');
       const newStatus = approved ? 'aprovado' : 'recusado';
 

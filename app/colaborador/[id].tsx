@@ -188,8 +188,9 @@ function ColaboradorScreenInner() {
 
   const loadAbsences = useCallback(async () => {
     try {
-      const data = await apiFetch<Absence[]>(`/api/absences?employee_id=${id}`);
-      setAbsences(Array.isArray(data) ? data : []);
+      const data = await apiFetch<any>(`/api/absences?employee_id=${id}`);
+      const list = Array.isArray(data) ? data : (data?.data ?? []);
+      setAbsences(list);
     } catch {
       setAbsences([]);
     } finally {
