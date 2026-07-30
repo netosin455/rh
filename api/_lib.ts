@@ -36,7 +36,9 @@ export function authenticate(req: VercelRequest): JWTPayload {
     throw Object.assign(new Error('Não autorizado'), { status: 401 });
   }
   try {
-    return jwt.verify(auth.slice(7), JWT_SECRET) as unknown as JWTPayload;
+    // Fixa o algoritmo esperado (HS256, o mesmo do jwt.sign): sem isso, um token
+    // forjado com "alg":"none" seria aceito, permitindo bypass de autenticação.
+    return jwt.verify(auth.slice(7), JWT_SECRET, { algorithms: ['HS256'] }) as unknown as JWTPayload;
   } catch {
     throw Object.assign(new Error('Token inválido ou expirado'), { status: 401 });
   }
