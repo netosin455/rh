@@ -127,11 +127,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     climateHistory,
   ] = await Promise.all([
 
-    // Distribuição por status
+    // Distribuição por status (calculado ao vivo a partir de ausências aprovadas,
+    // mesma lógica de api/employees/index.ts — evita divergir do Dashboard/Equipe)
     sql`
-      SELECT status, COUNT(*)::int AS count
-      FROM employees
-      WHERE company_id = ${cid}
+      SELECT status, COUNT(*)::int AS count FROM (
+        SELECT
+          CASE
+            WHEN e.status IN ('desligado', 'afastado') THEN e.status
+            WHEN EXISTS (
+              SELECT 1 FROM absences a
+              WHERE a.employee_id = e.id AND a.status = 'aprovado'
+                AND a.type = 'ferias'
+                AND CURRENT_DATE BETWEEN a.start_date AND a.end_date
+            ) THEN 'ferias'
+            WHEN EXISTS (
+              SELECT 1 FROM absences a
+              WHERE a.employee_id = e.id AND a.status = 'aprovado'
+                AND a.type IN ('licenca_medica','licenca_maternidade','licenca_paternidade')
+                AND CURRENT_DATE BETWEEN a.start_date AND a.end_date
+            ) THEN 'licenca'
+            ELSE 'ativo'
+          END AS status
+        FROM employees e
+        WHERE e.company_id = ${cid} AND e.deleted_at IS NULL
+      ) t
       GROUP BY status
       ORDER BY count DESC
     `,
