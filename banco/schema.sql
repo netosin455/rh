@@ -188,27 +188,22 @@ CREATE TABLE IF NOT EXISTS routines (
 CREATE INDEX IF NOT EXISTS routines_user_idx ON routines (company_id, user_id);
 
 -- ──────────────────────────────────────────────────────────
--- NOTIFICAÇÕES AUTOMÁTICAS
+-- CENTRAL DE NOTIFICAÇÕES (in-app)
 -- ──────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS notifications (
-  id              serial PRIMARY KEY,
-  company_id      integer NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
-  employee_id     integer NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
-  type            text NOT NULL
-                    CHECK (type IN ('aniversario','ferias_vencendo','prazo_processo','audiencia','personalizado')),
-  channel         text NOT NULL DEFAULT 'push'
-                    CHECK (channel IN ('push','email','whatsapp')),
-  title           text NOT NULL,
-  body            text NOT NULL,
-  scheduled_for   timestamptz NOT NULL,
-  sent_at         timestamptz,
-  status          text NOT NULL DEFAULT 'agendado'
-                    CHECK (status IN ('agendado','enviado','erro','cancelado')),
-  payload         jsonb NOT NULL DEFAULT '{}',
-  created_at      timestamptz NOT NULL DEFAULT now()
+  id         serial PRIMARY KEY,
+  company_id integer NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  user_id    integer REFERENCES users(id) ON DELETE CASCADE, -- NULL = todos da empresa
+  title      text NOT NULL,
+  body       text,
+  type       varchar(30),  -- 'ferias' | 'aviso' | 'pesquisa' | 'onboarding' | 'reconhecimento'
+  route      text,
+  read       boolean DEFAULT false,
+  created_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS notifications_schedule_idx ON notifications (company_id, scheduled_for, status);
+CREATE INDEX IF NOT EXISTS notifications_user_idx    ON notifications (user_id, read, created_at DESC);
+CREATE INDEX IF NOT EXISTS notifications_company_idx ON notifications (company_id, read, created_at DESC);
 
 -- ──────────────────────────────────────────────────────────
 -- TRIGGER: atualiza updated_at automaticamente
