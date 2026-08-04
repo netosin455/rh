@@ -15,7 +15,6 @@ import { theme } from '../../estilo/cores';
 import { brToIso, maskDate, todayBr, getTodayString } from '../../helpers/datas';
 import { exportEmployeesPDF } from '../../helpers/pdf';
 import { useToast } from '../../contextos/Toast';
-import { confirmAction } from '../../helpers/confirm';
 
 const STATUS_COLORS: Record<EmployeeStatus, string> = {
   ativo:                theme.success,
@@ -90,10 +89,9 @@ export default function ColaboradoresScreen() {
   const [saving,     setSaving]     = useState(false);
   const [form,       setForm]       = useState(EMPTY_FORM);
   const [formError,  setFormError]  = useState('');
-  const [quickBusyId, setQuickBusyId] = useState<number | null>(null);
-  const [folgaModalEmp, setFolgaModalEmp] = useState<Employee | null>(null);
-  const [folgaHoursInput, setFolgaHoursInput] = useState('');
-  const [folgaSaving, setFolgaSaving] = useState(false);
+  const [quickModal, setQuickModal] = useState<{ emp: Employee; type: 'falta' | 'folga' } | null>(null);
+  const [quickHoursInput, setQuickHoursInput] = useState('');
+  const [quickSaving, setQuickSaving] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -109,45 +107,40 @@ export default function ColaboradoresScreen() {
   useEffect(() => { load(); }, [load]);
   const onRefresh = useCallback(() => { setRefreshing(true); load(); }, [load]);
 
-  // Ação rápida: registrar falta de hoje em 1 toque + confirmação, sem abrir a aba Férias
-  function handleQuickFalta(emp: Employee) {
-    confirmAction('Registrar falta', `Confirma falta de hoje pra ${emp.name}?`, async () => {
-      setQuickBusyId(emp.id);
-      try {
-        const today = getTodayString();
-        await createAbsence({ employee_id: emp.id, type: 'falta', start_date: today, end_date: today });
-        toast.success(`Falta registrada pra ${emp.name}.`);
-      } catch (e: any) {
-        toast.error(e.message || 'Não foi possível registrar a falta.');
-      } finally {
-        setQuickBusyId(null);
+  // Ação rápida: registrar falta ou folga de hoje, com horas opcionais (útil pra
+  // quem não trabalha 8h/dia, ex: estagiário de 6h). Sem horas = dia inteiro.
+  function openQuickModal(emp: Employee, type: 'falta' | 'folga') {
+    setQuickModal({ emp, type });
+    setQuickHoursInput('');
+  }
+
+  async function handleConfirmQuick() {
+    if (!quickModal) return;
+    const { emp, type } = quickModal;
+    const raw = quickHoursInput.trim();
+    let hours: number | undefined;
+    if (raw !== '') {
+      hours = parseFloat(raw.replace(',', '.'));
+      if (!Number.isFinite(hours) || hours <= 0) {
+        toast.warning('Informe um número de horas válido, ou deixe em branco pro dia inteiro.');
+        return;
       }
-    });
-  }
-
-  // Ação rápida: registrar folga de hoje só informando as horas
-  function openFolgaModal(emp: Employee) {
-    setFolgaModalEmp(emp);
-    setFolgaHoursInput('');
-  }
-
-  async function handleConfirmFolga() {
-    if (!folgaModalEmp) return;
-    const hours = parseFloat(folgaHoursInput.replace(',', '.'));
-    if (!Number.isFinite(hours) || hours <= 0) {
-      toast.warning('Informe um número de horas válido.');
+    } else if (type === 'folga') {
+      toast.warning('Informe as horas de folga.');
       return;
     }
-    setFolgaSaving(true);
+
+    setQuickSaving(true);
     try {
       const today = getTodayString();
-      await createAbsence({ employee_id: folgaModalEmp.id, type: 'folga', start_date: today, end_date: today, hours });
-      toast.success(`Folga de ${hours}h registrada pra ${folgaModalEmp.name}.`);
-      setFolgaModalEmp(null);
+      await createAbsence({ employee_id: emp.id, type, start_date: today, end_date: today, hours });
+      const label = type === 'falta' ? 'Falta' : 'Folga';
+      toast.success(`${label}${hours != null ? ` de ${hours}h` : ''} registrada pra ${emp.name}.`);
+      setQuickModal(null);
     } catch (e: any) {
-      toast.error(e.message || 'Não foi possível registrar a folga.');
+      toast.error(e.message || 'Não foi possível registrar.');
     } finally {
-      setFolgaSaving(false);
+      setQuickSaving(false);
     }
   }
 
@@ -311,28 +304,22 @@ export default function ColaboradoresScreen() {
                   </View>
                   {canManageEmployees && (
                     <View style={styles.quickActionsRow}>
-                      {quickBusyId === emp.id ? (
-                        <ActivityIndicator size="small" color={theme.gold} />
-                      ) : (
-                        <>
-                          <TouchableOpacity
-                            style={styles.quickActionBtn}
-                            onPress={() => handleQuickFalta(emp)}
-                            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                          >
-                            <Ionicons name="close-circle-outline" size={15} color={theme.danger} />
-                            <Text style={styles.quickActionText}>Falta</Text>
-                          </TouchableOpacity>
-                          <TouchableOpacity
-                            style={styles.quickActionBtn}
-                            onPress={() => openFolgaModal(emp)}
-                            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                          >
-                            <Ionicons name="time-outline" size={15} color={theme.gold} />
-                            <Text style={styles.quickActionText}>Folga</Text>
-                          </TouchableOpacity>
-                        </>
-                      )}
+                      <TouchableOpacity
+                        style={styles.quickActionBtn}
+                        onPress={() => openQuickModal(emp, 'falta')}
+                        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                      >
+                        <Ionicons name="close-circle-outline" size={15} color={theme.danger} />
+                        <Text style={styles.quickActionText}>Falta</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.quickActionBtn}
+                        onPress={() => openQuickModal(emp, 'folga')}
+                        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                      >
+                        <Ionicons name="time-outline" size={15} color={theme.gold} />
+                        <Text style={styles.quickActionText}>Folga</Text>
+                      </TouchableOpacity>
                     </View>
                   )}
                 </View>
@@ -435,28 +422,30 @@ export default function ColaboradoresScreen() {
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* Modal rápido: folga (só horas) */}
-      <Modal visible={!!folgaModalEmp} animationType="fade" transparent onRequestClose={() => setFolgaModalEmp(null)}>
+      {/* Modal rápido: falta ou folga, horas opcionais */}
+      <Modal visible={!!quickModal} animationType="fade" transparent onRequestClose={() => setQuickModal(null)}>
         <View style={styles.quickModalOverlay}>
           <View style={styles.quickModalBox}>
-            <Text style={styles.quickModalTitle}>Registrar folga hoje</Text>
-            <Text style={styles.quickModalSubtitle}>{folgaModalEmp?.name}</Text>
-            <Text style={styles.label}>Horas</Text>
+            <Text style={styles.quickModalTitle}>
+              {quickModal?.type === 'falta' ? 'Registrar falta hoje' : 'Registrar folga hoje'}
+            </Text>
+            <Text style={styles.quickModalSubtitle}>{quickModal?.emp.name}</Text>
+            <Text style={styles.label}>Horas {quickModal?.type === 'falta' ? '(opcional — em branco conta o dia inteiro)' : ''}</Text>
             <TextInput
               style={styles.input}
-              placeholder="Ex: 4"
+              placeholder={quickModal?.type === 'falta' ? 'Ex: 3 (estagiário de 6h que faltou meio turno)' : 'Ex: 4'}
               placeholderTextColor={theme.textMuted}
-              value={folgaHoursInput}
-              onChangeText={setFolgaHoursInput}
+              value={quickHoursInput}
+              onChangeText={setQuickHoursInput}
               keyboardType="decimal-pad"
               autoFocus
             />
             <View style={styles.quickModalFooter}>
-              <TouchableOpacity style={styles.btnCancel} onPress={() => setFolgaModalEmp(null)}>
+              <TouchableOpacity style={styles.btnCancel} onPress={() => setQuickModal(null)}>
                 <Text style={styles.btnCancelText}>Cancelar</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.btnSave} onPress={handleConfirmFolga} disabled={folgaSaving}>
-                {folgaSaving
+              <TouchableOpacity style={styles.btnSave} onPress={handleConfirmQuick} disabled={quickSaving}>
+                {quickSaving
                   ? <ActivityIndicator size="small" color="#000" />
                   : <Text style={styles.btnSaveText}>Confirmar</Text>
                 }

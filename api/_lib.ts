@@ -140,7 +140,10 @@ export async function createAbsenceRecord(
     return { ok: false, status: 400, error: `Tipo inválido. Use: ${ABSENCE_VALID_TYPES.join(', ')}` };
   }
 
-  const hoursRequested: number | null = type === 'folga' && hours != null ? Number(hours) : null;
+  // Horas: registra a duração pra folga (desconta do banco) e falta (só registro,
+  // útil pra quem não trabalha 8h/dia — ex: estagiário de 6h — sem mexer em saldo nenhum)
+  const HOURS_TYPES = ['folga', 'falta'];
+  const hoursRequested: number | null = HOURS_TYPES.includes(type) && hours != null ? Number(hours) : null;
   if (hoursRequested != null && (!Number.isFinite(hoursRequested) || hoursRequested <= 0)) {
     return { ok: false, status: 400, error: 'hours deve ser um número maior que zero' };
   }
@@ -158,7 +161,7 @@ export async function createAbsenceRecord(
   if (type === 'ferias' && daysRequested > emp.vacation_days) {
     return { ok: false, status: 422, error: `Saldo insuficiente. ${emp.name} tem ${emp.vacation_days} dia(s) disponível(is), mas foram solicitados ${daysRequested}.` };
   }
-  if (hoursRequested != null && hoursRequested > Number(emp.folga_hours)) {
+  if (type === 'folga' && hoursRequested != null && hoursRequested > Number(emp.folga_hours)) {
     return { ok: false, status: 422, error: `Saldo insuficiente. ${emp.name} tem ${emp.folga_hours}h de folga disponível(is), mas foram solicitadas ${hoursRequested}h.` };
   }
 
@@ -202,7 +205,7 @@ export async function createAbsenceRecord(
         UPDATE employees SET vacation_days = GREATEST(0, vacation_days - ${daysRequested})
         WHERE id = ${Number(employee_id)} AND company_id = ${ctx.company_id}
       `.catch(() => {});
-    } else if (hoursRequested != null) {
+    } else if (type === 'folga' && hoursRequested != null) {
       await sql`
         UPDATE employees SET folga_hours = GREATEST(0, folga_hours - ${hoursRequested})
         WHERE id = ${Number(employee_id)} AND company_id = ${ctx.company_id}

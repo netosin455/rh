@@ -182,7 +182,7 @@ export default function FeriasScreen() {
     if (!startIso) { setFormError('Data de início inválida. Use DD/MM/AAAA.'); return; }
     if (!endIso)   { setFormError('Data de fim inválida. Use DD/MM/AAAA.'); return; }
 
-    const hoursNum = form.type === 'folga' && form.hours.trim() !== '' ? parseFloat(form.hours.replace(',', '.')) : undefined;
+    const hoursNum = (form.type === 'folga' || form.type === 'falta') && form.hours.trim() !== '' ? parseFloat(form.hours.replace(',', '.')) : undefined;
     if (hoursNum != null && (!Number.isFinite(hoursNum) || hoursNum <= 0)) {
       setFormError('Horas deve ser um número maior que zero.');
       return;
@@ -537,7 +537,7 @@ export default function FeriasScreen() {
               </View>
             </View>
 
-            {form.type === 'folga' && (
+            {(form.type === 'folga' || form.type === 'falta') && (
               <>
                 <Text style={styles.label}>Horas (opcional)</Text>
                 <TextInput
@@ -548,7 +548,11 @@ export default function FeriasScreen() {
                   onChangeText={v => setF('hours', v)}
                   keyboardType="decimal-pad"
                 />
-                <Text style={styles.dateHint}>Se informado, desconta do banco de horas do colaborador. Deixe em branco pra contar em dias.</Text>
+                <Text style={styles.dateHint}>
+                  {form.type === 'folga'
+                    ? 'Se informado, desconta do banco de horas do colaborador. Deixe em branco pra contar em dias.'
+                    : 'Útil pra quem não trabalha jornada de 8h (ex: estagiário de 6h). Deixe em branco pra contar o dia inteiro.'}
+                </Text>
               </>
             )}
 
