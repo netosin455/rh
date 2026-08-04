@@ -17,8 +17,11 @@
 - Lógica de aprovar/recusar ausência extraída de `api/absences/index.ts` PATCH para `resolveAbsenceApproval()` em `api/_lib.ts`.
 - Ambas agora são a fonte única usada tanto pelo endpoint REST quanto pelas ferramentas do assistente de IA, evitando duas implementações divergentes da mesma regra de negócio.
 
+### Corrigido (achado durante teste local, não relacionado às mudanças acima)
+- **Migrations 007 (`ai_insights`) e 009 (coluna `route` em `notifications`) estavam documentadas como aplicadas no changelog de 18/05 mas nunca tinham rodado de fato em produção.** Isso quebrava a central de notificações (`GET /api/users?notifications=1`, erro `column "route" does not exist`) e os Insights da IA do dashboard (`api/analytics` insights, erro `relation "ai_insights" does not exist`) — bug real e ativo em produção, descoberto porque derrubou o `vercel dev` local ao testar (query sem `.catch()` em `handleNotifications`). Aplicado direto no Neon de produção em 2026-08-04 (`CREATE TABLE IF NOT EXISTS ai_insights`, `ALTER TABLE notifications ADD COLUMN IF NOT EXISTS route`).
+
 ### ⚠️ Pendente antes do deploy
-- A migration `banco/migrations/010_folga_hours.sql` (`ALTER TABLE employees ADD COLUMN folga_hours`, `ALTER TABLE absences ADD COLUMN hours`) precisa ser aplicada no Neon de produção **antes** do deploy do código novo — sem ela, os endpoints de employees/absences vão quebrar (coluna inexistente).
+- A migration `banco/migrations/010_folga_hours.sql` (`ALTER TABLE employees ADD COLUMN folga_hours`, `ALTER TABLE absences ADD COLUMN hours`) já foi aplicada no Neon de produção em 2026-08-04 — confirmado, não precisa rodar de novo.
 
 ## [2026-06-03] — Automação de RH: Fluxo de Aprovação Completo + Rastreabilidade
 
