@@ -52,10 +52,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         name, cpf, birth_date, hire_date, department_id,
         role_title, legal_area, oab_number, manager_id,
         status, photo_url, phone, salary, vacation_days, folga_hours,
+        folga_hours_delta,
       } = req.body ?? {};
 
       if (cpf && !validarCPF(cpf)) {
         return err(res, 422, 'CPF inválido. Verifique os dígitos informados.');
+      }
+      if (folga_hours_delta != null && !Number.isFinite(Number(folga_hours_delta))) {
+        return err(res, 400, 'folga_hours_delta deve ser um número');
       }
 
       // Registrar histórico se salário foi alterado
@@ -87,7 +91,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           phone         = COALESCE(${phone         ?? null}, phone),
           salary        = COALESCE(${salary        ?? null}, salary),
           vacation_days = COALESCE(${vacation_days ?? null}, vacation_days),
-          folga_hours   = COALESCE(${folga_hours   ?? null}, folga_hours)
+          folga_hours   = CASE
+            WHEN ${folga_hours_delta ?? null}::numeric IS NOT NULL
+              THEN GREATEST(0, folga_hours + ${folga_hours_delta ?? null}::numeric)
+            ELSE COALESCE(${folga_hours ?? null}, folga_hours)
+          END
         WHERE id = ${id} AND company_id = ${ctx.company_id} AND deleted_at IS NULL
         RETURNING *
       `;

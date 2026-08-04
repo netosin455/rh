@@ -73,7 +73,8 @@ export interface Employee {
 }
 
 export type CreateEmployeeData = Omit<Employee, 'id' | 'company_id' | 'created_at' | 'updated_at'>;
-export type UpdateEmployeeData = Partial<CreateEmployeeData>;
+// folga_hours_delta: crédito/débito atômico no banco de horas (ex: hora extra), em vez de sobrescrever o total
+export type UpdateEmployeeData = Partial<CreateEmployeeData> & { folga_hours_delta?: number };
 
 // ── Departamento ─────────────────────────────────────────────
 export interface Department {

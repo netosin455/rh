@@ -8,7 +8,7 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../contextos/Autenticacao';
 import { Ionicons } from '@expo/vector-icons';
-import { getEmployees, createEmployee } from '../../conexoes/colaboradores';
+import { getEmployees, createEmployee, updateEmployee } from '../../conexoes/colaboradores';
 import { createAbsence } from '../../conexoes/ausencias';
 import { Employee, EmployeeStatus, LegalArea, STATUS_LABELS, CreateEmployeeData } from '../../tipos/modelos';
 import { theme } from '../../estilo/cores';
@@ -89,7 +89,7 @@ export default function ColaboradoresScreen() {
   const [saving,     setSaving]     = useState(false);
   const [form,       setForm]       = useState(EMPTY_FORM);
   const [formError,  setFormError]  = useState('');
-  const [quickModal, setQuickModal] = useState<{ emp: Employee; type: 'falta' | 'folga' } | null>(null);
+  const [quickModal, setQuickModal] = useState<{ emp: Employee; type: 'falta' | 'folga' | 'credito' } | null>(null);
   const [quickHoursInput, setQuickHoursInput] = useState('');
   const [quickSaving, setQuickSaving] = useState(false);
 
@@ -107,9 +107,9 @@ export default function ColaboradoresScreen() {
   useEffect(() => { load(); }, [load]);
   const onRefresh = useCallback(() => { setRefreshing(true); load(); }, [load]);
 
-  // Ação rápida: registrar falta ou folga de hoje, com horas opcionais (útil pra
-  // quem não trabalha 8h/dia, ex: estagiário de 6h). Sem horas = dia inteiro.
-  function openQuickModal(emp: Employee, type: 'falta' | 'folga') {
+  // Ação rápida: registrar falta ou folga de hoje (horas opcionais, útil pra quem não
+  // trabalha 8h/dia, ex: estagiário de 6h) ou creditar horas no banco (ex: hora extra).
+  function openQuickModal(emp: Employee, type: 'falta' | 'folga' | 'credito') {
     setQuickModal({ emp, type });
     setQuickHoursInput('');
   }
@@ -125,17 +125,23 @@ export default function ColaboradoresScreen() {
         toast.warning('Informe um número de horas válido, ou deixe em branco pro dia inteiro.');
         return;
       }
-    } else if (type === 'folga') {
-      toast.warning('Informe as horas de folga.');
+    } else if (type === 'folga' || type === 'credito') {
+      toast.warning('Informe as horas.');
       return;
     }
 
     setQuickSaving(true);
     try {
-      const today = getTodayString();
-      await createAbsence({ employee_id: emp.id, type, start_date: today, end_date: today, hours });
-      const label = type === 'falta' ? 'Falta' : 'Folga';
-      toast.success(`${label}${hours != null ? ` de ${hours}h` : ''} registrada pra ${emp.name}.`);
+      if (type === 'credito') {
+        const updated = await updateEmployee(emp.id, { folga_hours_delta: hours });
+        setEmployees(prev => prev.map(e => e.id === emp.id ? updated : e));
+        toast.success(`${hours}h creditadas no banco de horas de ${emp.name}.`);
+      } else {
+        const today = getTodayString();
+        await createAbsence({ employee_id: emp.id, type, start_date: today, end_date: today, hours });
+        const label = type === 'falta' ? 'Falta' : 'Folga';
+        toast.success(`${label}${hours != null ? ` de ${hours}h` : ''} registrada pra ${emp.name}.`);
+      }
       setQuickModal(null);
     } catch (e: any) {
       toast.error(e.message || 'Não foi possível registrar.');
@@ -320,6 +326,14 @@ export default function ColaboradoresScreen() {
                         <Ionicons name="time-outline" size={15} color={theme.gold} />
                         <Text style={styles.quickActionText}>Folga</Text>
                       </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.quickActionBtn}
+                        onPress={() => openQuickModal(emp, 'credito')}
+                        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                      >
+                        <Ionicons name="add-circle-outline" size={15} color={theme.success} />
+                        <Text style={styles.quickActionText}>+Horas</Text>
+                      </TouchableOpacity>
                     </View>
                   )}
                 </View>
@@ -422,18 +436,24 @@ export default function ColaboradoresScreen() {
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* Modal rápido: falta ou folga, horas opcionais */}
+      {/* Modal rápido: falta, folga ou crédito de horas */}
       <Modal visible={!!quickModal} animationType="fade" transparent onRequestClose={() => setQuickModal(null)}>
         <View style={styles.quickModalOverlay}>
           <View style={styles.quickModalBox}>
             <Text style={styles.quickModalTitle}>
-              {quickModal?.type === 'falta' ? 'Registrar falta hoje' : 'Registrar folga hoje'}
+              {quickModal?.type === 'falta' ? 'Registrar falta hoje'
+                : quickModal?.type === 'folga' ? 'Registrar folga hoje'
+                : 'Creditar horas no banco'}
             </Text>
             <Text style={styles.quickModalSubtitle}>{quickModal?.emp.name}</Text>
             <Text style={styles.label}>Horas {quickModal?.type === 'falta' ? '(opcional — em branco conta o dia inteiro)' : ''}</Text>
             <TextInput
               style={styles.input}
-              placeholder={quickModal?.type === 'falta' ? 'Ex: 3 (estagiário de 6h que faltou meio turno)' : 'Ex: 4'}
+              placeholder={
+                quickModal?.type === 'falta' ? 'Ex: 3 (estagiário de 6h que faltou meio turno)'
+                  : quickModal?.type === 'credito' ? 'Ex: 2 (hora extra feita hoje)'
+                  : 'Ex: 4'
+              }
               placeholderTextColor={theme.textMuted}
               value={quickHoursInput}
               onChangeText={setQuickHoursInput}
