@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   View, Text, ScrollView, TextInput, TouchableOpacity,
   StyleSheet, ActivityIndicator, RefreshControl, Modal,
-  KeyboardAvoidingView, Platform, Alert,
+  KeyboardAvoidingView, Platform,
 } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
@@ -15,6 +15,7 @@ import { theme } from '../../estilo/cores';
 import { brToIso, maskDate, todayBr, getTodayString } from '../../helpers/datas';
 import { exportEmployeesPDF } from '../../helpers/pdf';
 import { useToast } from '../../contextos/Toast';
+import { confirmAction } from '../../helpers/confirm';
 
 const STATUS_COLORS: Record<EmployeeStatus, string> = {
   ativo:                theme.success,
@@ -110,28 +111,18 @@ export default function ColaboradoresScreen() {
 
   // Ação rápida: registrar falta de hoje em 1 toque + confirmação, sem abrir a aba Férias
   function handleQuickFalta(emp: Employee) {
-    Alert.alert(
-      'Registrar falta',
-      `Confirma falta de hoje pra ${emp.name}?`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Confirmar',
-          onPress: async () => {
-            setQuickBusyId(emp.id);
-            try {
-              const today = getTodayString();
-              await createAbsence({ employee_id: emp.id, type: 'falta', start_date: today, end_date: today });
-              toast.success(`Falta registrada pra ${emp.name}.`);
-            } catch (e: any) {
-              toast.error(e.message || 'Não foi possível registrar a falta.');
-            } finally {
-              setQuickBusyId(null);
-            }
-          },
-        },
-      ],
-    );
+    confirmAction('Registrar falta', `Confirma falta de hoje pra ${emp.name}?`, async () => {
+      setQuickBusyId(emp.id);
+      try {
+        const today = getTodayString();
+        await createAbsence({ employee_id: emp.id, type: 'falta', start_date: today, end_date: today });
+        toast.success(`Falta registrada pra ${emp.name}.`);
+      } catch (e: any) {
+        toast.error(e.message || 'Não foi possível registrar a falta.');
+      } finally {
+        setQuickBusyId(null);
+      }
+    });
   }
 
   // Ação rápida: registrar folga de hoje só informando as horas

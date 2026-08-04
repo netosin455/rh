@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
   StyleSheet, ActivityIndicator, RefreshControl, Modal,
-  KeyboardAvoidingView, Platform, Alert,
+  KeyboardAvoidingView, Platform,
 } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
@@ -10,7 +10,8 @@ import { getAbsences, getPendingAbsences, createAbsence, approveAbsence, updateA
 import { getEmployees } from '../../conexoes/colaboradores';
 import { Absence, AbsenceType, ABSENCE_TYPE_LABELS, CreateAbsenceData, Employee } from '../../tipos/modelos';
 import { theme } from '../../estilo/cores';
-import { formatDateShort } from '../../helpers/datas';
+import { formatDateShort, brToIso, isoToBr, maskDate } from '../../helpers/datas';
+import { confirmAction } from '../../helpers/confirm';
 import { exportAbsencesPDF } from '../../helpers/pdf';
 import { useToast } from '../../contextos/Toast';
 import { useAuth } from '../../contextos/Autenticacao';
@@ -123,8 +124,8 @@ export default function FeriasScreen() {
       setForm({
         employee_id: abs.employee_id,
         type:        abs.type,
-        start_date:  abs.start_date,
-        end_date:    abs.end_date,
+        start_date:  isoToBr(abs.start_date),
+        end_date:    isoToBr(abs.end_date),
         reason:      abs.reason || '',
         hours:       abs.hours != null ? String(abs.hours) : '',
       });
@@ -176,6 +177,11 @@ export default function FeriasScreen() {
     if (!form.start_date)  { setFormError('Informe a data de início.'); return; }
     if (!form.end_date)    { setFormError('Informe a data de fim.'); return; }
 
+    const startIso = brToIso(form.start_date);
+    const endIso    = brToIso(form.end_date);
+    if (!startIso) { setFormError('Data de início inválida. Use DD/MM/AAAA.'); return; }
+    if (!endIso)   { setFormError('Data de fim inválida. Use DD/MM/AAAA.'); return; }
+
     const hoursNum = form.type === 'folga' && form.hours.trim() !== '' ? parseFloat(form.hours.replace(',', '.')) : undefined;
     if (hoursNum != null && (!Number.isFinite(hoursNum) || hoursNum <= 0)) {
       setFormError('Horas deve ser um número maior que zero.');
@@ -187,8 +193,8 @@ export default function FeriasScreen() {
       if (editId) {
         const updated = await updateAbsence(editId, {
           type: form.type,
-          start_date: form.start_date,
-          end_date: form.end_date,
+          start_date: startIso,
+          end_date: endIso,
           reason: form.reason.trim() || undefined,
           hours: hoursNum,
         });
@@ -198,8 +204,8 @@ export default function FeriasScreen() {
         const data: CreateAbsenceData = {
           employee_id: form.employee_id,
           type:        form.type,
-          start_date:  form.start_date,
-          end_date:    form.end_date,
+          start_date:  startIso,
+          end_date:    endIso,
           reason:      form.reason.trim() || undefined,
           hours:       hoursNum,
         };
@@ -354,18 +360,6 @@ export default function FeriasScreen() {
                 <TouchableOpacity
                   style={styles.card}
                   onPress={() => isEditable ? openModal(absence) : null}
-                  onLongPress={() => {
-                    if (!canManage) return;
-                    Alert.alert(
-                      absence.employee_name || empNames[absence.employee_id] || 'Ausência',
-                      `${ABSENCE_TYPE_LABELS[absence.type]} · ${formatDateShort(absence.start_date)} a ${formatDateShort(absence.end_date)}`,
-                      [
-                        { text: 'Cancelar', style: 'cancel' },
-                        ...(isEditable ? [{ text: '✏️ Editar', onPress: () => openModal(absence) }] : []),
-                        { text: '🗑️ Excluir', style: 'destructive', onPress: () => handleDeleteAbsence(absence.id) },
-                      ],
-                    );
-                  }}
                   activeOpacity={0.7}
                 >
                   <View style={[styles.cardAccent, { backgroundColor: color }]} />
@@ -420,10 +414,7 @@ export default function FeriasScreen() {
                         <TouchableOpacity
                           style={styles.delBtn}
                           onPress={() => {
-                            Alert.alert('Excluir', `Excluir esta solicitação de ${ABSENCE_TYPE_LABELS[absence.type]}?`, [
-                              { text: 'Cancelar', style: 'cancel' },
-                              { text: 'Excluir', style: 'destructive', onPress: () => handleDeleteAbsence(absence.id) },
-                            ]);
+                            confirmAction('Excluir', `Excluir esta solicitação de ${ABSENCE_TYPE_LABELS[absence.type]}?`, () => handleDeleteAbsence(absence.id));
                           }}
                         >
                           <Ionicons name="trash-outline" size={12} color={theme.danger} />
@@ -459,10 +450,24 @@ export default function FeriasScreen() {
           </View>
 
           <ScrollView style={styles.modalBody} keyboardShouldPersistTaps="handled">
-            <Text style={styles.label}>Colaborador *</Text>
+            <Text style={styles.stepLabel}>1. Tipo de lançamento</Text>
+            <View style={styles.chipGroup}>
+              {TYPE_OPTIONS.map(o => (
+                <TouchableOpacity
+                  key={o.key}
+                  style={[styles.chip, form.type === o.key && styles.chipActive]}
+                  onPress={() => setF('type', o.key)}
+                >
+                  <Text style={[styles.chipText, form.type === o.key && styles.chipTextActive]}>{o.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <Text style={styles.stepLabel}>2. Colaborador</Text>
+            <Text style={styles.label}>Buscar *</Text>
             <TextInput
               style={styles.input}
-              placeholder="Buscar colaborador..."
+              placeholder="Digite o nome..."
               placeholderTextColor={theme.textMuted}
               value={empSearch}
               onChangeText={v => { setEmpSearch(v); setF('employee_id', 0); }}
@@ -506,17 +511,30 @@ export default function FeriasScreen() {
               </View>
             )}
 
-            <Text style={styles.label}>Tipo</Text>
-            <View style={styles.chipGroup}>
-              {TYPE_OPTIONS.map(o => (
-                <TouchableOpacity
-                  key={o.key}
-                  style={[styles.chip, form.type === o.key && styles.chipActive]}
-                  onPress={() => setF('type', o.key)}
-                >
-                  <Text style={[styles.chipText, form.type === o.key && styles.chipTextActive]}>{o.label}</Text>
-                </TouchableOpacity>
-              ))}
+            <Text style={styles.stepLabel}>3. Período</Text>
+            <View style={styles.dateRowInputs}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.label}>Início *</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="DD/MM/AAAA"
+                  placeholderTextColor={theme.textMuted}
+                  value={form.start_date}
+                  onChangeText={v => setF('start_date', maskDate(v))}
+                  keyboardType="numeric" maxLength={10}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.label}>Fim *</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="DD/MM/AAAA"
+                  placeholderTextColor={theme.textMuted}
+                  value={form.end_date}
+                  onChangeText={v => setF('end_date', maskDate(v))}
+                  keyboardType="numeric" maxLength={10}
+                />
+              </View>
             </View>
 
             {form.type === 'folga' && (
@@ -534,32 +552,10 @@ export default function FeriasScreen() {
               </>
             )}
 
-            <Text style={styles.label}>Data Início *</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Ex: 2024-07-01"
-              placeholderTextColor={theme.textMuted}
-              value={form.start_date}
-              onChangeText={v => setF('start_date', v)}
-              {...(Platform.OS === 'web' ? { inputMode: 'date' as any } : {})}
-            />
-            <Text style={styles.dateHint}>Formato: AAAA-MM-DD (ex: 2024-07-01)</Text>
-
-            <Text style={styles.label}>Data Fim *</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Ex: 2024-07-30"
-              placeholderTextColor={theme.textMuted}
-              value={form.end_date}
-              onChangeText={v => setF('end_date', v)}
-              {...(Platform.OS === 'web' ? { inputMode: 'date' as any } : {})}
-            />
-            <Text style={styles.dateHint}>Formato: AAAA-MM-DD (ex: 2024-07-30)</Text>
-
-            <Text style={styles.label}>Observação</Text>
+            <Text style={styles.stepLabel}>4. Observação (opcional)</Text>
             <TextInput
               style={[styles.input, styles.textarea]}
-              placeholder="Observação (opcional)..."
+              placeholder="Motivo, detalhes..."
               placeholderTextColor={theme.textMuted}
               value={form.reason}
               onChangeText={v => setF('reason', v)}
@@ -664,6 +660,10 @@ const styles = StyleSheet.create({
   modalClose:    { padding: 2 },
   modalBody:     { flex: 1, paddingHorizontal: 20, paddingTop: 16 },
 
+  stepLabel: {
+    fontSize: 12, color: theme.gold, fontWeight: '800',
+    letterSpacing: 0.5, marginTop: 22, marginBottom: 4,
+  },
   label: {
     fontSize: 11, color: theme.textMuted, fontWeight: '600',
     letterSpacing: 0.5, marginBottom: 6, marginTop: 14, textTransform: 'uppercase',
@@ -673,6 +673,7 @@ const styles = StyleSheet.create({
     borderRadius: 8, paddingHorizontal: 14, paddingVertical: 11,
     fontSize: 14, color: theme.text,
   },
+  dateRowInputs: { flexDirection: 'row', gap: 12 },
   textarea: { minHeight: 80, textAlignVertical: 'top' },
   dateHint: { fontSize: 10, color: theme.textMuted, marginTop: 3, marginBottom: 4 },
 
