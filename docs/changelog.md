@@ -1,5 +1,14 @@
 # Changelog — SuperRH
 
+## [2026-08-04] (parte 2) — CORS restrito + Alert.alert corrigido em todo o app
+
+### Corrigido
+- **CORS permissivo**: `api/_lib.ts` `cors()` respondia `Access-Control-Allow-Origin: *` pra qualquer origem — achado real do scan de segurança do Vulnary (`rules.vulnary-cors-permissive`, `api/_lib.ts:27`). Agora restringe a uma allowlist (produção + `localhost:8081`/`19006` de dev), configurável via `CORS_ORIGIN` (já documentada em `.env.example`, nunca foi lida até agora). Os 12 endpoints que chamavam `cors(res)` foram atualizados pra `cors(req, res)`.
+- **`Alert.alert` mudo na web em todo o resto do app**: `react-native-web` implementa `Alert.alert` como função vazia — todo confirm/dialog não fazia nada na versão web (que é como o app roda em produção). Corrigidos os 6 arquivos que ainda restavam desde a sessão anterior: `colaborador/[id].tsx` (excluir colaborador, remover holerite), `pesquisas/index.tsx`, `onboarding/index.tsx`, `onboarding/[id].tsx`, `reconhecimentos.tsx`, `(tabs)/_layout.tsx` (logout) — usando o `helpers/confirm.ts` (`confirmAction`) já criado. Dois desses arquivos já tinham gambiarra manual com `window.confirm` duplicada; unificado no helper compartilhado. **Zero `Alert.alert` restante no app.**
+
+### Segurança
+- **Credencial de produção exposta**: `Desktop\SuperRH_projet\SuperRH\debug_db.mjs` tinha a senha do Neon em texto puro (achado documentado desde 28/07 no scan do Vulnary, nunca resolvido). Arquivo apagado e senha do Neon **rotacionada** em 2026-08-04; `DATABASE_URL` atualizada na Vercel (produção) e redeploy feito.
+
 ## [2026-08-04] — Correção de datas, licenças granulares, banco de horas e ações da IA
 
 ### Corrigido
