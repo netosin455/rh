@@ -173,16 +173,18 @@ export default function FeriasScreen() {
 
   async function handleSave() {
     setFormError('');
+    const isHourBased = form.type === 'folga' || form.type === 'falta';
+
     if (!form.employee_id) { setFormError('Selecione o colaborador.'); return; }
-    if (!form.start_date)  { setFormError('Informe a data de início.'); return; }
-    if (!form.end_date)    { setFormError('Informe a data de fim.'); return; }
+    if (!form.start_date)  { setFormError(isHourBased ? 'Informe a data.' : 'Informe a data de início.'); return; }
+    if (!isHourBased && !form.end_date) { setFormError('Informe a data de fim.'); return; }
 
     const startIso = brToIso(form.start_date);
-    const endIso    = brToIso(form.end_date);
-    if (!startIso) { setFormError('Data de início inválida. Use DD/MM/AAAA.'); return; }
+    const endIso    = isHourBased ? startIso : brToIso(form.end_date);
+    if (!startIso) { setFormError(isHourBased ? 'Data inválida. Use DD/MM/AAAA.' : 'Data de início inválida. Use DD/MM/AAAA.'); return; }
     if (!endIso)   { setFormError('Data de fim inválida. Use DD/MM/AAAA.'); return; }
 
-    const hoursNum = (form.type === 'folga' || form.type === 'falta') && form.hours.trim() !== '' ? parseFloat(form.hours.replace(',', '.')) : undefined;
+    const hoursNum = isHourBased && form.hours.trim() !== '' ? parseFloat(form.hours.replace(',', '.')) : undefined;
     if (hoursNum != null && (!Number.isFinite(hoursNum) || hoursNum <= 0)) {
       setFormError('Horas deve ser um número maior que zero.');
       return;
@@ -511,10 +513,10 @@ export default function FeriasScreen() {
               </View>
             )}
 
-            <Text style={styles.stepLabel}>3. Período</Text>
-            <View style={styles.dateRowInputs}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.label}>Início *</Text>
+            {form.type === 'folga' || form.type === 'falta' ? (
+              <>
+                <Text style={styles.stepLabel}>3. Data e horas</Text>
+                <Text style={styles.label}>Data *</Text>
                 <TextInput
                   style={styles.input}
                   placeholder="DD/MM/AAAA"
@@ -523,23 +525,7 @@ export default function FeriasScreen() {
                   onChangeText={v => setF('start_date', maskDate(v))}
                   keyboardType="numeric" maxLength={10}
                 />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.label}>Fim *</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="DD/MM/AAAA"
-                  placeholderTextColor={theme.textMuted}
-                  value={form.end_date}
-                  onChangeText={v => setF('end_date', maskDate(v))}
-                  keyboardType="numeric" maxLength={10}
-                />
-              </View>
-            </View>
-
-            {(form.type === 'folga' || form.type === 'falta') && (
-              <>
-                <Text style={styles.label}>Horas (opcional)</Text>
+                <Text style={styles.label}>Horas {form.type === 'falta' ? '(opcional)' : ''}</Text>
                 <TextInput
                   style={styles.input}
                   placeholder="Ex: 4"
@@ -550,9 +536,37 @@ export default function FeriasScreen() {
                 />
                 <Text style={styles.dateHint}>
                   {form.type === 'folga'
-                    ? 'Se informado, desconta do banco de horas do colaborador. Deixe em branco pra contar em dias.'
+                    ? 'Desconta do banco de horas do colaborador. Deixe em branco pra contar o dia inteiro.'
                     : 'Útil pra quem não trabalha jornada de 8h (ex: estagiário de 6h). Deixe em branco pra contar o dia inteiro.'}
                 </Text>
+              </>
+            ) : (
+              <>
+                <Text style={styles.stepLabel}>3. Período</Text>
+                <View style={styles.dateRowInputs}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.label}>Início *</Text>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="DD/MM/AAAA"
+                      placeholderTextColor={theme.textMuted}
+                      value={form.start_date}
+                      onChangeText={v => setF('start_date', maskDate(v))}
+                      keyboardType="numeric" maxLength={10}
+                    />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.label}>Fim *</Text>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="DD/MM/AAAA"
+                      placeholderTextColor={theme.textMuted}
+                      value={form.end_date}
+                      onChangeText={v => setF('end_date', maskDate(v))}
+                      keyboardType="numeric" maxLength={10}
+                    />
+                  </View>
+                </View>
               </>
             )}
 
