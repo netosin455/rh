@@ -2,17 +2,19 @@ import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   View, Text, ScrollView, TextInput, TouchableOpacity,
   StyleSheet, ActivityIndicator, RefreshControl, Modal,
-  KeyboardAvoidingView, Platform,
+  KeyboardAvoidingView, Platform, Alert,
 } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../contextos/Autenticacao';
 import { Ionicons } from '@expo/vector-icons';
 import { getEmployees, createEmployee } from '../../conexoes/colaboradores';
+import { createAbsence } from '../../conexoes/ausencias';
 import { Employee, EmployeeStatus, LegalArea, STATUS_LABELS, CreateEmployeeData } from '../../tipos/modelos';
 import { theme } from '../../estilo/cores';
-import { brToIso, maskDate, todayBr } from '../../helpers/datas';
+import { brToIso, maskDate, todayBr, getTodayString } from '../../helpers/datas';
 import { exportEmployeesPDF } from '../../helpers/pdf';
+import { useToast } from '../../contextos/Toast';
 
 const STATUS_COLORS: Record<EmployeeStatus, string> = {
   ativo:                theme.success,
@@ -75,6 +77,7 @@ const EMPTY_FORM = {
 export default function ColaboradoresScreen() {
   const router = useRouter();
   const { user } = useAuth();
+  const toast = useToast();
   const canManageEmployees = ['super_admin','admin','rh','adm'].includes(user?.role ?? '');
 
   const [employees,  setEmployees]  = useState<Employee[]>([]);
@@ -86,6 +89,10 @@ export default function ColaboradoresScreen() {
   const [saving,     setSaving]     = useState(false);
   const [form,       setForm]       = useState(EMPTY_FORM);
   const [formError,  setFormError]  = useState('');
+  const [quickBusyId, setQuickBusyId] = useState<number | null>(null);
+  const [folgaModalEmp, setFolgaModalEmp] = useState<Employee | null>(null);
+  const [folgaHoursInput, setFolgaHoursInput] = useState('');
+  const [folgaSaving, setFolgaSaving] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -100,6 +107,58 @@ export default function ColaboradoresScreen() {
 
   useEffect(() => { load(); }, [load]);
   const onRefresh = useCallback(() => { setRefreshing(true); load(); }, [load]);
+
+  // Ação rápida: registrar falta de hoje em 1 toque + confirmação, sem abrir a aba Férias
+  function handleQuickFalta(emp: Employee) {
+    Alert.alert(
+      'Registrar falta',
+      `Confirma falta de hoje pra ${emp.name}?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Confirmar',
+          onPress: async () => {
+            setQuickBusyId(emp.id);
+            try {
+              const today = getTodayString();
+              await createAbsence({ employee_id: emp.id, type: 'falta', start_date: today, end_date: today });
+              toast.success(`Falta registrada pra ${emp.name}.`);
+            } catch (e: any) {
+              toast.error(e.message || 'Não foi possível registrar a falta.');
+            } finally {
+              setQuickBusyId(null);
+            }
+          },
+        },
+      ],
+    );
+  }
+
+  // Ação rápida: registrar folga de hoje só informando as horas
+  function openFolgaModal(emp: Employee) {
+    setFolgaModalEmp(emp);
+    setFolgaHoursInput('');
+  }
+
+  async function handleConfirmFolga() {
+    if (!folgaModalEmp) return;
+    const hours = parseFloat(folgaHoursInput.replace(',', '.'));
+    if (!Number.isFinite(hours) || hours <= 0) {
+      toast.warning('Informe um número de horas válido.');
+      return;
+    }
+    setFolgaSaving(true);
+    try {
+      const today = getTodayString();
+      await createAbsence({ employee_id: folgaModalEmp.id, type: 'folga', start_date: today, end_date: today, hours });
+      toast.success(`Folga de ${hours}h registrada pra ${folgaModalEmp.name}.`);
+      setFolgaModalEmp(null);
+    } catch (e: any) {
+      toast.error(e.message || 'Não foi possível registrar a folga.');
+    } finally {
+      setFolgaSaving(false);
+    }
+  }
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
@@ -259,7 +318,32 @@ export default function ColaboradoresScreen() {
                       {STATUS_LABELS[emp.status]}
                     </Text>
                   </View>
-                  <Ionicons name="chevron-forward" size={14} color={theme.textMuted} style={{ marginTop: 4 }} />
+                  {canManageEmployees && (
+                    <View style={styles.quickActionsRow}>
+                      {quickBusyId === emp.id ? (
+                        <ActivityIndicator size="small" color={theme.gold} />
+                      ) : (
+                        <>
+                          <TouchableOpacity
+                            style={styles.quickActionBtn}
+                            onPress={() => handleQuickFalta(emp)}
+                            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                          >
+                            <Ionicons name="close-circle-outline" size={15} color={theme.danger} />
+                            <Text style={styles.quickActionText}>Falta</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={styles.quickActionBtn}
+                            onPress={() => openFolgaModal(emp)}
+                            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                          >
+                            <Ionicons name="time-outline" size={15} color={theme.gold} />
+                            <Text style={styles.quickActionText}>Folga</Text>
+                          </TouchableOpacity>
+                        </>
+                      )}
+                    </View>
+                  )}
                 </View>
               </TouchableOpacity>
             </Animated.View>
@@ -359,6 +443,37 @@ export default function ColaboradoresScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* Modal rápido: folga (só horas) */}
+      <Modal visible={!!folgaModalEmp} animationType="fade" transparent onRequestClose={() => setFolgaModalEmp(null)}>
+        <View style={styles.quickModalOverlay}>
+          <View style={styles.quickModalBox}>
+            <Text style={styles.quickModalTitle}>Registrar folga hoje</Text>
+            <Text style={styles.quickModalSubtitle}>{folgaModalEmp?.name}</Text>
+            <Text style={styles.label}>Horas</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Ex: 4"
+              placeholderTextColor={theme.textMuted}
+              value={folgaHoursInput}
+              onChangeText={setFolgaHoursInput}
+              keyboardType="decimal-pad"
+              autoFocus
+            />
+            <View style={styles.quickModalFooter}>
+              <TouchableOpacity style={styles.btnCancel} onPress={() => setFolgaModalEmp(null)}>
+                <Text style={styles.btnCancelText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.btnSave} onPress={handleConfirmFolga} disabled={folgaSaving}>
+                {folgaSaving
+                  ? <ActivityIndicator size="small" color="#000" />
+                  : <Text style={styles.btnSaveText}>Confirmar</Text>
+                }
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -410,9 +525,19 @@ const styles = StyleSheet.create({
   empName:   { fontSize: 14, fontWeight: '700', color: theme.white },
   empRole:   { fontSize: 12, color: theme.textMuted, marginTop: 1 },
   empOab:    { fontSize: 10, color: theme.gold, marginTop: 2 },
-  empRight:  { alignItems: 'flex-end', gap: 2 },
+  empRight:  { alignItems: 'flex-end', gap: 6 },
   statusPill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 5 },
   statusText: { fontSize: 10, fontWeight: '700', letterSpacing: 0.3 },
+
+  quickActionsRow: { flexDirection: 'row', gap: 8 },
+  quickActionBtn:  { flexDirection: 'row', alignItems: 'center', gap: 3, paddingVertical: 3, paddingHorizontal: 6, borderRadius: 6, borderWidth: 1, borderColor: theme.border },
+  quickActionText: { fontSize: 10, color: theme.textMuted, fontWeight: '600' },
+
+  quickModalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 24 },
+  quickModalBox: { width: '100%', maxWidth: 360, backgroundColor: theme.surface, borderRadius: 14, borderWidth: 1, borderColor: theme.border, padding: 20 },
+  quickModalTitle: { fontSize: 16, fontWeight: '700', color: theme.white },
+  quickModalSubtitle: { fontSize: 13, color: theme.textMuted, marginTop: 2, marginBottom: 8 },
+  quickModalFooter: { flexDirection: 'row', gap: 10, marginTop: 16 },
 
   fab: {
     position: 'absolute', bottom: 24, right: 20,
