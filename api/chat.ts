@@ -62,7 +62,7 @@ const ABSENCE_TOOLS: Groq.Chat.ChatCompletionTool[] = [
 ];
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  cors(res);
+  cors(req, res);
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return err(res, 405, 'Método não permitido');
 

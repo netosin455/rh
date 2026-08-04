@@ -5,7 +5,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, Modal,
-  TextInput, StyleSheet, ActivityIndicator, Alert,
+  TextInput, StyleSheet, ActivityIndicator,
   RefreshControl, KeyboardAvoidingView, Platform, FlatList,
 } from 'react-native';
 import { useToast } from '../../contextos/Toast';
@@ -16,6 +16,7 @@ import { getEmployees } from '../../conexoes/colaboradores';
 import { Recognition, Employee, RECOGNITION_CATEGORIES, RecognitionCategory } from '../../tipos/modelos';
 import { useAuth } from '../../contextos/Autenticacao';
 import { theme } from '../../estilo/cores';
+import { confirmAction } from '../../helpers/confirm';
 
 const CATEGORIES = Object.entries(RECOGNITION_CATEGORIES) as [RecognitionCategory, { label: string; icon: string; color: string }][];
 
@@ -95,18 +96,13 @@ export default function RecognitionsScreen() {
     }
   }
 
-  async function handleDelete(r: Recognition) {
+  function handleDelete(r: Recognition) {
     const canDelete = ['super_admin', 'admin', 'rh', 'adm'].includes(user?.role ?? '') || r.from_user_id === (user as any)?.id;
     if (!canDelete) return;
-    Alert.alert('Remover', 'Remover este reconhecimento?', [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Remover', style: 'destructive', onPress: async () => {
-          try { await deleteRecognition(r.id); toast.success('Reconhecimento removido'); load(); }
-          catch (e: any) { toast.error(e?.message ?? 'Não foi possível remover'); }
-        },
-      },
-    ]);
+    confirmAction('Remover', 'Remover este reconhecimento?', async () => {
+      try { await deleteRecognition(r.id); toast.success('Reconhecimento removido'); load(); }
+      catch (e: any) { toast.error(e?.message ?? 'Não foi possível remover'); }
+    });
   }
 
   const filteredEmps = employees.filter(e =>

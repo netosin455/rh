@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback, Component } from 'react';
 import {
   View, Text, ScrollView, TextInput, TouchableOpacity,
-  StyleSheet, ActivityIndicator, Alert, KeyboardAvoidingView,
+  StyleSheet, ActivityIndicator, KeyboardAvoidingView,
   Platform, Linking, Modal,
 } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
@@ -19,6 +19,7 @@ import { useAuth } from '../../contextos/Autenticacao';
 import { useToast } from '../../contextos/Toast';
 import { theme } from '../../estilo/cores';
 import { ymd, brToIso, isoToBr, maskDate } from '../../helpers/datas';
+import { confirmAction } from '../../helpers/confirm';
 
 // ── Constantes ────────────────────────────────────────────────
 const STATUS_OPTIONS: { key: EmployeeStatus; label: string }[] = [
@@ -251,24 +252,14 @@ function ColaboradorScreenInner() {
   }
 
   function handleDelete() {
-    Alert.alert(
-      'Excluir colaborador',
-      `Deseja excluir ${employee?.name}? Esta ação não pode ser desfeita.`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Excluir', style: 'destructive',
-          onPress: async () => {
-            try {
-              await deleteEmployee(Number(id));
-              router.back();
-            } catch (e: any) {
-              toast.error(e.message || 'Não foi possível excluir.');
-            }
-          },
-        },
-      ],
-    );
+    confirmAction('Excluir colaborador', `Deseja excluir ${employee?.name}? Esta ação não pode ser desfeita.`, async () => {
+      try {
+        await deleteEmployee(Number(id));
+        router.back();
+      } catch (e: any) {
+        toast.error(e.message || 'Não foi possível excluir.');
+      }
+    });
   }
 
   // ── Estados de loading / erro ────────────────────────────────
@@ -542,13 +533,10 @@ function ColaboradorScreenInner() {
                     {canEdit && (
                       <TouchableOpacity
                         style={styles.delPayslipBtn}
-                        onPress={() => Alert.alert('Remover', 'Remover este holerite?', [
-                          { text: 'Cancelar', style: 'cancel' },
-                          { text: 'Remover', style: 'destructive', onPress: async () => {
-                              try { await deletePayslip(p.id); loadPayslips(); }
-                              catch (e: any) { toast.error(e?.message ?? 'Erro ao remover holerite'); }
-                          }},
-                        ])}
+                        onPress={() => confirmAction('Remover', 'Remover este holerite?', async () => {
+                          try { await deletePayslip(p.id); loadPayslips(); }
+                          catch (e: any) { toast.error(e?.message ?? 'Erro ao remover holerite'); }
+                        })}
                       >
                         <Ionicons name="trash-outline" size={14} color={theme.danger} />
                       </TouchableOpacity>

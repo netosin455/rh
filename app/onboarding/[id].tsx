@@ -5,7 +5,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, ActivityIndicator, Alert,
+  StyleSheet, ActivityIndicator,
 } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
@@ -14,6 +14,7 @@ import { getOnboarding, markStep, deleteOnboarding } from '../../conexoes/onboar
 import { OnboardingProcess, OnboardingStep, StepProgress } from '../../tipos/modelos';
 import { theme } from '../../estilo/cores';
 import { useToast } from '../../contextos/Toast';
+import { confirmAction } from '../../helpers/confirm';
 
 const ROLE_LABELS: Record<string, string> = {
   rh:     'RH',
@@ -71,16 +72,11 @@ export default function OnboardingDetailScreen() {
     }
   }
 
-  async function handleCancel() {
-    Alert.alert('Encerrar', 'Deseja encerrar este onboarding?', [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Encerrar', style: 'destructive', onPress: async () => {
-          try { await deleteOnboarding(Number(id)); router.replace('/onboarding' as any); }
-          catch (e: any) { toast.error(e?.message ?? 'Erro ao encerrar onboarding'); }
-        },
-      },
-    ]);
+  function handleCancel() {
+    confirmAction('Encerrar', 'Deseja encerrar este onboarding?', async () => {
+      try { await deleteOnboarding(Number(id)); router.replace('/onboarding' as any); }
+      catch (e: any) { toast.error(e?.message ?? 'Erro ao encerrar onboarding'); }
+    });
   }
 
   if (loading) {

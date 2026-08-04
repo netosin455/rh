@@ -7,7 +7,7 @@ import { sql, cors, authenticate, err, CAN_MANAGE_EMPLOYEES, parsePagination } f
 import { validarCPF } from '../../helpers/validacoes';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  cors(res);
+  cors(req, res);
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   let ctx;

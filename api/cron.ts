@@ -341,7 +341,7 @@ async function runWeeklyReport(): Promise<{ companies: number; emails_sent: numb
 // ── Main handler ──────────────────────────────────────────────
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  cors(res);
+  cors(req, res);
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   const authHeader = req.headers['authorization'] ?? '';

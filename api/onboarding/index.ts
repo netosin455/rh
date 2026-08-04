@@ -15,7 +15,7 @@ import type { Request as VercelRequest, Response as VercelResponse } from 'expre
 import { sql, cors, authenticate, err, CAN_MANAGE_EMPLOYEES } from '../_lib';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  cors(res);
+  cors(req, res);
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   let ctx;

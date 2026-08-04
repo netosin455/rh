@@ -2,13 +2,14 @@
 // app/(tabs)/_layout.tsx — SuperRH
 // ============================================================
 import { Tabs } from 'expo-router';
-import { Platform, TouchableOpacity, Alert, View, Text, StyleSheet } from 'react-native';
+import { Platform, TouchableOpacity, View, Text, StyleSheet } from 'react-native';
 
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contextos/Autenticacao';
 import { theme } from '../../estilo/cores';
 import { useEffect, useState } from 'react';
 import { countPendentes } from '../../conexoes/ausencias';
+import { confirmAction } from '../../helpers/confirm';
 
 // roles: null = visível para todos | string[] = visível apenas para esses roles
 const TABS = [
@@ -40,14 +41,7 @@ export default function TabLayout() {
   }, [user?.role]);
 
   function handleLogout() {
-    if (Platform.OS === 'web') {
-      if (window.confirm('Deseja sair da conta?')) logout();
-    } else {
-      Alert.alert('Sair', 'Deseja sair da conta?', [
-        { text: 'Cancelar', style: 'cancel' },
-        { text: 'Sair', style: 'destructive', onPress: logout },
-      ]);
-    }
+    confirmAction('Sair', 'Deseja sair da conta?', logout);
   }
 
   return (

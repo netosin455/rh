@@ -5,7 +5,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, ActivityIndicator, RefreshControl, Alert,
+  StyleSheet, ActivityIndicator, RefreshControl,
 } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
@@ -14,6 +14,7 @@ import { getOnboardings, deleteOnboarding } from '../../conexoes/onboarding';
 import { OnboardingProcess } from '../../tipos/modelos';
 import { theme } from '../../estilo/cores';
 import { useToast } from '../../contextos/Toast';
+import { confirmAction } from '../../helpers/confirm';
 
 function calcProgress(proc: OnboardingProcess): { done: number; total: number; pct: number } {
   const total = proc.steps_snapshot.length;
@@ -48,16 +49,11 @@ export default function OnboardingListScreen() {
 
   const onRefresh = () => { setRefreshing(true); load(); };
 
-  async function handleDelete(proc: OnboardingProcess) {
-    Alert.alert('Cancelar onboarding', `Encerrar o onboarding de ${proc.employee_name}?`, [
-      { text: 'Voltar', style: 'cancel' },
-      {
-        text: 'Encerrar', style: 'destructive', onPress: async () => {
-          try { await deleteOnboarding(proc.id); load(); }
-          catch (e: any) { toast.error(e?.message ?? 'Erro ao encerrar onboarding'); }
-        },
-      },
-    ]);
+  function handleDelete(proc: OnboardingProcess) {
+    confirmAction('Cancelar onboarding', `Encerrar o onboarding de ${proc.employee_name}?`, async () => {
+      try { await deleteOnboarding(proc.id); load(); }
+      catch (e: any) { toast.error(e?.message ?? 'Erro ao encerrar onboarding'); }
+    });
   }
 
   const active    = processes.filter(p => !p.completed_at);

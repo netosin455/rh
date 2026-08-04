@@ -59,7 +59,7 @@ async function exchangeGoogleCode(code: string): Promise<{ email: string; name: 
 // ── Handler principal ────────────────────────────────────────
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
-    cors(res);
+    cors(req, res);
     if (req.method === 'OPTIONS') return res.status(200).end();
 
     // ── GET /api/auth/google — inicia ou recebe callback OAuth

@@ -5,13 +5,14 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
-  StyleSheet, ActivityIndicator, RefreshControl, Alert,
+  StyleSheet, ActivityIndicator, RefreshControl,
   Share, Switch, Platform,
 } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { getSurveys, createSurvey, deleteSurvey } from '../../conexoes/pesquisas';
+import { confirmAction } from '../../helpers/confirm';
 import { PulseSurvey, CreateSurveyData } from '../../tipos/modelos';
 import { theme } from '../../estilo/cores';
 import { useToast } from '../../contextos/Toast';
@@ -95,30 +96,15 @@ export default function PesquisasScreen() {
     }
   }
 
-  async function handleDelete(s: PulseSurvey) {
-    if (Platform.OS === 'web') {
-      if (!window.confirm(`Excluir "${s.title}"?`)) return;
+  function handleDelete(s: PulseSurvey) {
+    confirmAction('Excluir', `Excluir "${s.title}"?`, async () => {
       try {
         await deleteSurvey(s.id);
         load();
       } catch (e: any) {
         toast.error(e?.message ?? 'Erro ao excluir pesquisa');
       }
-      return;
-    }
-    Alert.alert('Excluir', `Excluir "${s.title}"?`, [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Excluir', style: 'destructive', onPress: async () => {
-          try {
-            await deleteSurvey(s.id);
-            load();
-          } catch (e: any) {
-            toast.error(e?.message ?? 'Erro ao excluir pesquisa');
-          }
-        },
-      },
-    ]);
+    });
   }
 
   function shareLink(s: PulseSurvey) {

@@ -22,9 +22,29 @@ export interface JWTPayload {
   email: string;
 }
 
-/** Adiciona headers CORS em todas as respostas */
-export function cors(res: VercelResponse) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+const DEFAULT_ALLOWED_ORIGINS = [
+  'https://super-rh.vercel.app',
+  'http://localhost:8081',
+  'http://localhost:19006',
+];
+
+function getAllowedOrigins(): string[] {
+  const fromEnv = (process.env.CORS_ORIGIN ?? '')
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean);
+  return [...new Set([...DEFAULT_ALLOWED_ORIGINS, ...fromEnv])];
+}
+
+/**
+ * Adiciona headers CORS restritos a uma allowlist (produção + dev local),
+ * em vez de refletir '*' pra qualquer origem (achado do scan de segurança).
+ */
+export function cors(req: VercelRequest, res: VercelResponse) {
+  const origin = req.headers['origin'] as string | undefined;
+  const allowed = getAllowedOrigins();
+  res.setHeader('Access-Control-Allow-Origin', origin && allowed.includes(origin) ? origin : allowed[0]);
+  res.setHeader('Vary', 'Origin');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization');
 }

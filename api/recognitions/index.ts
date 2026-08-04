@@ -143,7 +143,7 @@ async function handleRecognitions(req: VercelRequest, res: VercelResponse, ctx: 
 // ── Main handler ──────────────────────────────────────────────
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  cors(res);
+  cors(req, res);
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   let ctx;
