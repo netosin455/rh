@@ -15,11 +15,14 @@ import { brToIso, maskDate, todayBr } from '../../helpers/datas';
 import { exportEmployeesPDF } from '../../helpers/pdf';
 
 const STATUS_COLORS: Record<EmployeeStatus, string> = {
-  ativo:     theme.success,
-  ferias:    theme.info,
-  licenca:   theme.warning,
-  afastado:  theme.warning,
-  desligado: theme.textMuted,
+  ativo:                theme.success,
+  ferias:               theme.info,
+  licenca:              theme.warning,
+  licenca_medica:       theme.warning,
+  licenca_maternidade:  theme.warning,
+  licenca_paternidade:  theme.warning,
+  afastado:             theme.warning,
+  desligado:            theme.textMuted,
 };
 
 const FILTERS: { key: EmployeeStatus | 'todos'; label: string }[] = [
@@ -29,6 +32,13 @@ const FILTERS: { key: EmployeeStatus | 'todos'; label: string }[] = [
   { key: 'licenca',  label: 'Licença' },
   { key: 'afastado', label: 'Afastado' },
 ];
+
+// Filtro "Licença" cobre qualquer variante (médica/maternidade/paternidade)
+function matchesStatusFilter(empStatus: EmployeeStatus, filterKey: EmployeeStatus | 'todos'): boolean {
+  if (filterKey === 'todos') return true;
+  if (filterKey === 'licenca') return empStatus.startsWith('licenca');
+  return empStatus === filterKey;
+}
 
 const LEGAL_AREAS: { key: LegalArea; label: string }[] = [
   { key: 'civel',       label: 'Cível' },
@@ -59,6 +69,7 @@ const EMPTY_FORM = {
   legal_area:   undefined as LegalArea | undefined,
   oab_number:   '',
   vacation_days: 30,
+  folga_hours:  0,
 };
 
 export default function ColaboradoresScreen() {
@@ -93,7 +104,7 @@ export default function ColaboradoresScreen() {
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
     return employees.filter(e => {
-      const matchStatus = filter === 'todos' || e.status === filter;
+      const matchStatus = matchesStatusFilter(e.status, filter);
       const matchSearch = !q || e.name.toLowerCase().includes(q) || e.role_title.toLowerCase().includes(q);
       return matchStatus && matchSearch;
     });
@@ -133,6 +144,7 @@ export default function ColaboradoresScreen() {
         legal_area:    form.legal_area,
         oab_number:    form.oab_number.trim() || undefined,
         vacation_days: form.vacation_days,
+        folga_hours:   form.folga_hours,
       };
       const created = await createEmployee(data);
       setEmployees(prev => [created, ...prev]);

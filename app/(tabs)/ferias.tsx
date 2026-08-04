@@ -30,6 +30,8 @@ const FILTER_TABS: { key: AbsenceType | 'todos'; label: string }[] = [
   { key: 'falta',              label: 'Faltas' },
   { key: 'ferias',             label: 'Férias' },
   { key: 'licenca_medica',     label: 'Médica' },
+  { key: 'licenca_maternidade', label: 'Maternidade' },
+  { key: 'licenca_paternidade', label: 'Paternidade' },
   { key: 'folga',              label: 'Folga' },
   { key: 'outro',              label: 'Outro' },
 ];
@@ -50,6 +52,7 @@ const EMPTY_FORM = {
   start_date: '',
   end_date:   '',
   reason:     '',
+  hours:      '',
 };
 
 const CAN_APPROVE = ['super_admin', 'admin', 'rh', 'adm', 'gestor'];
@@ -75,6 +78,7 @@ export default function FeriasScreen() {
   const [formError,  setFormError]  = useState('');
   const [editId,     setEditId]     = useState<number | null>(null);
   const [vacDays,    setVacDays]    = useState<number | null>(null);
+  const [folgaHours, setFolgaHours] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -122,15 +126,18 @@ export default function FeriasScreen() {
         start_date:  abs.start_date,
         end_date:    abs.end_date,
         reason:      abs.reason || '',
+        hours:       abs.hours != null ? String(abs.hours) : '',
       });
       setEmpSearch(empNames[abs.employee_id] || '');
       const emp = employees.find(e => e.id === abs.employee_id);
       setVacDays(emp?.vacation_days ?? null);
+      setFolgaHours(emp?.folga_hours ?? null);
     } else {
       setEditId(null);
       setForm(EMPTY_FORM);
       setEmpSearch('');
       setVacDays(null);
+      setFolgaHours(null);
     }
     setFormError('');
     setShowModal(true);
@@ -169,6 +176,12 @@ export default function FeriasScreen() {
     if (!form.start_date)  { setFormError('Informe a data de início.'); return; }
     if (!form.end_date)    { setFormError('Informe a data de fim.'); return; }
 
+    const hoursNum = form.type === 'folga' && form.hours.trim() !== '' ? parseFloat(form.hours.replace(',', '.')) : undefined;
+    if (hoursNum != null && (!Number.isFinite(hoursNum) || hoursNum <= 0)) {
+      setFormError('Horas deve ser um número maior que zero.');
+      return;
+    }
+
     setSaving(true);
     try {
       if (editId) {
@@ -177,6 +190,7 @@ export default function FeriasScreen() {
           start_date: form.start_date,
           end_date: form.end_date,
           reason: form.reason.trim() || undefined,
+          hours: hoursNum,
         });
         setAbsences(prev => prev.map(a => a.id === editId ? { ...a, ...updated } : a));
         toast.success('Lançamento atualizado!');
@@ -187,6 +201,7 @@ export default function FeriasScreen() {
           start_date:  form.start_date,
           end_date:    form.end_date,
           reason:      form.reason.trim() || undefined,
+          hours:       hoursNum,
         };
         const created = await createAbsence(data);
         setAbsences(prev => [created, ...prev]);
@@ -197,6 +212,7 @@ export default function FeriasScreen() {
       setEmpSearch('');
       setEditId(null);
       setVacDays(null);
+      setFolgaHours(null);
     } catch (e: any) {
       setFormError(e.message || 'Não foi possível salvar. Tente novamente.');
     } finally {
@@ -241,7 +257,7 @@ export default function FeriasScreen() {
                       </View>
                     </View>
                     <View style={styles.daysChip}>
-                      <Text style={styles.daysText}>{p.days_count}d</Text>
+                      <Text style={styles.daysText}>{p.hours != null ? `${p.hours}h` : `${p.days_count}d`}</Text>
                     </View>
                   </View>
                   <View style={styles.datesRow}>
@@ -373,7 +389,7 @@ export default function FeriasScreen() {
                         </View>
                       </View>
                       <View style={styles.daysChip}>
-                        <Text style={styles.daysText}>{absence.days_count}d</Text>
+                        <Text style={styles.daysText}>{absence.hours != null ? `${absence.hours}h` : `${absence.days_count}d`}</Text>
                       </View>
                     </View>
 
@@ -457,7 +473,7 @@ export default function FeriasScreen() {
                   <TouchableOpacity
                     key={e.id}
                     style={styles.empOption}
-                    onPress={() => { setF('employee_id', e.id); setEmpSearch(e.name); setVacDays(e.vacation_days); }}
+                    onPress={() => { setF('employee_id', e.id); setEmpSearch(e.name); setVacDays(e.vacation_days); setFolgaHours(e.folga_hours); }}
                   >
                     <Text style={styles.empOptionText}>{e.name}</Text>
                     <Text style={styles.empOptionRole}>{e.role_title}</Text>
@@ -471,11 +487,19 @@ export default function FeriasScreen() {
                   <Ionicons name="checkmark-circle" size={14} color={theme.success} />
                   <Text style={styles.selectedEmpText}>{empNames[form.employee_id]}</Text>
                 </View>
-                {vacDays != null && (
+                {vacDays != null && form.type === 'ferias' && (
                   <View style={styles.vacDaysRow}>
                     <Ionicons name="umbrella-outline" size={12} color={theme.gold} />
                     <Text style={styles.vacDaysText}>
-                      {vacDays} dia{vacDays !== 1 ? 's' : ''} de férias disponível{form.type === 'ferias' && vacDays <= 5 ? ' ⚠️ Saldo baixo!' : ''}
+                      {vacDays} dia{vacDays !== 1 ? 's' : ''} de férias disponível{vacDays <= 5 ? ' ⚠️ Saldo baixo!' : ''}
+                    </Text>
+                  </View>
+                )}
+                {folgaHours != null && form.type === 'folga' && (
+                  <View style={styles.vacDaysRow}>
+                    <Ionicons name="time-outline" size={12} color={theme.gold} />
+                    <Text style={styles.vacDaysText}>
+                      {folgaHours}h de banco de horas disponíveis{folgaHours <= 2 ? ' ⚠️ Saldo baixo!' : ''}
                     </Text>
                   </View>
                 )}
@@ -494,6 +518,21 @@ export default function FeriasScreen() {
                 </TouchableOpacity>
               ))}
             </View>
+
+            {form.type === 'folga' && (
+              <>
+                <Text style={styles.label}>Horas (opcional)</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Ex: 4"
+                  placeholderTextColor={theme.textMuted}
+                  value={form.hours}
+                  onChangeText={v => setF('hours', v)}
+                  keyboardType="decimal-pad"
+                />
+                <Text style={styles.dateHint}>Se informado, desconta do banco de horas do colaborador. Deixe em branco pra contar em dias.</Text>
+              </>
+            )}
 
             <Text style={styles.label}>Data Início *</Text>
             <TextInput

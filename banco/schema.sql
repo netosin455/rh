@@ -65,6 +65,7 @@ CREATE TABLE IF NOT EXISTS employees (
   phone           text,
   salary          numeric(12,2),
   vacation_days   integer NOT NULL DEFAULT 30, -- dias de férias disponíveis
+  folga_hours     numeric(6,2) NOT NULL DEFAULT 0, -- saldo de horas de folga/compensação (banco de horas)
   deleted_at      timestamptz,                 -- soft-delete: NULL = ativo, preenchido = removido
   created_at      timestamptz NOT NULL DEFAULT now(),
   updated_at      timestamptz NOT NULL DEFAULT now()
@@ -153,6 +154,7 @@ CREATE TABLE IF NOT EXISTS absences (
   start_date      date NOT NULL,
   end_date        date NOT NULL,
   days_count      integer GENERATED ALWAYS AS (end_date - start_date + 1) STORED,
+  hours           numeric(5,2),                -- só pra type 'folga': horas descontadas do folga_hours, se informado
   status          text NOT NULL DEFAULT 'pendente'
                     CHECK (status IN ('pendente','aprovado','recusado','cancelado')),
   reason          text,

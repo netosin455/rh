@@ -36,18 +36,18 @@ export function toDateString(date: Date): string {
 }
 
 export function formatDateDisplay(dateStr: string): string {
-  const [y, m, d] = dateStr.split('-').map(Number);
+  const [y, m, d] = ymd(dateStr).split('-').map(Number);
   const date = new Date(y, m - 1, d);
   return date.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
 export function formatDateShort(dateStr: string): string {
-  const [y, m, d] = dateStr.split('-').map(Number);
+  const [y, m, d] = ymd(dateStr).split('-').map(Number);
   return `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}/${y}`;
 }
 
 export function getDayOfWeek(dateStr: string): string {
-  const [y, m, d] = dateStr.split('-').map(Number);
+  const [y, m, d] = ymd(dateStr).split('-').map(Number);
   return new Date(y, m - 1, d).toLocaleDateString('pt-BR', { weekday: 'long' });
 }
 

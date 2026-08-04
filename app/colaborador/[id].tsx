@@ -38,11 +38,14 @@ const LEGAL_AREAS: { key: LegalArea; label: string }[] = [
 ];
 
 const STATUS_COLORS: Record<EmployeeStatus, string> = {
-  ativo:     theme.success,
-  ferias:    theme.info,
-  licenca:   theme.warning,
-  afastado:  theme.warning,
-  desligado: theme.textMuted,
+  ativo:                theme.success,
+  ferias:               theme.info,
+  licenca:              theme.warning,
+  licenca_medica:       theme.warning,
+  licenca_maternidade:  theme.warning,
+  licenca_paternidade:  theme.warning,
+  afastado:             theme.warning,
+  desligado:            theme.textMuted,
 };
 
 const ABSENCE_STATUS_COLORS: Record<string, string> = {
@@ -177,6 +180,7 @@ function ColaboradorScreenInner() {
         legal_area:    emp.legal_area,
         oab_number:    emp.oab_number ?? '',
         vacation_days: emp.vacation_days,
+        folga_hours:   emp.folga_hours,
         salary:        emp.salary != null ? String(emp.salary) : '',
       });
     } catch (e: any) {
@@ -233,6 +237,7 @@ function ColaboradorScreenInner() {
         legal_area:    form.legal_area,
         oab_number:    form.oab_number?.trim() || undefined,
         vacation_days: form.vacation_days,
+        folga_hours:   form.folga_hours,
         salary:        !isNaN(salaryNum!) ? salaryNum : undefined,
       });
       setEmployee(updated);
@@ -453,6 +458,17 @@ function ColaboradorScreenInner() {
               </View>
             </Animated.View>
 
+            {/* Banco de horas */}
+            <Animated.View entering={FadeInDown.delay(200).duration(300)} style={styles.section}>
+              <SectionTitle icon="time-outline" title="Banco de Horas" />
+              <View style={styles.vacRow}>
+                <View style={styles.vacInfo}>
+                  <Text style={styles.vacDays}>{employee.folga_hours}h</Text>
+                  <Text style={styles.vacLabel}>de folga disponíveis</Text>
+                </View>
+              </View>
+            </Animated.View>
+
             {/* Histórico de ausências */}
             <Animated.View entering={FadeInDown.delay(220).duration(300)} style={styles.section}>
               <SectionTitle icon="calendar-clear-outline" title="Histórico de ausências" />
@@ -470,7 +486,7 @@ function ColaboradorScreenInner() {
                       <Text style={styles.absType}>{ABSENCE_TYPE_LABELS[a.type]}</Text>
                       <Text style={styles.absDates}>
                         {formatDate(a.start_date)} → {formatDate(a.end_date)}
-                        {'  ·  '}{a.days_count} dia{a.days_count !== 1 ? 's' : ''}
+                        {'  ·  '}{a.hours != null ? `${a.hours}h` : `${a.days_count} dia${a.days_count !== 1 ? 's' : ''}`}
                       </Text>
                       {a.reason ? <Text style={styles.absReason}>{a.reason}</Text> : null}
                     </View>
@@ -692,6 +708,13 @@ function ColaboradorScreenInner() {
               value={String(form.vacation_days ?? '')}
               onChangeText={v => set('vacation_days', parseInt(v) || 0)}
               keyboardType="number-pad" placeholderTextColor={theme.textMuted}
+            />
+
+            <Text style={styles.fLabel}>Banco de horas de folga (h)</Text>
+            <TextInput style={styles.fInput}
+              value={String(form.folga_hours ?? '')}
+              onChangeText={v => set('folga_hours', parseFloat(v.replace(',', '.')) || 0)}
+              keyboardType="decimal-pad" placeholderTextColor={theme.textMuted}
             />
 
             {canSeeSalary && (

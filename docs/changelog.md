@@ -1,5 +1,25 @@
 # Changelog — SuperRH
 
+## [2026-08-04] — Correção de datas, licenças granulares, banco de horas e ações da IA
+
+### Corrigido
+- **Bug crítico "data NaN" na tela de Férias**: `formatDateShort`/`formatDateDisplay`/`getDayOfWeek` em `helpers/datas.ts` faziam `dateStr.split('-')` direto na string vinda da API. Quando a coluna `date` do Postgres/Neon vem serializada como timestamp completo (`"2026-07-01T00:00:00.000Z"`), isso quebrava o dia (`NaN`). Corrigido usando `ymd()` antes do split — mesmo padrão já usado em `app/colaborador/[id].tsx`. Afetava também Dashboard (`index.tsx`) e Agenda (`agenda.tsx`), que usam as mesmas funções.
+
+### Adicionado
+- **Abas "Licença Maternidade" e "Licença Paternidade"** no filtro da tela de Férias (`app/(tabs)/ferias.tsx`) — esses tipos já existiam pra cadastro mas não tinham como ser filtrados depois.
+- **Status granular de licença na aba Equipe**: `api/employees/index.ts` já calculava dinamicamente se o colaborador está de férias/licença (via `EXISTS` em `absences` aprovadas cobrindo `CURRENT_DATE`), mas colapsava tudo em `licenca` genérico. Agora retorna o tipo específico (`licenca_medica`/`licenca_maternidade`/`licenca_paternidade`). `EmployeeStatus` (`tipos/modelos.ts`), `STATUS_LABELS`, `STATUS_COLORS` e o filtro da aba Equipe (`app/(tabs)/colaboradores.tsx`, `app/colaborador/[id].tsx`) foram atualizados; o filtro "Licença" continua pegando qualquer variante.
+- **Auto-aprovação quando RH/admin/gestor registra a ausência diretamente**: antes, mesmo um lançamento feito pela própria RH caía em "pendente" e precisava de um segundo clique pra aprovar. Agora, se quem cria já tem permissão de aprovar (`CAN_APPROVE_ABSENCES`), o lançamento já entra aprovado, com saldo descontado na hora e notificação pro colaborador (em vez de notificação pra RH pedindo aprovação).
+- **Banco de horas de folga**: nova coluna `employees.folga_hours` (migration `banco/migrations/010_folga_hours.sql`) — saldo de horas de compensação, editável no perfil do colaborador (mirror de `vacation_days`). Ausências tipo `folga` aceitam um campo opcional `hours` (`absences.hours`); se informado, desconta/restaura do banco de horas em vez de contar dias inteiros. Validação de saldo insuficiente igual à de férias.
+- **Assistente de IA com ações reais** (`api/chat.ts`): antes só respondia perguntas; agora, pra papéis que já podem aprovar férias/ausências (RH/admin/gestor), tem 3 ferramentas via tool-calling do Groq: `criar_ausencia`, `listar_ausencias_pendentes`, `aprovar_ausencia`. Escopo deliberadamente restrito — sem ferramenta pra salário, desligamento ou exclusão de colaborador. O contexto da equipe passou a incluir o `[ID]` de cada colaborador (necessário pra IA referenciar o registro certo) e o status computado (mesma lógica da aba Equipe).
+
+### Refatorado
+- Lógica de criar ausência (validação de saldo/sobreposição, inserção, desconto e notificação) extraída de `api/absences/index.ts` POST para `createAbsenceRecord()` em `api/_lib.ts`.
+- Lógica de aprovar/recusar ausência extraída de `api/absences/index.ts` PATCH para `resolveAbsenceApproval()` em `api/_lib.ts`.
+- Ambas agora são a fonte única usada tanto pelo endpoint REST quanto pelas ferramentas do assistente de IA, evitando duas implementações divergentes da mesma regra de negócio.
+
+### ⚠️ Pendente antes do deploy
+- A migration `banco/migrations/010_folga_hours.sql` (`ALTER TABLE employees ADD COLUMN folga_hours`, `ALTER TABLE absences ADD COLUMN hours`) precisa ser aplicada no Neon de produção **antes** do deploy do código novo — sem ela, os endpoints de employees/absences vão quebrar (coluna inexistente).
+
 ## [2026-06-03] — Automação de RH: Fluxo de Aprovação Completo + Rastreabilidade
 
 ### Adicionado

@@ -29,7 +29,15 @@ export interface Company {
 }
 
 // ── Colaborador ─────────────────────────────────────────────
-export type EmployeeStatus = 'ativo' | 'ferias' | 'licenca' | 'afastado' | 'desligado';
+export type EmployeeStatus =
+  | 'ativo'
+  | 'ferias'
+  | 'licenca'
+  | 'licenca_medica'
+  | 'licenca_maternidade'
+  | 'licenca_paternidade'
+  | 'afastado'
+  | 'desligado';
 
 export type LegalArea =
   | 'civel'
@@ -59,6 +67,7 @@ export interface Employee {
   phone?: string;
   salary?: number;
   vacation_days: number;
+  folga_hours: number;
   created_at: string;
   updated_at: string;
 }
@@ -118,6 +127,7 @@ export interface Absence {
   start_date: string;
   end_date: string;
   days_count: number;
+  hours?: number;          // só pra type 'folga' — horas descontadas do banco de horas, se informado
   status: AbsenceStatus;
   reason?: string;
   approved_by?: number;
@@ -412,9 +422,12 @@ export const ABSENCE_TYPE_LABELS: Record<AbsenceType, string> = {
 };
 
 export const STATUS_LABELS: Record<EmployeeStatus, string> = {
-  ativo:      'Ativo',
-  ferias:     'Férias',
-  licenca:    'Licença',
-  afastado:   'Afastado',
-  desligado:  'Desligado',
+  ativo:                'Ativo',
+  ferias:               'Férias',
+  licenca:              'Licença',
+  licenca_medica:       'Licença Médica',
+  licenca_maternidade:  'Licença Maternidade',
+  licenca_paternidade:  'Licença Paternidade',
+  afastado:             'Afastado',
+  desligado:            'Desligado',
 };
