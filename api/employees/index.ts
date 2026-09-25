@@ -5,6 +5,7 @@
 import type { Request as VercelRequest, Response as VercelResponse } from 'express';
 import { sql, cors, authenticate, err, CAN_MANAGE_EMPLOYEES, parsePagination } from '../_lib';
 import { validarCPF } from '../../helpers/validacoes';
+import { normalizeOptionalEmail } from '../_email';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   cors(req, res);
@@ -51,13 +52,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const {
         name, cpf, birth_date, hire_date, department_id,
         role_title, legal_area, oab_number, manager_id,
-        status, photo_url, phone, salary, vacation_days, folga_hours,
+        status, photo_url, phone, email, salary, vacation_days, folga_hours,
         folga_hours_delta,
       } = req.body ?? {};
 
       if (cpf && !validarCPF(cpf)) {
         return err(res, 422, 'CPF inválido. Verifique os dígitos informados.');
       }
+      // email ausente no corpo = não mexe; vazio = apaga; preenchido = precisa ser válido.
+      const emailProvided = email !== undefined;
+      const emailParsed = normalizeOptionalEmail(email);
+      if (!emailParsed.ok) return err(res, 422, 'Email inválido.');
       if (folga_hours_delta != null && !Number.isFinite(Number(folga_hours_delta))) {
         return err(res, 400, 'folga_hours_delta deve ser um número');
       }
@@ -89,6 +94,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           status        = COALESCE(${status        ?? null}, status),
           photo_url     = COALESCE(${photo_url     ?? null}, photo_url),
           phone         = COALESCE(${phone         ?? null}, phone),
+          email         = CASE WHEN ${emailProvided}::boolean THEN ${emailParsed.value} ELSE email END,
           salary        = COALESCE(${salary        ?? null}, salary),
           vacation_days = COALESCE(${vacation_days ?? null}, vacation_days),
           folga_hours   = CASE
@@ -161,7 +167,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const {
       name, cpf, birth_date, hire_date, department_id,
       role_title, legal_area, oab_number, manager_id,
-      status = 'ativo', photo_url, phone, salary, vacation_days = 30, folga_hours = 0,
+      status = 'ativo', photo_url, phone, email, salary, vacation_days = 30, folga_hours = 0,
     } = req.body ?? {};
 
     if (!name || !hire_date || !role_title) {
@@ -170,17 +176,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (cpf && !validarCPF(cpf)) {
       return err(res, 422, 'CPF inválido. Verifique os dígitos informados.');
     }
+    const emailParsed = normalizeOptionalEmail(email);
+    if (!emailParsed.ok) return err(res, 422, 'Email inválido.');
 
     const rows = await sql`
       INSERT INTO employees
         (company_id, name, cpf, birth_date, hire_date, department_id,
          role_title, legal_area, oab_number, manager_id, status,
-         photo_url, phone, salary, vacation_days, folga_hours)
+         photo_url, phone, email, salary, vacation_days, folga_hours)
       VALUES
         (${ctx.company_id}, ${name}, ${cpf ?? null}, ${birth_date ?? null},
          ${hire_date}, ${department_id ?? null}, ${role_title},
          ${legal_area ?? null}, ${oab_number ?? null}, ${manager_id ?? null},
-         ${status}, ${photo_url ?? null}, ${phone ?? null},
+         ${status}, ${photo_url ?? null}, ${phone ?? null}, ${emailParsed.value},
          ${salary ?? null}, ${vacation_days}, ${folga_hours})
       RETURNING *
     `;

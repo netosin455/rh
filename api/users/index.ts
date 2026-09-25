@@ -6,6 +6,7 @@
 import type { Request as VercelRequest, Response as VercelResponse } from 'express';
 import bcrypt from 'bcryptjs';
 import { sql, cors, authenticate, err, VALID_ROLES, parsePagination } from '../_lib';
+import { isValidEmail } from '../_email';
 
 // ── GET  /api/users?notifications=1  — lista notificações do usuário
 // ── PATCH /api/users?notifications=1 — marca como lida(s)
@@ -100,8 +101,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (req.method === 'PUT') {
-      if (id === ctx.sub) return err(res, 400, 'Você não pode editar sua própria conta por aqui');
       const { name, email, password, role } = req.body ?? {};
+      // Na própria conta só nome e email podem mudar aqui; cargo e senha continuam bloqueados
+      // (evita se rebaixar ou se trancar para fora sem querer). Reenviar o cargo atual é aceito.
+      const editingSelf = id === ctx.sub;
+      if (editingSelf && (password || (role && role !== ctx.role))) {
+        return err(res, 400, 'Na sua própria conta você só pode alterar nome e email por aqui');
+      }
 
       if (role && !(VALID_ROLES as readonly string[]).includes(role)) {
         return err(res, 400, `Cargo inválido. Use: ${VALID_ROLES.join(', ')}`);
@@ -114,6 +120,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const trimmedEmail = email ? String(email).toLowerCase().trim() : null;
       if (trimmedName  === '') return err(res, 400, 'Nome não pode ser vazio');
       if (trimmedEmail === '') return err(res, 400, 'Email não pode ser vazio');
+      if (trimmedEmail !== null) {
+        if (!isValidEmail(trimmedEmail)) return err(res, 422, 'Email inválido');
+        const taken = await sql`SELECT id FROM users WHERE email = ${trimmedEmail} AND id <> ${id}`;
+        if (taken[0]) return err(res, 409, 'Este email já está em uso por outra conta');
+      }
 
       const newHash = password ? await bcrypt.hash(String(password), 10) : null;
 

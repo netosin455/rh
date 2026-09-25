@@ -65,6 +65,7 @@ export interface Employee {
   status: EmployeeStatus;
   photo_url?: string;
   phone?: string;
+  email?: string | null;   // destino de avisos por email; vazio = não recebe
   salary?: number;
   vacation_days: number;
   folga_hours: number;

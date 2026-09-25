@@ -127,10 +127,11 @@ async function handleRecognitions(req: VercelRequest, res: VercelResponse, ctx: 
     if (message.length > 500) return err(res, 400, 'Mensagem muito longa (máx. 500 caracteres)');
     if (!VALID_CATEGORIES.includes(category)) return err(res, 400, 'Categoria inválida');
 
-    // O destinatário é buscado junto ao vínculo de usuário da mesma empresa do JWT.
-    // company_id nunca vem do body e um email de outra empresa nunca é selecionado.
+    // Destino do email: o email da ficha do colaborador; sem ele, o da conta de usuário vinculada
+    // (sempre da mesma empresa do JWT). company_id nunca vem do body e um email de outra
+    // empresa nunca é selecionado.
     const emp = await sql`
-      SELECT e.name, u.email
+      SELECT e.name, COALESCE(NULLIF(e.email, ''), u.email) AS email
       FROM employees e
       LEFT JOIN users u ON u.id = e.user_id AND u.company_id = e.company_id
       WHERE e.id = ${Number(to_employee_id)} AND e.company_id = ${ctx.company_id}

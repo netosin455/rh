@@ -63,6 +63,7 @@ CREATE TABLE IF NOT EXISTS employees (
                     CHECK (status IN ('ativo', 'ferias', 'licenca', 'afastado', 'desligado')),
   photo_url       text,
   phone           text,
+  email           text,                       -- destino de avisos por email (independe de conta de usuário)
   salary          numeric(12,2),
   vacation_days   integer NOT NULL DEFAULT 30, -- dias de férias disponíveis
   folga_hours     numeric(6,2) NOT NULL DEFAULT 0, -- saldo de horas de folga/compensação (banco de horas)

@@ -176,6 +176,7 @@ function ColaboradorScreenInner() {
         hire_date:     isoToBr(emp.hire_date),
         status:        emp.status,
         phone:         emp.phone ?? '',
+        email:         emp.email ?? '',
         cpf:           emp.cpf ?? '',
         birth_date:    emp.birth_date ? isoToBr(emp.birth_date) : '',
         legal_area:    emp.legal_area,
@@ -233,6 +234,8 @@ function ColaboradorScreenInner() {
         hire_date:     hireDateIso,
         status:        form.status,
         phone:         form.phone?.trim() || undefined,
+        // string vazia apaga o email; a API valida o formato
+        email:         form.email?.trim() ?? '',
         cpf:           form.cpf?.trim() || undefined,
         birth_date:    birthDateIso || undefined,
         legal_area:    form.legal_area,
@@ -384,6 +387,7 @@ function ColaboradorScreenInner() {
             <Animated.View entering={FadeInDown.delay(100).duration(300)} style={styles.section}>
               <SectionTitle icon="person-outline" title="Dados pessoais" />
               <InfoRow icon="card-outline"      label="CPF"              value={employee.cpf} />
+              <InfoRow icon="mail-outline"      label="Email"            value={employee.email} />
               <InfoRow icon="gift-outline"      label="Data de nascimento"
                 value={employee.birth_date
                   ? `${formatDate(employee.birth_date)} · ${getAge(employee.birth_date)} anos`
@@ -673,6 +677,9 @@ function ColaboradorScreenInner() {
 
             <Text style={styles.fLabel}>Telefone</Text>
             <TextInput style={styles.fInput} value={form.phone} onChangeText={v => set('phone', v)} placeholder="(11) 99999-9999" placeholderTextColor={theme.textMuted} keyboardType="phone-pad" />
+
+            <Text style={styles.fLabel}>Email (para avisos, ex.: reconhecimentos)</Text>
+            <TextInput style={styles.fInput} value={form.email} onChangeText={v => set('email', v)} placeholder="nome@empresa.com" placeholderTextColor={theme.textMuted} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} autoComplete="email" accessibilityLabel="Email do colaborador" />
 
             <Text style={styles.fLabel}>CPF</Text>
             <TextInput style={styles.fInput} value={form.cpf} onChangeText={v => set('cpf', v)} placeholder="000.000.000-00" placeholderTextColor={theme.textMuted} />

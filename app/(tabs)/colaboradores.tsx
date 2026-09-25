@@ -67,6 +67,7 @@ const EMPTY_FORM = {
   hire_date:    todayBr(),
   status:       'ativo' as EmployeeStatus,
   phone:        '',
+  email:        '',
   cpf:          '',
   birth_date:   '',
   legal_area:   undefined as LegalArea | undefined,
@@ -189,6 +190,7 @@ export default function ColaboradoresScreen() {
         hire_date:     hireDateIso,
         status:        form.status,
         phone:         form.phone.trim() || undefined,
+        email:         form.email.trim() || undefined,
         cpf:           form.cpf.trim() || undefined,
         birth_date:    birthDateIso || undefined,
         legal_area:    form.legal_area,
@@ -407,6 +409,9 @@ export default function ColaboradoresScreen() {
 
             <Text style={styles.label}>Telefone</Text>
             <TextInput style={styles.input} placeholder="(11) 99999-9999" placeholderTextColor={theme.textMuted} value={form.phone} onChangeText={v => setF('phone', v)} keyboardType="phone-pad" />
+
+            <Text style={styles.label}>Email (para avisos, ex.: reconhecimentos)</Text>
+            <TextInput style={styles.input} placeholder="nome@empresa.com" placeholderTextColor={theme.textMuted} value={form.email} onChangeText={v => setF('email', v)} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} autoComplete="email" accessibilityLabel="Email do colaborador" />
 
             <Text style={styles.label}>CPF</Text>
             <TextInput style={styles.input} placeholder="000.000.000-00" placeholderTextColor={theme.textMuted} value={form.cpf} onChangeText={v => setF('cpf', v)} />

@@ -20,6 +20,20 @@ export function isValidEmail(email: unknown): email is string {
     && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
 }
 
+/**
+ * Normaliza um email vindo de formulário. Vazio ou nulo significa "sem email" (null);
+ * texto preenchido precisa ser um endereço válido e sai em minúsculas e sem espaços.
+ */
+export function normalizeOptionalEmail(
+  value: unknown,
+): { ok: true; value: string | null } | { ok: false } {
+  if (value === undefined || value === null) return { ok: true, value: null };
+  if (typeof value !== 'string') return { ok: false };
+  const trimmed = value.trim().toLowerCase();
+  if (trimmed === '') return { ok: true, value: null };
+  return isValidEmail(trimmed) ? { ok: true, value: trimmed } : { ok: false };
+}
+
 export interface EmailTemplateInput {
   title: string;
   greeting: string;
