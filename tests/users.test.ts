@@ -107,6 +107,26 @@ describe('POST /api/users', () => {
   });
 });
 
+describe('PATCH /api/users?notifications=1', () => {
+  beforeEach(() => { vi.clearAllMocks(); mockCors.mockReturnValue(undefined); });
+
+  it('só tenta marcar como lida uma notificação do próprio usuário na empresa', async () => {
+    mockAuthenticate.mockReturnValue({ ...superAdminCtx, role: 'colaborador' });
+    mockSql.mockResolvedValueOnce([]);
+    const { default: handler } = await import('../api/users/index');
+    const req = makeReq('PATCH', { id: 77 }, { notifications: '1' });
+    const res = makeRes();
+
+    await handler(req, res);
+
+    const query = String(mockSql.mock.calls[0][0]);
+    expect(query).toContain('user_id');
+    expect(mockSql.mock.calls[0].flat()).toContain(superAdminCtx.sub);
+    expect(mockSql.mock.calls[0].flat()).toContain(superAdminCtx.company_id);
+    expect(res.status).toHaveBeenCalledWith(200);
+  });
+});
+
 // ── [id] handler (PUT + DELETE) ───────────────────────────────
 describe('PUT /api/users/:id', () => {
   beforeEach(() => { vi.clearAllMocks(); mockCors.mockReturnValue(undefined); });

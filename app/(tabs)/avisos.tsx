@@ -15,6 +15,7 @@ import { getNotices, createNotice, pinNotice, deleteNotice } from '../../conexoe
 import { Notice, CreateNoticeData, NoticePriority, NOTICE_PRIORITY_LABELS } from '../../tipos/modelos';
 import { useToast } from '../../contextos/Toast';
 import { theme } from '../../estilo/cores';
+import { confirmAction } from '../../helpers/confirm';
 
 const PRIORITY_COLORS: Record<NoticePriority, string> = {
   normal:     theme.info,
@@ -74,11 +75,12 @@ export default function AvisosScreen() {
       setNotices(await getNotices());
     } catch (e) {
       console.error('[Avisos]', e);
+      toast.error('Não foi possível carregar os avisos.');
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [toast]);
 
   useEffect(() => { load(); }, [load]);
   const onRefresh = useCallback(() => { setRefreshing(true); load(); }, [load]);
@@ -128,15 +130,17 @@ export default function AvisosScreen() {
     }
   }
 
-  async function handleDelete(n: Notice) {
-    const confirmed = window.confirm(`Excluir o aviso "${n.title}"?`);
-    if (!confirmed) return;
-    try {
-      await deleteNotice(n.id);
-      setNotices(prev => prev.filter(x => x.id !== n.id));
-    } catch (e: any) {
-      console.error('[handleDelete]', e.message);
-    }
+  function handleDelete(n: Notice) {
+    confirmAction('Excluir aviso', `Excluir o aviso "${n.title}"?`, async () => {
+      try {
+        await deleteNotice(n.id);
+        setNotices(prev => prev.filter(x => x.id !== n.id));
+        toast.success('Aviso excluído.');
+      } catch (e: any) {
+        console.error('[handleDelete]', e.message);
+        toast.error(e.message || 'Não foi possível excluir o aviso.');
+      }
+    });
   }
 
   if (loading) {

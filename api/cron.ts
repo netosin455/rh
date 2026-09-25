@@ -6,24 +6,15 @@
 
 import type { Request as VercelRequest, Response as VercelResponse } from 'express';
 import { sql, cors, sendPush } from './_lib';
+import { sendEmail } from './_email';
 import Groq from 'groq-sdk';
 
-const RESEND_API_KEY = process.env.RESEND_API_KEY ?? '';
 const CRON_SECRET   = process.env.CRON_SECRET     ?? '';
 const APP_URL       = process.env.EXPO_PUBLIC_API_URL ?? 'https://super-rh.vercel.app';
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 // ── Shared helpers ────────────────────────────────────────────
-
-async function sendEmail(to: string, subject: string, html: string): Promise<void> {
-  if (!RESEND_API_KEY) return;
-  await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: { 'Authorization': `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ from: 'SuperRH <noreply@super-rh.vercel.app>', to, subject, html }),
-  });
-}
 
 // ── Job: onboarding-reminders ─────────────────────────────────
 
@@ -103,10 +94,11 @@ async function runOnboardingReminders(): Promise<{ checked: number; emails_sent:
           { route: `/onboarding/${proc.id}` },
         );
 
-        await sendEmail(
-          user.email,
-          `⚠️ Onboarding de ${proc.employee_name} — etapa atrasada`,
-          `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;background:#09090B;color:#F2F0EA;padding:24px;border-radius:12px;">
+        try {
+          const sent = await sendEmail(
+            user.email,
+            `⚠️ Onboarding de ${proc.employee_name} — etapa atrasada`,
+            `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;background:#09090B;color:#F2F0EA;padding:24px;border-radius:12px;">
             <h2 style="color:#C9A84C;margin-bottom:8px;">Etapa de Onboarding Atrasada</h2>
             <p style="color:#8B8B8B;margin-top:0;">Olá, ${user.name}</p>
             <div style="background:#111114;border:1px solid #1E1E24;border-radius:8px;padding:16px;margin:16px 0;">
@@ -116,9 +108,12 @@ async function runOnboardingReminders(): Promise<{ checked: number; emails_sent:
               <p style="color:#E05252;"><strong>Atraso:</strong> ${diasAtraso} dia${diasAtraso > 1 ? 's' : ''}</p>
             </div>
             <a href="${APP_URL}/onboarding" style="display:inline-block;background:#C9A84C;color:#000;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:700;">Ver Onboarding</a>
-          </div>`,
-        );
-        emailsSent++;
+            </div>`,
+          );
+          if (sent) emailsSent++;
+        } catch (error: unknown) {
+          console.error(`[cron/onboarding-email] company=${proc.company_id} user=${user.id}:`, error);
+        }
       }
 
       const newProgress = { ...progress, [stepKey]: { ...stepProg, reminder_sent_at: today.toISOString() } };
@@ -330,8 +325,12 @@ async function runWeeklyReport(): Promise<{ companies: number; emails_sent: numb
     `;
 
     for (const user of users) {
-      await sendEmail(user.email, `📊 Relatório Semanal — ${company.name}`, html);
-      emailsSent++;
+      try {
+        const sent = await sendEmail(user.email, `📊 Relatório Semanal — ${company.name}`, html);
+        if (sent) emailsSent++;
+      } catch (error: unknown) {
+        console.error(`[cron/weekly-report-email] company=${company.id} user=${user.id}:`, error);
+      }
     }
   }
 

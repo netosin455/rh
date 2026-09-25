@@ -94,6 +94,7 @@ export default function FeriasScreen() {
       setEmpNames(names);
     } catch (e) {
       console.error('[Ferias]', e);
+      toast.error('Não foi possível carregar as ausências.');
     } finally {
       setLoading(false);
       setRefreshing(false);

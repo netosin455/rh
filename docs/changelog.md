@@ -1,5 +1,23 @@
 # Changelog — SuperRH
 
+## [2026-09-25] — RH-002 Auditoria de lógica e RH-003 Email de feedback
+
+### Corrigido
+- Ausências: validação estrita de datas civis, proteção contra períodos invertidos, acesso de colaborador restrito ao próprio histórico, edição/exclusão apenas enquanto pendente e bloqueio de reaprovação.
+- Férias e banco de horas: criação autoaprovada e aprovação debitam o saldo na mesma instrução SQL que grava a ausência.
+- Isolamento/RBAC: etapas de onboarding, limpeza de processo, notificações pessoais e departamento-alvo de pesquisa passaram a respeitar o tenant do JWT.
+- Agenda: próximos eventos usam o fuso `America/Sao_Paulo`.
+- Telas: Admin e Avisos usam `helpers/confirm.ts`; falhas de ações e carregamentos relevantes mostram Toast sem atualizar estado prematuramente.
+
+### Adicionado
+- `api/_email.ts`: cliente Resend reutilizável, validação de destinatário e template HTML em português.
+- Email para o destinatário de um **reconhecimento (Kudos)**, enviado depois da persistência; sem CPF, salário ou dado de saúde e isolado da criação por `try/catch`.
+- Regressões Vitest para ausências, email/Resend, reconhecimento entre empresas, onboarding, pesquisas e fuso da agenda.
+
+### Verificado
+- `npx tsc --noEmit` sem erros.
+- `npm test -- --run`: 30 testes em 10 arquivos, todos aprovados.
+
 ## [2026-09-25] — Maestri Fase 0: governança multi-agente (só documentação)
 
 ### Alterado

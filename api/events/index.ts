@@ -79,13 +79,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     let rows;
     if (upcoming === 'true') {
-      const today = new Date().toISOString().slice(0, 10);
       rows = await sql`
         SELECT e.*, u.name AS created_by_name, c.case_number, c.title AS case_title
         FROM events e
         LEFT JOIN users u ON u.id = e.user_id
         LEFT JOIN legal_cases c ON c.id = e.case_id
-        WHERE e.company_id = ${ctx.company_id} AND e.date >= ${today}
+        WHERE e.company_id = ${ctx.company_id}
+          AND e.date >= (NOW() AT TIME ZONE 'America/Sao_Paulo')::date
         ORDER BY e.date ASC, e.start_time ASC
         LIMIT ${Number(limit)}
       `;

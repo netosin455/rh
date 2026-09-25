@@ -11,8 +11,10 @@ import {
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contextos/Autenticacao';
+import { useToast } from '../../contextos/Toast';
 import { getUsers, createUser, updateUser, deleteUser, SystemUser } from '../../conexoes/usuarios';
 import { theme } from '../../estilo/cores';
+import { confirmAction } from '../../helpers/confirm';
 
 const ROLES: { key: string; label: string; color: string }[] = [
   { key: 'super_admin', label: 'Super Admin', color: theme.gold },
@@ -36,6 +38,7 @@ type ModalMode = 'create' | 'edit';
 
 export default function AdminScreen() {
   const { user } = useAuth();
+  const toast = useToast();
 
   const [users,      setUsers]      = useState<SystemUser[]>([]);
   const [loading,    setLoading]    = useState(true);
@@ -124,11 +127,15 @@ export default function AdminScreen() {
       setModalError('Você não pode excluir sua própria conta.');
       return;
     }
-    const confirmed = window.confirm(`Excluir ${u.name}? O acesso ao sistema será removido.`);
-    if (!confirmed) return;
-    deleteUser(u.id)
-      .then(() => setUsers(prev => prev.filter(x => x.id !== u.id)))
-      .catch((e: any) => alert(e.message || 'Erro ao excluir.'));
+    confirmAction('Excluir usuário', `Excluir ${u.name}? O acesso ao sistema será removido.`, async () => {
+      try {
+        await deleteUser(u.id);
+        setUsers(prev => prev.filter(x => x.id !== u.id));
+        toast.success('Usuário excluído.');
+      } catch (e: any) {
+        toast.error(e.message || 'Não foi possível excluir o usuário.');
+      }
+    });
   }
 
   if (user?.role !== 'super_admin') {

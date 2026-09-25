@@ -33,7 +33,9 @@ async function handleNotifications(req: VercelRequest, res: VercelResponse, user
     } else if (id) {
       await sql`
         UPDATE notifications SET read = TRUE
-        WHERE id = ${Number(id)} AND company_id = ${companyId}
+        WHERE id = ${Number(id)}
+          AND (user_id = ${userId} OR user_id IS NULL)
+          AND company_id = ${companyId}
       `;
     }
     return res.status(200).json({ ok: true });

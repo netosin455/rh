@@ -4,6 +4,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const mockSql = vi.fn();
 const mockAuthenticate = vi.fn();
 const mockCors = vi.fn();
+const mockCreateAbsenceRecord = vi.fn();
 
 vi.mock('../api/_lib', () => ({
   sql: (...args: any[]) => mockSql(...args),
@@ -11,6 +12,10 @@ vi.mock('../api/_lib', () => ({
   authenticate: (req: any) => mockAuthenticate(req),
   err: (res: any, status: number, message: string) => res.status(status).json({ error: message }),
   CAN_APPROVE_ABSENCES: ['super_admin', 'admin', 'rh', 'adm', 'gestor'],
+  CAN_MANAGE_EMPLOYEES: ['super_admin', 'admin', 'rh', 'adm'],
+  ABSENCE_VALID_TYPES: ['ferias','licenca_medica','licenca_maternidade','licenca_paternidade','folga','falta','outro'],
+  createAbsenceRecord: (...args: any[]) => mockCreateAbsenceRecord(...args),
+  resolveAbsenceApproval: vi.fn(),
 }));
 
 function makeRes() {
@@ -28,7 +33,15 @@ function makeReq(method: string, body?: any, query?: any) {
 const rhCtx = { sub: 1, company_id: 10, role: 'rh', name: 'RH', email: 'rh@t.com' };
 
 describe('POST /api/absences', () => {
-  beforeEach(() => { vi.clearAllMocks(); mockCors.mockReturnValue(undefined); });
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockCors.mockReturnValue(undefined);
+    mockCreateAbsenceRecord.mockImplementation(async (_ctx, input) => {
+      if (input.type === 'sabado') return { ok: false, status: 400, error: 'Tipo inválido' };
+      if (input.employee_id === 999) return { ok: false, status: 404, error: 'Funcionário não encontrado' };
+      return { ok: true, status: 201, absence: { id: 1 } };
+    });
+  });
 
   it('test_create_absence_falha_employee_outra_empresa — retorna 404', async () => {
     mockAuthenticate.mockReturnValue(rhCtx);
