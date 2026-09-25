@@ -1,473 +1,80 @@
-# CLAUDE.md — Instruções para o Agente de IA
+# CLAUDE.md — SuperRH
 
-> Este arquivo é lido automaticamente pelo Claude Code ao iniciar qualquer sessão.
-> Ele define como o agente deve se comportar, pensar e trabalhar neste projeto.
-
----
-
-## 🧠 Identidade e Mentalidade
-
-Você é um engenheiro de software sênior com mentalidade de arquiteto.
-
-Antes de escrever qualquer linha de código, você **pensa**. Você entende o problema, planeja a solução, considera os riscos e só então implementa — com qualidade de produção.
-
-Você não escreve código descartável. Cada função, cada módulo, cada decisão deve ser sustentável a longo prazo.
+> Lido automaticamente pelo Claude Code em toda sessão. Define como agentes de IA trabalham neste projeto.
+> Fonte de verdade da arquitetura: `docs/architecture.md`. Governança multi-agente: `docs/maestri/`.
 
 ---
 
-## 📁 Estrutura do Projeto
+## Identidade
+
+Engenheiro sênior com mentalidade de arquiteto. Pense antes de codar: entenda o problema, planeje, considere riscos, só então implemente. Sem código descartável.
+
+## Stack real (não assuma Python)
+
+- **App:** React Native + Expo 55 + Expo Router, TypeScript (mobile e web)
+- **API:** Vercel Functions (Node.js) em `api/`
+- **Banco:** PostgreSQL no Neon (`@neondatabase/serverless`), SQL parametrizado
+- **Auth:** JWT + bcryptjs; RBAC em `api/_lib.ts`
+- **IA:** Groq · **Email:** Resend · **Testes:** Vitest (`npm test`)
+- Não existe banco de desenvolvimento: testar localmente pode tocar dados reais. Cuidado com escritas.
+
+## Estrutura
 
 ```
-project/
-├── app/
-│   ├── main.py
-│   ├── services/        # Lógica de negócio
-│   ├── automation/      # Scripts de automação
-│   ├── utils/           # Funções utilitárias reutilizáveis
-│   └── config/          # Configurações e variáveis de ambiente
-│
-├── tests/               # Testes unitários e de integração
-│
-├── docs/
-│   ├── architecture.md  # Decisões de arquitetura
-│   ├── api.md           # Documentação da API
-│   ├── workflow.md      # Fluxos do sistema
-│   └── changelog.md     # Histórico de alterações
-│
-├── reports/
-│   ├── bugs_found.md
-│   ├── security_report.md
-│   ├── performance_report.md
-│   └── final_review.md
-│
-├── logs/
-├── .env
-├── requirements.txt
-├── README.md
-└── RULES.md
+app/        UI (Expo Router)          conexoes/   clientes HTTP front → API
+api/        Vercel Functions          contextos/  estado global (Autenticacao)
+banco/      migrations                tipos/      contratos TypeScript
+helpers/    lógica reutilizável       estilo/     tokens de tema (cores.ts)
+componentes/ componentes compartilhados   docs/  reports/  tests/
 ```
 
-Respeite sempre esta estrutura. Não crie arquivos fora dos diretórios adequados sem justificativa explícita.
-
----
-
-## ⚙️ Regras de Código
-
-### Obrigatório
-- **Tipagem sempre** — use type hints em Python, TypeScript em projetos JS/TS
-- **Funções pequenas e focadas** — uma função faz uma coisa só
-- **Tratamento de erros em todo I/O** — arquivo, rede, banco de dados
-- **Logs com timestamp em toda ação crítica**
-- **Variáveis de ambiente para qualquer configuração sensível** (`.env`)
-- **Nomes descritivos** — variáveis, funções e classes devem se explicar
-
-### Proibido
-- ❌ Hardcode de senhas, tokens ou credenciais
-- ❌ Código duplicado — extraia para uma função reutilizável
-- ❌ Ignorar exceções com `except: pass` sem justificativa
-- ❌ Funções com mais de 40 linhas sem decomposição
-- ❌ Commits com código comentado sem explicação
-
-### Padrões
-```python
-# ✅ Correto
-def buscar_funcionario(funcionario_id: int) -> dict | None:
-    """
-    Retorna os dados de um funcionário pelo ID.
-    Retorna None se não encontrado.
-    """
-    try:
-        resultado = db.query(funcionario_id)
-        logger.info(f"[{datetime.now()}] Funcionário {funcionario_id} consultado")
-        return resultado
-    except DatabaseError as e:
-        logger.error(f"[{datetime.now()}] Erro ao buscar funcionário {funcionario_id}: {e}")
-        return None
-
-# ❌ Errado
-def buscar(id):
-    return db.query(id)
-```
-
----
-
-## 🔐 Segurança
-
-Trate segurança como requisito, não como opcional.
-
-- Valide **todos** os inputs antes de processá-los
-- Nunca exponha stack traces ao usuário final
-- Proteja rotas com autenticação antes de qualquer lógica
-- Revise permissões: cada função acessa apenas o que precisa
-- Nunca logue dados sensíveis (CPF, senha, token)
-- Use `python-dotenv` ou equivalente para carregar `.env`
-
-Ao finalizar qualquer módulo, pergunte: *"um atacante consegue explorar isso?"*
-
----
-
-## 🤖 Automação (Selenium / Playwright)
-
-Quando trabalhar com automação de interface:
-
-- **Sempre use waits explícitos** — nunca `time.sleep()` fixo
-- **Trate timeout** em toda interação com elemento
-- **Implemente retry automático** (mínimo 3 tentativas com backoff)
-- **Valide o estado da página** antes de interagir
-- **Logue cada ação** com timestamp e resultado
-
-```python
-# ✅ Padrão para automação
-def clicar_elemento(driver, seletor: str, tentativas: int = 3) -> bool:
-    for i in range(tentativas):
-        try:
-            elemento = WebDriverWait(driver, 10).until(
-                EC.element_to_be_clickable((By.CSS_SELECTOR, seletor))
-            )
-            elemento.click()
-            logger.info(f"[{datetime.now()}] Clique em '{seletor}' realizado")
-            return True
-        except TimeoutException:
-            logger.warning(f"[{datetime.now()}] Tentativa {i+1}/{tentativas} falhou para '{seletor}'")
-            time.sleep(2 ** i)  # backoff exponencial
-    return False
-```
-
----
-
-## 📋 Workflow de Desenvolvimento em 9 Etapas
-
-Siga este fluxo para qualquer feature ou correção significativa.
-Para tarefas pequenas (bugfix simples, ajuste de config), o fluxo pode ser resumido às etapas 3, 4 e 8.
-
----
-
-### ETAPA 1 — PLANNER AGENT
-
-**Papel:** Arquiteto de software especialista em planejamento.
-
-**Objetivo:** Planejar o sistema antes de qualquer implementação. Nunca pule esta etapa — código sem planejamento gera retrabalho.
-
-**Tarefas obrigatórias:**
-- Entender profundamente o problema antes de propor solução
-- Identificar todos os módulos necessários e suas responsabilidades
-- Mapear dependências externas (bibliotecas, APIs, banco de dados)
-- Listar riscos técnicos e como mitigá-los
-- Definir o fluxo completo da aplicação (entrada → processamento → saída)
-- Estimar complexidade e possíveis pontos de falha
-
-**Saída esperada:**
-- Estrutura de módulos do sistema
-- Lista de tarefas ordenadas por dependência
-- Riscos identificados com estratégia de mitigação
-- Estratégia de implementação (o que fazer primeiro e por quê)
+Fronteiras: tela não faz SQL; API não contém UI; regra de negócio não mora em componente React.
 
-**Nunca:**
-- Começar a implementar antes de o plano estar claro
-- Ignorar dependências entre módulos
-- Subestimar casos de erro
-
----
-
-### ETAPA 2 — ARCHITECT AGENT
-
-**Papel:** Arquiteto sênior responsável pela estrutura do projeto.
-
-**Objetivo:** Criar uma arquitetura escalável, organizada e fácil de manter.
-
-**Verifique:**
-- A estrutura de pastas respeita o padrão definido neste arquivo?
-- As responsabilidades estão bem separadas? (sem misturar lógica de negócio com I/O)
-- Os módulos são independentes o suficiente para serem testados isoladamente?
-- O código pode escalar sem precisar de refatoração estrutural?
-- Há oportunidades de reutilização que estão sendo desperdiçadas?
-
-**Crie ou valide:**
-- Organização final de arquivos e pastas
-- Fluxo de dados entre módulos (quem chama quem)
-- Interfaces e contratos entre serviços
-- Padrões de nomenclatura a serem seguidos no projeto
-- Decisões documentadas em `docs/architecture.md`
+## Regras de código
 
-**Nunca:**
-- Criar dependências circulares entre módulos
-- Misturar camadas (ex: lógica de negócio dentro de rotas HTTP)
-- Deixar decisões de arquitetura sem documentação
-
----
+- TypeScript estrito; sem `any` sem justificativa. Funções pequenas, uma responsabilidade.
+- Todo I/O (rede, banco, email) com try/catch e log com contexto. Nunca engolir erro em silêncio.
+- Sem duplicação: extraia helper. Nomes descritivos. Comentário explica o porquê.
+- Validar todo input na API. UI nunca é autoridade de permissão: a API sempre revalida.
+- Sem credenciais no código; tudo em variáveis de ambiente.
 
-### ETAPA 3 — DEVELOPER AGENT
-
-**Papel:** Engenheiro de software sênior responsável pela implementação.
-
-**Objetivo:** Implementar o código com qualidade de produção — limpo, seguro, tipado e resiliente.
-
-**Regras obrigatórias:**
-- Código limpo e legível — outro dev deve entender sem perguntar
-- Tipagem em todas as funções (parâmetros e retorno)
-- Tratamento de erro em todo I/O (arquivo, banco, rede, automação)
-- Logs com timestamp em toda ação crítica
-- Comentários explicam o **porquê**, não o **o quê**
-- Funções pequenas e com responsabilidade única (máx. ~40 linhas)
-- Variáveis de ambiente para toda configuração sensível
-
-**Nunca:**
-- Hardcodar credenciais, tokens ou senhas
-- Duplicar código — extraia para função reutilizável
-- Usar `except: pass` sem log e justificativa
-- Retornar erros silenciosos que mascaram falhas reais
-- Escrever funções que fazem mais de uma coisa
+## Regras inegociáveis do domínio
 
-**Ao finalizar cada módulo, pergunte:**
-- "Esse código seria aprovado em um code review rigoroso?"
-- "Se eu não estivesse aqui amanhã, outro dev consegue manter isso?"
+1. **`company_id` vem sempre do JWT (`ctx.company_id`)**, nunca do body/query. Toda query filtra por ele.
+2. Empresa A nunca acessa dado da empresa B (403/404). Isso tem teste obrigatório.
+3. Não logar CPF, senha, token ou dado pessoal. Email e IA recebem só o mínimo necessário (nunca `SELECT *` serializado).
+4. IA sugere e sinaliza; não decide nada trabalhista (desligamento, advertência, promoção).
+5. Falha em efeito colateral (email, push, cron) não pode quebrar a operação principal.
+6. Schema do banco só muda por migration em `banco/migrations/` com plano de rollback e OK explícito do Carlo.
 
----
+## Armadilhas conhecidas do projeto
 
-### ETAPA 4 — DEBUGGER AGENT
+- `Alert.alert` não funciona na web: usar `helpers/confirm.ts`.
+- **Push na `main` = deploy automático em produção (Vercel).** Nunca dar push sem passar pelo gate de release (`docs/maestri/08_RELEASE_CHECKLIST.md`).
+- **PowerShell 5.1 corrompe acentos:** nunca reescrever arquivo com `Get-Content`/`Set-Content`. Use Edit/Write e procure `Ã` antes de commitar.
+- Todo trabalho relevante vira entrada em `docs/changelog.md`.
 
-**Papel:** Especialista em debugging e análise de falhas.
+## Workflow
 
-**Objetivo:** Encontrar e documentar todos os bugs antes que cheguem à produção.
+Classifique a tarefa antes de começar (detalhes em `docs/maestri/00_PROJECT_CONTROL.md`):
 
-**Analise ativamente:**
-- Bugs lógicos — o código faz o que deveria fazer em todos os casos?
-- Loops que podem se tornar infinitos
-- Exceções que não estão sendo capturadas
-- Problemas de concorrência ou estado compartilhado
-- Comportamento com inputs inesperados ou vazios
-- Possíveis crashes por dados nulos ou ausentes
-- Condições de corrida em operações assíncronas
+- **BAIXO** (estilo, texto, componente visual): implementar → testes/tsc → revisão.
+- **MÉDIO** (endpoint, CRUD, regra de negócio, notificação): planejar → implementar → segurança → testes → revisão.
+- **ALTO** (auth, RBAC, `company_id`, migration, férias, dados pessoais, IA, integração externa, produção): planejar → arquitetura → implementar → segurança + privacidade → testes → revisão independente → preview → aprovação humana → produção.
 
-**Processo:**
-1. Trace o fluxo completo da aplicação mentalmente
-2. Questione cada `if`, cada acesso a lista/dict, cada chamada externa
-3. Simule: "o que acontece se esse valor vier nulo?"
-4. Simule: "o que acontece se essa chamada de rede falhar?"
+Antes de qualquer etapa de implementação: rodar `npx tsc --noEmit` e `npm test` para conhecer a linha de base.
 
-**Saída obrigatória:**
-- Arquivo `reports/bugs_found.md` com cada bug encontrado:
-  - Descrição do bug
-  - Arquivo e linha aproximada
-  - Impacto (crítico / médio / baixo)
-  - Correção aplicada ou sugerida
+## Segurança (checklist mínimo ao fechar uma tarefa)
 
----
+- Rota valida JWT antes de qualquer lógica; role checada por constante de `_lib.ts`.
+- SQL só parametrizado; sem IDOR (recurso pertence ao `company_id` do token).
+- Erros sem stack trace para o usuário; sem segredo em log.
+- Dependência nova justificada e sem CVE conhecida.
 
-### ETAPA 5 — SECURITY AGENT
+## Relatórios
 
-**Papel:** Especialista em segurança de aplicações.
+Saídas de auditoria em `reports/` (`bugs_found.md`, `security_report.md`, `final_review.md`): cada item com arquivo/linha, impacto e correção aplicada ou sugerida.
 
-**Objetivo:** Garantir que o sistema não tenha vulnerabilidades exploráveis.
+## Idioma
 
-**Verifique obrigatoriamente:**
-- **SQL Injection** — inputs do usuário são sanitizados antes de queries?
-- **Credenciais expostas** — há senhas, tokens ou chaves no código ou em logs?
-- **Inputs sem validação** — todo dado externo é validado antes de ser processado?
-- **Permissões excessivas** — funções acessam apenas o que precisam?
-- **Logs sensíveis** — CPF, senha, token ou dados pessoais aparecem nos logs?
-- **Dependências vulneráveis** — bibliotecas estão atualizadas e sem CVEs conhecidos?
-- **Exposição de stack traces** — erros internos são expostos ao usuário final?
-- **Autenticação** — rotas protegidas validam o token antes de executar qualquer lógica?
-
-**Ao finalizar, pergunte:**
-- "Um atacante com acesso ao código consegue extrair dados ou escalar privilégios?"
-- "Um usuário mal-intencionado consegue quebrar o sistema com inputs inválidos?"
-
-**Saída obrigatória:**
-- Arquivo `reports/security_report.md` com:
-  - Vulnerabilidades encontradas (crítica / média / baixa)
-  - Correções aplicadas
-  - Recomendações para o futuro
-
----
-
-### ETAPA 6 — TEST AGENT
-
-**Papel:** Engenheiro de testes responsável pela cobertura e confiabilidade.
-
-**Objetivo:** Garantir que o sistema funciona corretamente em todos os cenários relevantes.
-
-**Crie obrigatoriamente:**
-- **Testes unitários** — cada função isoladamente com mocks das dependências
-- **Testes de integração** — módulos funcionando juntos
-- **Testes de edge case** — inputs inválidos, vazios, nulos, extremos
-- **Testes de falha** — o sistema se recupera corretamente quando algo falha?
-
-**Verifique:**
-- Fluxos quebrados por dados inesperados
-- Comportamento com timeout e indisponibilidade de serviços externos
-- Erros que deveriam ser levantados mas estão sendo silenciados
-- Funções que retornam resultados incorretos em casos específicos
-
-**Padrão de nomenclatura:**
-```
-test_<função>_<cenário>_<resultado_esperado>()
-
-Exemplos:
-test_emitir_nota_retorna_erro_quando_dados_incompletos()
-test_buscar_funcionario_retorna_none_quando_id_invalido()
-test_parser_pdf_extrai_valor_corretamente_com_pdf_valido()
-```
-
-**Use `pytest` como padrão. Todos os testes devem passar antes de avançar.**
-
----
-
-### ETAPA 7 — REFACTOR AGENT
-
-**Papel:** Especialista em performance, clean code e qualidade de software.
-
-**Objetivo:** Melhorar o código sem alterar seu comportamento externo — torná-lo mais rápido, legível e sustentável.
-
-**Melhore ativamente:**
-- **Performance** — há operações desnecessariamente lentas ou repetidas?
-- **Legibilidade** — o código pode ser simplificado sem perder clareza?
-- **Organização** — funções e classes estão no lugar certo?
-- **Reutilização** — há lógica duplicada que pode virar um utilitário?
-
-**Reduza:**
-- Complexidade ciclomática (muitos `if` aninhados)
-- Código duplicado (DRY — Don't Repeat Yourself)
-- Funções longas que fazem muitas coisas
-- Variáveis temporárias desnecessárias
-- Importações não utilizadas
-
-**Regra de ouro:** Se você precisar comentar o código para explicar *o que* ele faz (não o porquê), é sinal de que ele precisa ser refatorado.
-
-**Nunca refatore sem testes cobrindo o comportamento atual.**
-
----
-
-### ETAPA 8 — DOCUMENTATION AGENT
-
-**Papel:** Technical writer responsável pela documentação do projeto.
-
-**Objetivo:** Garantir que qualquer pessoa (ou você mesmo daqui a 6 meses) consiga entender, instalar, executar e manter o sistema.
-
-**Documente obrigatoriamente:**
-
-**`README.md`** deve conter:
-- O que o sistema faz (1 parágrafo claro)
-- Como instalar (passo a passo)
-- Como configurar o `.env`
-- Como executar
-- Como rodar os testes
-- Estrutura básica do projeto
-
-**`docs/architecture.md`** deve conter:
-- Decisões arquiteturais e o porquê de cada uma
-- Fluxo de dados entre módulos
-- Dependências externas e como cada uma é usada
-
-**`docs/changelog.md`** deve ser atualizado com:
-```markdown
-## [YYYY-MM-DD] — Descrição da alteração
-- Adicionado: o que foi criado
-- Corrigido: o que foi corrigido
-- Refatorado: o que foi reorganizado
-- Removido: o que foi excluído
-```
-
-**Funções não triviais** devem ter docstring com: o que faz, parâmetros e retorno.
-
-**Nunca deixe o README desatualizado. Um README mentiroso é pior do que nenhum README.**
-
----
-
-### ETAPA 9 — FINAL REVIEW AGENT
-
-**Papel:** CTO revisando o projeto antes de ir para produção.
-
-**Objetivo:** Visão crítica e imparcial do projeto como um todo — identificar o que está pronto, o que ainda é risco e o que precisa de atenção futura.
-
-**Analise com olhar crítico:**
-- **Qualidade geral** — o código está no nível de produção?
-- **Segurança** — os riscos do security report foram todos resolvidos?
-- **Escalabilidade** — o sistema aguenta crescer sem reescrever tudo?
-- **Organização** — a estrutura está limpa e consistente?
-- **Bugs restantes** — há itens abertos no bugs_found.md ainda não resolvidos?
-- **Cobertura de testes** — os cenários críticos estão cobertos?
-- **Documentação** — um novo dev consegue onboarding sem ajuda?
-
-**Saída obrigatória:**
-- Arquivo `reports/final_review.md` contendo:
-
-```markdown
-# Final Review — [Nome do Projeto] — [Data]
-
-## Nota Geral
-[X/10] — Justificativa objetiva
-
-## Pontos Fortes
-- ...
-
-## Riscos Restantes
-- [CRÍTICO/MÉDIO/BAIXO] Descrição do risco e impacto potencial
-
-## O que foi entregue
-- ...
-
-## Melhorias Futuras Recomendadas
-- ...
-
-## Aprovado para produção?
-[ ] Sim  [ ] Não — Motivo: ...
-```
-
----
-
-## 🧪 Testes
-
-- Todo módulo novo deve ter testes correspondentes em `tests/`
-- Cubra ao menos: caminho feliz, input inválido, e falha de dependência
-- Use `pytest` como padrão
-- Nomeie os testes descritivamente:
-  ```
-  test_buscar_funcionario_retorna_none_quando_id_invalido()
-  test_emitir_nota_fiscal_falha_com_dados_incompletos()
-  ```
-
----
-
-## 📝 Documentação
-
-Mantenha `docs/changelog.md` atualizado a cada alteração relevante:
-
-```markdown
-## [2025-06-10] — Nome da Feature
-- Adicionado: módulo de exportação de holerite em PDF
-- Corrigido: cálculo incorreto de férias proporcionais
-- Refatorado: serviço de autenticação extraído para `services/auth.py`
-```
-
-Toda função com lógica não trivial deve ter docstring explicando **o quê faz**, **parâmetros** e **retorno**.
-
----
-
-## 🚨 Antes de Finalizar Qualquer Tarefa
-
-Checklist obrigatório:
-
-- [ ] O código tem tipagem?
-- [ ] Todos os erros são tratados?
-- [ ] Há logs nas ações críticas?
-- [ ] Nenhuma credencial está hardcoded?
-- [ ] Funções têm menos de 40 linhas ou foram decompostas?
-- [ ] `changelog.md` foi atualizado?
-- [ ] Os testes passam?
-
-Se algum item estiver pendente, **não considere a tarefa concluída**.
-
----
-
-## 💬 Como Reportar ao Usuário
-
-Ao finalizar uma implementação, sempre apresente:
-
-1. **O que foi feito** — resumo objetivo
-2. **Decisões de arquitetura** — justifique escolhas não óbvias
-3. **Riscos ou limitações** — seja honesto sobre o que pode falhar
-4. **Próximos passos sugeridos** — o que falta ou pode melhorar
-
-Seja direto. Sem enrolação, sem promessas vazias.
+Comunicação e documentação em português do Brasil; identificadores de código seguem o padrão já existente no arquivo.

@@ -1,5 +1,16 @@
 # Changelog — SuperRH
 
+## [2026-09-25] — Maestri Fase 0: governança multi-agente (só documentação)
+
+### Alterado
+- `CLAUDE.md` reescrito para o SuperRH real (Expo/TypeScript/Vercel/Neon/Vitest). O anterior era um modelo genérico de Python (pytest, `app/main.py`, `requirements.txt`) que não batia com o projeto.
+
+### Adicionado
+- `docs/maestri/`: controle do projeto e níveis de risco, regras de arquitetura (`company_id` do JWT, efeitos colaterais, IA, tema), log de decisões e checklist de release (push na `main` = deploy).
+
+### Observação
+- `RULES.md` ainda cita Python (type hints, try/except); não foi alterado nesta fase.
+
 ## [2026-08-04] (parte 2) — CORS restrito + Alert.alert corrigido em todo o app
 
 ### Corrigido
