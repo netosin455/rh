@@ -52,8 +52,8 @@ export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor:   theme.gold,
-        tabBarInactiveTintColor: theme.sidebarMuted,
+        tabBarActiveTintColor: isWideWeb ? theme.tabSidebarActive : theme.goldDeep,
+        tabBarInactiveTintColor: isWideWeb ? theme.tabSidebarInactive : theme.tabMobileInactive,
         tabBarPosition: isWideWeb ? 'left' : 'bottom',
         tabBarStyle: isWideWeb ? styles.sidebar : styles.mobileTabs,
         tabBarItemStyle: isWideWeb ? styles.sidebarItem : styles.mobileItem,

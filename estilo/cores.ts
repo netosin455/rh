@@ -13,10 +13,13 @@ export const theme = {
   onGold: '#1A1A1A',
   successBackground: '#E6F0EA',
   dangerBackground: '#F9ECE9',
+  onDark: '#FFFFFF',
   warningBackground: '#F5EDD6',
   infoBackground: '#E9F0F8',
   sidebar: '#1A1A1A',
-  sidebarMuted: 'rgba(255,255,255,0.58)',
+  tabSidebarInactive: 'rgba(255,255,255,0.72)',
+  tabSidebarActive: '#D4AF5A',
+  tabMobileInactive: '#706A60',
   shadow: 'rgba(26,22,15,0.10)',
   shadowStrong: 'rgba(26,22,15,0.14)',
 
@@ -29,8 +32,16 @@ export const theme = {
   // ── Champagne Gold — metal precioso, uso esparso ─────────
   gold:         '#B8973A',
   goldLight:    '#D4AF5A',
+  goldDeep:     '#7A6220',
   goldDim:      'rgba(184,151,58,0.12)',
   goldGlow:     'rgba(184,151,58,0.07)',
+  goldOutline:  'rgba(184,151,58,0.30)',
+  dangerSubtle: 'rgba(224,82,82,0.08)',
+  dangerBorder: 'rgba(224,82,82,0.20)',
+  dangerOutline: 'rgba(224,82,82,0.40)',
+  pendingBackground: 'rgba(201,168,76,0.06)',
+  pendingBorder: 'rgba(201,168,76,0.20)',
+  pendingCard: 'rgba(24,27,33,0.95)',
 
   // ── Bordas glass ────────────────────────────────────────
   border:       '#E7E1D6',
@@ -40,7 +51,7 @@ export const theme = {
   // ── Textos ──────────────────────────────────────────────
   white:        '#1A1A1A',
   text:         '#1A1A1A',
-  textMuted:    '#857F73',
+  textMuted:    '#706A60',
   textLight:    '#4D4D4D',
 
   // ── Status ──────────────────────────────────────────────
@@ -48,6 +59,8 @@ export const theme = {
   warning:      '#B8973A',
   danger:       '#A53A2F',
   info:         '#2A5581',
+  absenceMaternity: '#6F4A9A',
+  absencePaternity: '#19714F',
 
   // ── Categorias jurídicas ─────────────────────────────────
   category: {

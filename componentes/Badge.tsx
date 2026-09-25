@@ -5,7 +5,7 @@ import { fonts } from '../estilo/tipografia';
 type BadgeProps = { label: string; tone?: 'gold' | 'success' | 'danger' | 'info' | 'muted' };
 
 const tones = {
-  gold: { backgroundColor: theme.goldPale, color: theme.gold },
+  gold: { backgroundColor: theme.goldPale, color: theme.goldDeep },
   success: { backgroundColor: theme.successBackground, color: theme.success },
   danger: { backgroundColor: theme.dangerBackground, color: theme.danger },
   info: { backgroundColor: theme.infoBackground, color: theme.info },

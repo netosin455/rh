@@ -21,7 +21,7 @@ export function ScreenHeader({ eyebrow, title, subtitle, action }: ScreenHeaderP
 const styles = StyleSheet.create({
   header: { alignItems: 'flex-start', flexDirection: 'row', gap: 16, justifyContent: 'space-between' },
   copy: { flex: 1 },
-  eyebrow: { color: theme.gold, fontFamily: fonts.bold, fontSize: 11, letterSpacing: 1.2, marginBottom: 3, textTransform: 'uppercase' },
+  eyebrow: { color: theme.goldDeep, fontFamily: fonts.bold, fontSize: 11, letterSpacing: 1.2, marginBottom: 3, textTransform: 'uppercase' },
   title: { color: theme.textPrimary, fontFamily: fonts.display, fontSize: 30, lineHeight: 34 },
   subtitle: { color: theme.textMuted, fontFamily: fonts.body, fontSize: 13, lineHeight: 19, marginTop: 4 },
   action: { flexShrink: 0 },

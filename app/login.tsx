@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
   View, Text, TouchableOpacity,
   StyleSheet, KeyboardAvoidingView,
-  Platform, ScrollView, Dimensions, Linking,
+  Platform, ScrollView, Linking, useWindowDimensions,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -13,11 +13,11 @@ import { Input } from '../componentes/Input';
 import { theme } from '../estilo/cores';
 import { fonts } from '../estilo/tipografia';
 
-const { width } = Dimensions.get('window');
-const isWide = width > 768;
 export default function LoginScreen() {
   const { login } = useAuth();
   const router = useRouter();
+  const { width } = useWindowDimensions();
+  const isWide = width > 768;
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPass, setShowPass] = useState(false);
@@ -57,34 +57,14 @@ export default function LoginScreen() {
       <ScrollView contentContainerStyle={loginStyles.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         <View style={loginStyles.shell}>
           <View style={loginStyles.halo} pointerEvents="none" />
-          <View style={loginStyles.nav}>
+          <View style={[loginStyles.nav, isWide && loginStyles.navWide]}>
             <View>
               <Text style={loginStyles.brand}>SuperRH</Text>
               <Text style={loginStyles.brandSub}>GESTÃO DE PESSOAS</Text>
             </View>
-            <View style={loginStyles.status}>
-              <View style={loginStyles.statusDot} />
-              <Text style={loginStyles.statusText}>Acesso seguro</Text>
-            </View>
           </View>
 
-          <View style={[loginStyles.content, isWide && loginStyles.contentWide]}>
-            {isWide ? (
-              <View style={loginStyles.intro}>
-                <Text style={loginStyles.eyebrow}>GESTÃO JURÍDICA E RH</Text>
-                <Text style={loginStyles.title}>Pessoas bem cuidadas, trabalho bem conduzido.</Text>
-                <Text style={loginStyles.description}>Centralize equipe, agenda, férias e comunicados em uma experiência organizada e tranquila.</Text>
-                <View style={loginStyles.valueList}>
-                  {['Dados protegidos', 'Acesso por perfil', 'Visão completa da equipe'].map(value => (
-                    <View key={value} style={loginStyles.valueRow}>
-                      <Ionicons name="checkmark-circle" size={18} color={theme.success} />
-                      <Text style={loginStyles.valueText}>{value}</Text>
-                    </View>
-                  ))}
-                </View>
-              </View>
-            ) : null}
-
+          <View style={loginStyles.content}>
             <Card style={loginStyles.card}>
               <Text style={loginStyles.formEyebrow}>BEM-VINDO</Text>
               <Text style={loginStyles.formTitle}>Entre no SuperRH</Text>
@@ -151,23 +131,13 @@ const loginStyles = StyleSheet.create({
   scroll: { flexGrow: 1 },
   shell: { flex: 1, justifyContent: 'space-between', minHeight: '100%', overflow: 'hidden', paddingBottom: 24 },
   halo: { backgroundColor: theme.goldPale, borderRadius: 320, height: 460, opacity: 0.62, position: 'absolute', right: -220, top: -250, width: 460 },
-  nav: { alignItems: 'center', borderBottomColor: theme.border, borderBottomWidth: 1, flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: isWide ? 64 : 24, paddingVertical: 20 },
+  nav: { borderBottomColor: theme.border, borderBottomWidth: 1, paddingHorizontal: 24, paddingVertical: 20 },
+  navWide: { paddingHorizontal: 64 },
   brand: { color: theme.textPrimary, fontFamily: fonts.display, fontSize: 30, lineHeight: 30 },
-  brandSub: { color: theme.gold, fontFamily: fonts.bold, fontSize: 10, letterSpacing: 1.2, marginTop: 3 },
-  status: { alignItems: 'center', backgroundColor: theme.successBackground, borderRadius: 99, flexDirection: 'row', gap: 6, paddingHorizontal: 10, paddingVertical: 6 },
-  statusDot: { backgroundColor: theme.success, borderRadius: 4, height: 7, width: 7 },
-  statusText: { color: theme.success, fontFamily: fonts.semibold, fontSize: 12 },
+  brandSub: { color: theme.goldDeep, fontFamily: fonts.bold, fontSize: 10, letterSpacing: 1.2, marginTop: 3 },
   content: { flex: 1, justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 48 },
-  contentWide: { alignItems: 'center', alignSelf: 'center', flexDirection: 'row', gap: 80, maxWidth: 1080, width: '100%' },
-  intro: { flex: 1, maxWidth: 520 },
-  eyebrow: { color: theme.gold, fontFamily: fonts.bold, fontSize: 11, letterSpacing: 1.4, marginBottom: 10 },
-  title: { color: theme.textPrimary, fontFamily: fonts.display, fontSize: 52, lineHeight: 54 },
-  description: { color: theme.textSecondary, fontFamily: fonts.body, fontSize: 15, lineHeight: 23, marginTop: 16, maxWidth: 455 },
-  valueList: { gap: 12, marginTop: 28 },
-  valueRow: { alignItems: 'center', flexDirection: 'row', gap: 9 },
-  valueText: { color: theme.textPrimary, fontFamily: fonts.medium, fontSize: 14 },
   card: { alignSelf: 'center', maxWidth: 410, padding: 28, width: '100%' },
-  formEyebrow: { color: theme.gold, fontFamily: fonts.bold, fontSize: 11, letterSpacing: 1.2 },
+  formEyebrow: { color: theme.goldDeep, fontFamily: fonts.bold, fontSize: 11, letterSpacing: 1.2 },
   formTitle: { color: theme.textPrimary, fontFamily: fonts.display, fontSize: 34, lineHeight: 38, marginTop: 5 },
   formSubtitle: { color: theme.textMuted, fontFamily: fonts.body, fontSize: 13, lineHeight: 19, marginTop: 4 },
   fields: { gap: 14, marginTop: 24 },
