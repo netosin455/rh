@@ -8,6 +8,8 @@
 ### Adicionado
 - `docs/maestri/`: controle do projeto e níveis de risco, regras de arquitetura (`company_id` do JWT, efeitos colaterais, IA, tema), log de decisões e checklist de release (push na `main` = deploy).
 
+- `docs/maestri/09_SKILLS_POLICY.md` e seção "Skill routing" no `CLAUDE.md`: o Maestri escolhe skills conforme a tarefa (pré-flight, ordem e precedência).
+
 ### Observação
 - `RULES.md` ainda cita Python (type hints, try/except); não foi alterado nesta fase.
 

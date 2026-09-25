@@ -62,6 +62,10 @@ Classifique a tarefa antes de começar (detalhes em `docs/maestri/00_PROJECT_CON
 - **MÉDIO** (endpoint, CRUD, regra de negócio, notificação): planejar → implementar → segurança → testes → revisão.
 - **ALTO** (auth, RBAC, `company_id`, migration, férias, dados pessoais, IA, integração externa, produção): planejar → arquitetura → implementar → segurança + privacidade → testes → revisão independente → preview → aprovação humana → produção.
 
+## Skill routing (Maestri)
+
+Trabalho de UI ou motion passa por pré-flight: conferir as skills disponíveis, declarar quais serão usadas e avisar se faltar alguma. UI: `impeccable` + `redesign-existing-projects` (Taste como referência estética). Motion: `find-animation-opportunities` → `animate-expo`. Backend, banco e auth não usam skill de design. Precedência: regras do projeto > Maestri > Impeccable > motion > Taste. Detalhes em `docs/maestri/09_SKILLS_POLICY.md`.
+
 Antes de qualquer etapa de implementação: rodar `npx tsc --noEmit` e `npm test` para conhecer a linha de base.
 
 ## Segurança (checklist mínimo ao fechar uma tarefa)
