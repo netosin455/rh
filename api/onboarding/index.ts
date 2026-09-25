@@ -84,6 +84,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       const progress: Record<string, any> = proc[0].steps_progress ?? {};
       const snapshot: any[] = proc[0].steps_snapshot ?? [];
+      const step = snapshot[Number(step_index)];
+      if (!Number.isInteger(Number(step_index)) || !step) {
+        return err(res, 400, 'step_index inválido');
+      }
+      if (!CAN_MANAGE_EMPLOYEES.includes(ctx.role) && step.responsible_role !== ctx.role) {
+        return err(res, 403, 'Sem permissão para atualizar esta etapa');
+      }
 
       progress[String(step_index)] = completed
         ? { completed: true, completed_at: new Date().toISOString(), completed_by: ctx.name }
@@ -172,7 +179,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!template) return err(res, 400, 'Nenhum template de onboarding encontrado. Crie um primeiro.');
 
     // Remove processo anterior se houver
-    await sql`DELETE FROM onboarding_processes WHERE employee_id = ${Number(employee_id)}`;
+    await sql`
+      DELETE FROM onboarding_processes
+      WHERE employee_id = ${Number(employee_id)} AND company_id = ${cid}
+    `;
 
     const rows = await sql`
       INSERT INTO onboarding_processes

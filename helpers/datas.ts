@@ -2,6 +2,23 @@ export function ymd(s: string): string {
   return s ? s.slice(0, 10) : '';
 }
 
+/** Valida uma data civil ISO sem permitir normalização silenciosa (ex.: 31/02). */
+export function isValidIsoDate(value: unknown): value is string {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [year, month, day] = value.split('-').map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.getUTCFullYear() === year
+    && date.getUTCMonth() === month - 1
+    && date.getUTCDate() === day;
+}
+
+/** Diferença inclusiva entre datas civis, imune ao horário de verão local. */
+export function calendarDaysInclusive(startDate: string, endDate: string): number {
+  const [startYear, startMonth, startDay] = startDate.split('-').map(Number);
+  const [endYear, endMonth, endDay] = endDate.split('-').map(Number);
+  return (Date.UTC(endYear, endMonth - 1, endDay) - Date.UTC(startYear, startMonth - 1, startDay)) / 86_400_000 + 1;
+}
+
 export function brToIso(br: string): string {
   const p = br.replace(/\D/g, '');
   if (p.length !== 8) return '';
@@ -56,9 +73,7 @@ export function isToday(dateStr: string): boolean {
 }
 
 export function daysBetween(start: string, end: string): number {
-  const s = new Date(start);
-  const e = new Date(end);
-  return Math.round((e.getTime() - s.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+  return calendarDaysInclusive(start, end);
 }
 
 export function getAge(birthDate: string): number {

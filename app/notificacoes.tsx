@@ -11,6 +11,7 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { buscarNotificacoes, marcarLida, marcarTodasLidas, Notificacao } from '../conexoes/notificacoes';
+import { useToast } from '../contextos/Toast';
 import { theme } from '../estilo/cores';
 
 const TYPE_ICONS: Record<string, { icon: string; color: string }> = {
@@ -31,6 +32,7 @@ function timeAgo(dateStr: string): string {
 
 export default function NotificacoesScreen() {
   const router = useRouter();
+  const toast = useToast();
   const [items,      setItems]      = useState<Notificacao[]>([]);
   const [unread,     setUnread]     = useState(0);
   const [loading,    setLoading]    = useState(true);
@@ -41,25 +43,35 @@ export default function NotificacoesScreen() {
       const data = await buscarNotificacoes();
       setItems(data.notifications);
       setUnread(data.unread);
-    } catch { /* silencioso */ }
+    } catch {
+      toast.error('Não foi possível carregar as notificações.');
+    }
     finally { setLoading(false); setRefreshing(false); }
-  }, []);
+  }, [toast]);
 
   useEffect(() => { load(); }, [load]);
 
   async function handleTap(item: Notificacao) {
     if (!item.read) {
-      await marcarLida(item.id).catch(() => {});
-      setItems(prev => prev.map(n => n.id === item.id ? { ...n, read: true } : n));
-      setUnread(prev => Math.max(0, prev - 1));
+      try {
+        await marcarLida(item.id);
+        setItems(prev => prev.map(n => n.id === item.id ? { ...n, read: true } : n));
+        setUnread(prev => Math.max(0, prev - 1));
+      } catch {
+        toast.error('Não foi possível marcar a notificação como lida.');
+      }
     }
     if (item.route) router.push(item.route as any);
   }
 
   async function handleMarcarTodas() {
-    await marcarTodasLidas().catch(() => {});
-    setItems(prev => prev.map(n => ({ ...n, read: true })));
-    setUnread(0);
+    try {
+      await marcarTodasLidas();
+      setItems(prev => prev.map(n => ({ ...n, read: true })));
+      setUnread(0);
+    } catch {
+      toast.error('Não foi possível marcar as notificações como lidas.');
+    }
   }
 
   if (loading) {

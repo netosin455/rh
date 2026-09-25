@@ -86,7 +86,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       SELECT ps.*, u.name AS created_by_name, d.name AS dept_name
       FROM pulse_surveys ps
       LEFT JOIN users u ON u.id = ps.created_by
-      LEFT JOIN departments d ON d.id = ps.target_dept
+      LEFT JOIN departments d ON d.id = ps.target_dept AND d.company_id = ps.company_id
       WHERE ps.id = ${surveyId} AND ps.company_id = ${ctx.company_id}
     `;
     if (!surveys[0]) return err(res, 404, 'Pesquisa não encontrada');
@@ -127,7 +127,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         (SELECT COUNT(*)::int FROM pulse_responses WHERE survey_id = ps.id) AS response_count
       FROM pulse_surveys ps
       LEFT JOIN users u ON u.id = ps.created_by
-      LEFT JOIN departments d ON d.id = ps.target_dept
+      LEFT JOIN departments d ON d.id = ps.target_dept AND d.company_id = ps.company_id
       WHERE ps.id = ${surveyId} AND ps.company_id = ${ctx.company_id}
     `;
     if (!rows[0]) return err(res, 404, 'Pesquisa não encontrada');
@@ -152,7 +152,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         (SELECT COUNT(*)::int FROM pulse_responses WHERE survey_id = ps.id) AS response_count
       FROM pulse_surveys ps
       LEFT JOIN users u ON u.id = ps.created_by
-      LEFT JOIN departments d ON d.id = ps.target_dept
+      LEFT JOIN departments d ON d.id = ps.target_dept AND d.company_id = ps.company_id
       WHERE ps.company_id = ${ctx.company_id}
       ORDER BY ps.created_at DESC
       LIMIT 50
@@ -170,13 +170,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (type === 'choice' && (!Array.isArray(options) || options.length < 2)) {
       return err(res, 400, 'Pesquisa de escolha precisa de ao menos 2 opções');
     }
+    const targetDepartmentId = target_dept == null || target_dept === '' ? null : Number(target_dept);
+    if (targetDepartmentId != null && (!Number.isInteger(targetDepartmentId) || targetDepartmentId <= 0)) {
+      return err(res, 400, 'target_dept inválido');
+    }
+    if (targetDepartmentId != null) {
+      const department = await sql`
+        SELECT id FROM departments WHERE id = ${targetDepartmentId} AND company_id = ${ctx.company_id}
+      `;
+      if (!department[0]) return err(res, 404, 'Departamento não encontrado');
+    }
 
     const rows = await sql`
       INSERT INTO pulse_surveys (company_id, created_by, title, question, type, options, target_dept, expires_at)
       VALUES (
         ${ctx.company_id}, ${ctx.sub}, ${title}, ${question}, ${type},
         ${type === 'choice' ? JSON.stringify(options) : null},
-        ${target_dept ? Number(target_dept) : null},
+        ${targetDepartmentId},
         ${expires_at ?? null}
       )
       RETURNING *

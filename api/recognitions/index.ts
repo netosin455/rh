@@ -7,6 +7,7 @@
 
 import type { Request as VercelRequest, Response as VercelResponse } from 'express';
 import { sql, cors, authenticate, err, IS_ADMIN, parsePagination } from '../_lib';
+import { buildRecognitionEmail, sendEmail } from '../_email';
 
 const VALID_CATEGORIES = ['trabalho_em_equipe', 'inovacao', 'lideranca', 'atendimento', 'resultado', 'outro'];
 const CAN_MANAGE_PAYSLIPS = ['super_admin', 'admin', 'rh', 'adm'];
@@ -126,7 +127,15 @@ async function handleRecognitions(req: VercelRequest, res: VercelResponse, ctx: 
     if (message.length > 500) return err(res, 400, 'Mensagem muito longa (máx. 500 caracteres)');
     if (!VALID_CATEGORIES.includes(category)) return err(res, 400, 'Categoria inválida');
 
-    const emp = await sql`SELECT name FROM employees WHERE id = ${Number(to_employee_id)} AND company_id = ${ctx.company_id}`;
+    // O destinatário é buscado junto ao vínculo de usuário da mesma empresa do JWT.
+    // company_id nunca vem do body e um email de outra empresa nunca é selecionado.
+    const emp = await sql`
+      SELECT e.name, u.email
+      FROM employees e
+      LEFT JOIN users u ON u.id = e.user_id AND u.company_id = e.company_id
+      WHERE e.id = ${Number(to_employee_id)} AND e.company_id = ${ctx.company_id}
+        AND e.deleted_at IS NULL
+    `;
     if (!emp[0]) return err(res, 404, 'Colaborador não encontrado');
 
     const rows = await sql`
@@ -134,6 +143,22 @@ async function handleRecognitions(req: VercelRequest, res: VercelResponse, ctx: 
       VALUES (${ctx.company_id}, ${ctx.sub}, ${ctx.name}, ${Number(to_employee_id)}, ${emp[0].name as string}, ${message.trim()}, ${category})
       RETURNING *
     `;
+    // O reconhecimento já existe neste ponto. Email é efeito colateral: qualquer
+    // falha é registrada, mas nunca altera a resposta de criação.
+    try {
+      const recipient = emp[0] as { name: string; email?: string | null };
+      const email = buildRecognitionEmail({
+        employeeName: recipient.name,
+        senderName: ctx.name,
+        message: message.trim(),
+        actionUrl: process.env.EXPO_PUBLIC_APP_URL ? `${process.env.EXPO_PUBLIC_APP_URL}/(tabs)/reconhecimentos` : undefined,
+      });
+      await sendEmail(recipient.email, email.subject, email.html);
+    } catch (error: unknown) {
+      const detail = error instanceof Error ? error.message : 'erro desconhecido';
+      console.error(`[recognitions/email] company=${ctx.company_id} employee=${Number(to_employee_id)}: ${detail}`);
+    }
+
     return res.status(201).json(rows[0]);
   }
 

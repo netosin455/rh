@@ -3,7 +3,12 @@
 // ============================================================
 
 import type { Request as VercelRequest, Response as VercelResponse } from 'express';
-import { sql, cors, authenticate, err, CAN_MANAGE_EMPLOYEES, CAN_APPROVE_ABSENCES, parsePagination, sendPush, createAbsenceRecord, resolveAbsenceApproval } from '../_lib';
+import {
+  sql, cors, authenticate, err, CAN_MANAGE_EMPLOYEES, CAN_APPROVE_ABSENCES,
+  parsePagination, createAbsenceRecord, resolveAbsenceApproval,
+  ABSENCE_VALID_TYPES,
+} from '../_lib';
+import { isValidIsoDate } from '../../helpers/datas';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   cors(req, res);
@@ -25,13 +30,53 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (!CAN_MANAGE_EMPLOYEES.includes(ctx.role)) {
           return err(res, 403, 'Sem permissão para editar ausências');
         }
+        const existing = await sql`
+          SELECT employee_id, type, start_date, end_date, reason, hours, status
+          FROM absences WHERE id = ${id} AND company_id = ${ctx.company_id}
+        `;
+        if (!existing[0]) return err(res, 404, 'Ausência não encontrada');
+        if (existing[0].status !== 'pendente') {
+          return err(res, 409, 'Somente solicitações pendentes podem ser editadas');
+        }
+
+        const current = existing[0] as {
+          employee_id: number;
+          type: string;
+          start_date: string;
+          end_date: string;
+          reason: string | null;
+          hours: number | null;
+        };
+        const nextType = type === undefined ? current.type : String(type);
+        const nextStartDate = start_date === undefined ? current.start_date : String(start_date);
+        const nextEndDate = end_date === undefined ? current.end_date : String(end_date);
+        const nextHours = hours === undefined ? current.hours : (hours == null ? null : Number(hours));
+
+        if (!ABSENCE_VALID_TYPES.includes(nextType)) return err(res, 400, 'Tipo de ausência inválido');
+        if (!isValidIsoDate(nextStartDate) || !isValidIsoDate(nextEndDate)) {
+          return err(res, 400, 'As datas devem ser válidas e usar o formato YYYY-MM-DD');
+        }
+        if (nextStartDate > nextEndDate) return err(res, 400, 'A data final deve ser igual ou posterior à inicial');
+        if (nextHours != null && (!['folga', 'falta'].includes(nextType) || !Number.isFinite(nextHours) || nextHours <= 0)) {
+          return err(res, 400, 'hours só é aceito para folga ou falta e deve ser maior que zero');
+        }
+
+        const overlap = await sql`
+          SELECT id FROM absences
+          WHERE employee_id = ${current.employee_id} AND company_id = ${ctx.company_id}
+            AND id != ${id} AND status NOT IN ('recusado', 'cancelado')
+            AND start_date <= ${nextEndDate} AND end_date >= ${nextStartDate}
+          LIMIT 1
+        `;
+        if (overlap[0]) return err(res, 409, 'O colaborador já possui uma ausência registrada neste período.');
+
         const rows = await sql`
           UPDATE absences SET
-            type       = COALESCE(${type ?? null}, type),
-            start_date = COALESCE(${start_date ?? null}, start_date),
-            end_date   = COALESCE(${end_date ?? null}, end_date),
-            reason     = COALESCE(${reason ?? null}, reason),
-            hours      = COALESCE(${hours ?? null}, hours)
+            type       = ${nextType},
+            start_date = ${nextStartDate},
+            end_date   = ${nextEndDate},
+            reason     = ${reason === undefined ? current.reason : (reason == null ? null : String(reason))},
+            hours      = ${nextHours}
           WHERE id = ${id} AND company_id = ${ctx.company_id}
           RETURNING *
         `;
@@ -48,6 +93,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (req.method === 'DELETE') {
       if (!CAN_MANAGE_EMPLOYEES.includes(ctx.role)) return err(res, 403, 'Sem permissão');
+      const existing = await sql`
+        SELECT status FROM absences WHERE id = ${id} AND company_id = ${ctx.company_id}
+      `;
+      if (!existing[0]) return err(res, 404, 'Ausência não encontrada');
+      if (existing[0].status !== 'pendente') {
+        return err(res, 409, 'Somente solicitações pendentes podem ser excluídas');
+      }
       await sql`DELETE FROM absences WHERE id = ${id} AND company_id = ${ctx.company_id}`;
       return res.status(204).end();
     }
@@ -59,10 +111,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (req.method === 'GET') {
     const { status, employee_id, type, month } = req.query;
-    const empId   = employee_id ? Number(employee_id) : null;
+    let empId = employee_id ? Number(employee_id) : null;
     const typeVal = type   ? String(type)   : null;
     const monthVal= month  ? String(month)  : null; // YYYY-MM
     const { page, limit, offset } = parsePagination(req.query);
+
+    if (empId != null && (!Number.isInteger(empId) || empId <= 0)) return err(res, 400, 'employee_id inválido');
+
+    // Colaboradores veem somente o próprio histórico, inclusive para não expor
+    // motivos e anexos de licença de colegas. RH/admin/gestor mantém visão geral.
+    const canViewAll = CAN_MANAGE_EMPLOYEES.includes(ctx.role) || CAN_APPROVE_ABSENCES.includes(ctx.role);
+    if (!canViewAll) {
+      const self = await sql`
+        SELECT id FROM employees
+        WHERE user_id = ${ctx.sub} AND company_id = ${ctx.company_id} AND deleted_at IS NULL
+      `;
+      if (!self[0]) return res.json({ data: [], total: 0, page, limit, totalPages: 0 });
+      empId = Number(self[0].id);
+    }
 
     const [countRow, rows] = await Promise.all([
       sql`

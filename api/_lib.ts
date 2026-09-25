@@ -6,6 +6,7 @@
 import { neon } from '@neondatabase/serverless';
 import jwt from 'jsonwebtoken';
 import type { Request as VercelRequest, Response as VercelResponse } from 'express';
+import { calendarDaysInclusive, isValidIsoDate } from '../helpers/datas';
 
 export const sql = neon(process.env.DATABASE_URL!);
 
@@ -152,12 +153,19 @@ export async function createAbsenceRecord(
   input: CreateAbsenceInput,
 ): Promise<CreateAbsenceResult> {
   const { employee_id, type, start_date, end_date, reason, attachment_url, hours } = input;
+  const employeeId = Number(employee_id);
 
-  if (!employee_id || !start_date || !end_date) {
+  if (!Number.isInteger(employeeId) || employeeId <= 0 || !start_date || !end_date) {
     return { ok: false, status: 400, error: 'employee_id, start_date e end_date são obrigatórios' };
   }
   if (!ABSENCE_VALID_TYPES.includes(type)) {
     return { ok: false, status: 400, error: `Tipo inválido. Use: ${ABSENCE_VALID_TYPES.join(', ')}` };
+  }
+  if (!isValidIsoDate(start_date) || !isValidIsoDate(end_date)) {
+    return { ok: false, status: 400, error: 'start_date e end_date devem ter datas válidas no formato YYYY-MM-DD' };
+  }
+  if (start_date > end_date) {
+    return { ok: false, status: 400, error: 'end_date deve ser igual ou posterior a start_date' };
   }
 
   // Horas: registra a duração pra folga (desconta do banco) e falta (só registro,
@@ -170,13 +178,17 @@ export async function createAbsenceRecord(
 
   const empCheck = await sql`
     SELECT id, name, user_id, vacation_days, folga_hours FROM employees
-    WHERE id = ${Number(employee_id)} AND company_id = ${ctx.company_id} AND deleted_at IS NULL
+    WHERE id = ${employeeId} AND company_id = ${ctx.company_id} AND deleted_at IS NULL
   `;
   if (!empCheck[0]) return { ok: false, status: 404, error: 'Funcionário não encontrado' };
   const emp = empCheck[0] as any;
 
-  const msPerDay = 86_400_000;
-  const daysRequested = Math.round((new Date(end_date).getTime() - new Date(start_date).getTime()) / msPerDay) + 1;
+  const canCreateForOthers = CAN_MANAGE_EMPLOYEES.includes(ctx.role) || CAN_APPROVE_ABSENCES.includes(ctx.role);
+  if (!canCreateForOthers && emp.user_id !== ctx.sub) {
+    return { ok: false, status: 403, error: 'Você só pode solicitar ausências para o seu próprio cadastro' };
+  }
+
+  const daysRequested = calendarDaysInclusive(start_date, end_date);
 
   if (type === 'ferias' && daysRequested > emp.vacation_days) {
     return { ok: false, status: 422, error: `Saldo insuficiente. ${emp.name} tem ${emp.vacation_days} dia(s) disponível(is), mas foram solicitados ${daysRequested}.` };
@@ -187,7 +199,7 @@ export async function createAbsenceRecord(
 
   const overlap = await sql`
     SELECT id FROM absences
-    WHERE employee_id = ${Number(employee_id)}
+    WHERE employee_id = ${employeeId} AND company_id = ${ctx.company_id}
       AND status NOT IN ('recusado', 'cancelado')
       AND start_date <= ${end_date}
       AND end_date   >= ${start_date}
@@ -198,40 +210,67 @@ export async function createAbsenceRecord(
 
   const autoApprove = CAN_APPROVE_ABSENCES.includes(ctx.role);
 
-  const rows = autoApprove
-    ? await sql`
+  let rows: any[];
+  if (autoApprove && type === 'ferias') {
+    // O débito e o lançamento precisam ser indivisíveis: o predicado de saldo
+    // protege também duas solicitações concorrentes para o mesmo colaborador.
+    rows = await sql`
+      WITH debited AS (
+        UPDATE employees SET vacation_days = vacation_days - ${daysRequested}
+        WHERE id = ${employeeId} AND company_id = ${ctx.company_id}
+          AND vacation_days >= ${daysRequested}
+        RETURNING id
+      )
+      INSERT INTO absences
+        (company_id, employee_id, type, start_date, end_date, reason, attachment_url, hours, status, approved_by, approved_at)
+      SELECT
+        ${ctx.company_id}, ${employeeId}, ${type}, ${start_date}, ${end_date},
+        ${reason ?? null}, ${attachment_url ?? null}, ${hoursRequested}, 'aprovado', ${ctx.sub}, now()
+      FROM debited
+      RETURNING *
+    `;
+    if (!rows[0]) return { ok: false, status: 422, error: 'Saldo de férias insuficiente para registrar esta ausência' };
+  } else if (autoApprove && type === 'folga' && hoursRequested != null) {
+    rows = await sql`
+      WITH debited AS (
+        UPDATE employees SET folga_hours = folga_hours - ${hoursRequested}
+        WHERE id = ${employeeId} AND company_id = ${ctx.company_id}
+          AND folga_hours >= ${hoursRequested}
+        RETURNING id
+      )
+      INSERT INTO absences
+        (company_id, employee_id, type, start_date, end_date, reason, attachment_url, hours, status, approved_by, approved_at)
+      SELECT
+        ${ctx.company_id}, ${employeeId}, ${type}, ${start_date}, ${end_date},
+        ${reason ?? null}, ${attachment_url ?? null}, ${hoursRequested}, 'aprovado', ${ctx.sub}, now()
+      FROM debited
+      RETURNING *
+    `;
+    if (!rows[0]) return { ok: false, status: 422, error: 'Saldo de banco de horas insuficiente para registrar esta ausência' };
+  } else if (autoApprove) {
+    rows = await sql`
         INSERT INTO absences
           (company_id, employee_id, type, start_date, end_date, reason, attachment_url, hours, status, approved_by, approved_at)
         VALUES
-          (${ctx.company_id}, ${Number(employee_id)}, ${type}, ${start_date}, ${end_date},
+          (${ctx.company_id}, ${employeeId}, ${type}, ${start_date}, ${end_date},
            ${reason ?? null}, ${attachment_url ?? null}, ${hoursRequested}, 'aprovado', ${ctx.sub}, now())
         RETURNING *
-      `
-    : await sql`
+      `;
+  } else {
+    rows = await sql`
         INSERT INTO absences
           (company_id, employee_id, type, start_date, end_date, reason, attachment_url, hours)
         VALUES
-          (${ctx.company_id}, ${Number(employee_id)}, ${type}, ${start_date}, ${end_date},
+          (${ctx.company_id}, ${employeeId}, ${type}, ${start_date}, ${end_date},
            ${reason ?? null}, ${attachment_url ?? null}, ${hoursRequested})
         RETURNING *
       `;
+  }
 
   const typeLabel = absenceTypeLabel(type);
   const qtyLabel = hoursRequested != null ? `${hoursRequested}h` : `${daysRequested} dia${daysRequested > 1 ? 's' : ''}`;
 
   if (autoApprove) {
-    if (type === 'ferias') {
-      await sql`
-        UPDATE employees SET vacation_days = GREATEST(0, vacation_days - ${daysRequested})
-        WHERE id = ${Number(employee_id)} AND company_id = ${ctx.company_id}
-      `.catch(() => {});
-    } else if (type === 'folga' && hoursRequested != null) {
-      await sql`
-        UPDATE employees SET folga_hours = GREATEST(0, folga_hours - ${hoursRequested})
-        WHERE id = ${Number(employee_id)} AND company_id = ${ctx.company_id}
-      `.catch(() => {});
-    }
-
     if (emp.user_id) {
       const notifTitle = `${typeLabel} registrada`;
       const notifBody  = `Sua ${typeLabel.toLowerCase()} de ${start_date} a ${end_date} foi registrada pela RH (${qtyLabel}).`;
@@ -287,53 +326,76 @@ export async function resolveAbsenceApproval(
   const newStatus = approved ? 'aprovado' : 'recusado';
 
   const existing = await sql`
-    SELECT type, days_count, hours, status, employee_id
-    FROM absences WHERE id = ${absenceId} AND company_id = ${ctx.company_id}
+    SELECT a.type, a.days_count, a.hours, a.status, a.employee_id,
+      e.vacation_days, e.folga_hours
+    FROM absences a
+    JOIN employees e ON e.id = a.employee_id AND e.company_id = a.company_id
+    WHERE a.id = ${absenceId} AND a.company_id = ${ctx.company_id}
   `;
   if (!existing[0]) return { ok: false, status: 404, error: 'Solicitação não encontrada' };
   const absenceData = existing[0] as any;
+  if (absenceData.status !== 'pendente') {
+    return { ok: false, status: 409, error: 'Esta solicitação já foi processada' };
+  }
+  if (approved && absenceData.type === 'ferias' && absenceData.days_count > Number(absenceData.vacation_days)) {
+    return { ok: false, status: 422, error: 'Saldo de férias insuficiente para aprovar esta solicitação' };
+  }
+  if (approved && absenceData.type === 'folga' && absenceData.hours != null && Number(absenceData.hours) > Number(absenceData.folga_hours)) {
+    return { ok: false, status: 422, error: 'Saldo de banco de horas insuficiente para aprovar esta solicitação' };
+  }
 
-  const rows = await sql`
-    UPDATE absences SET
-      status      = ${newStatus},
-      approved_by = ${ctx.sub},
-      approved_at = now()
-    WHERE id = ${absenceId} AND company_id = ${ctx.company_id}
-    RETURNING *, (SELECT user_id FROM employees WHERE id = absences.employee_id) AS employee_user_id
-  `;
+  let rows: any[];
+  if (approved && absenceData.type === 'ferias') {
+    rows = await sql`
+      WITH debited AS (
+        UPDATE employees SET vacation_days = vacation_days - ${absenceData.days_count}
+        WHERE id = ${absenceData.employee_id} AND company_id = ${ctx.company_id}
+          AND vacation_days >= ${absenceData.days_count}
+        RETURNING id
+      ), updated AS (
+        UPDATE absences SET status = ${newStatus}, approved_by = ${ctx.sub}, approved_at = now()
+        WHERE id = ${absenceId} AND company_id = ${ctx.company_id} AND status = 'pendente'
+          AND EXISTS (SELECT 1 FROM debited)
+        RETURNING *
+      )
+      SELECT updated.*,
+        (SELECT user_id FROM employees WHERE id = updated.employee_id AND company_id = ${ctx.company_id}) AS employee_user_id
+      FROM updated
+    `;
+  } else if (approved && absenceData.type === 'folga' && absenceData.hours != null) {
+    rows = await sql`
+      WITH debited AS (
+        UPDATE employees SET folga_hours = folga_hours - ${absenceData.hours}
+        WHERE id = ${absenceData.employee_id} AND company_id = ${ctx.company_id}
+          AND folga_hours >= ${absenceData.hours}
+        RETURNING id
+      ), updated AS (
+        UPDATE absences SET status = ${newStatus}, approved_by = ${ctx.sub}, approved_at = now()
+        WHERE id = ${absenceId} AND company_id = ${ctx.company_id} AND status = 'pendente'
+          AND EXISTS (SELECT 1 FROM debited)
+        RETURNING *
+      )
+      SELECT updated.*,
+        (SELECT user_id FROM employees WHERE id = updated.employee_id AND company_id = ${ctx.company_id}) AS employee_user_id
+      FROM updated
+    `;
+  } else {
+    rows = await sql`
+      UPDATE absences SET
+        status      = ${newStatus},
+        approved_by = ${ctx.sub},
+        approved_at = now()
+      WHERE id = ${absenceId} AND company_id = ${ctx.company_id} AND status = 'pendente'
+      RETURNING *,
+        (SELECT user_id FROM employees WHERE id = absences.employee_id AND company_id = ${ctx.company_id}) AS employee_user_id
+    `;
+  }
   if (!rows[0]) return { ok: false, status: 404, error: 'Solicitação não encontrada' };
 
-  if (absenceData.type === 'ferias') {
-    if (approved) {
-      await sql`
-        UPDATE employees SET vacation_days = GREATEST(0, vacation_days - ${absenceData.days_count})
-        WHERE id = ${absenceData.employee_id} AND company_id = ${ctx.company_id}
-      `.catch(() => {});
-    } else if (absenceData.status === 'aprovado') {
-      await sql`
-        UPDATE employees SET vacation_days = vacation_days + ${absenceData.days_count}
-        WHERE id = ${absenceData.employee_id} AND company_id = ${ctx.company_id}
-      `.catch(() => {});
-    }
-  }
-
-  if (absenceData.type === 'folga' && absenceData.hours != null) {
-    if (approved) {
-      await sql`
-        UPDATE employees SET folga_hours = GREATEST(0, folga_hours - ${absenceData.hours})
-        WHERE id = ${absenceData.employee_id} AND company_id = ${ctx.company_id}
-      `.catch(() => {});
-    } else if (absenceData.status === 'aprovado') {
-      await sql`
-        UPDATE employees SET folga_hours = folga_hours + ${absenceData.hours}
-        WHERE id = ${absenceData.employee_id} AND company_id = ${ctx.company_id}
-      `.catch(() => {});
-    }
-  }
-
   const empUserId = (rows[0] as any).employee_user_id;
-  const notifTitle = approved ? 'Férias aprovadas ✅' : 'Férias recusadas ❌';
-  const notifBody  = approved ? 'Sua solicitação de férias foi aprovada.' : 'Sua solicitação de férias foi recusada.';
+  const typeLabel = absenceTypeLabel(absenceData.type);
+  const notifTitle = approved ? `${typeLabel} aprovada ✅` : `${typeLabel} recusada ❌`;
+  const notifBody  = approved ? `Sua solicitação de ${typeLabel.toLowerCase()} foi aprovada.` : `Sua solicitação de ${typeLabel.toLowerCase()} foi recusada.`;
 
   await sql`
     INSERT INTO notifications (company_id, user_id, title, body, type, route)
