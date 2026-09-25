@@ -8,3 +8,5 @@
 | 2026-09-25 | Papéis de Security/Privacy/QA como checklists, não agentes | Equipe é 1 Maestri + 2 Codex |
 | 2026-09-25 | Login também claro (sem exceção) | Pedido do Carlo; substitui a ideia de manter o login escuro |
 | 2026-09-25 | Conjunto completo de docs/maestri (00 a 09) | Carlo pediu a arquitetura da proposta inteira; Security/Privacy/AI/QA viram documentos e checklists |
+| 2026-09-25 | Redesign V2: sistema, motion, shell, login proprio, dashboard, depois telas; login deixa de copiar o Araujo Prev | Pedido do Carlo; o visual foi trocado 4 vezes sem direcao fechada. Plano em `12_UI_V2_PLAN.md`, aguardando aprovacao |
+| 2026-09-25 | Migration 012 (employees.email) antes do deploy do codigo que a usa | O codigo novo le/grava a coluna; sem ela editar colaborador e criar reconhecimento quebram |
