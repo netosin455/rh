@@ -3,7 +3,7 @@
 // ============================================================
 
 import { Stack, useRouter, useSegments } from 'expo-router';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Platform } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts, Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
@@ -75,15 +75,25 @@ function AuthGuard() {
 }
 
 export default function RootLayout() {
-  const [fontsLoaded] = useFonts({
+  const [fontsLoaded, fontError] = useFonts({
     Inter_400Regular,
     Inter_500Medium,
     Inter_600SemiBold,
     Inter_700Bold,
     CormorantGaramond_600SemiBold,
   });
+  // Fonte é acabamento visual: nunca pode travar o app. Com erro ou demora,
+  // segue com a fonte do sistema em vez de ficar em tela branca.
+  const [fontTimeout, setFontTimeout] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setFontTimeout(true), 4000);
+    return () => clearTimeout(timer);
+  }, []);
+  useEffect(() => {
+    if (fontError) console.warn('[fonts] falha ao carregar fontes:', fontError.message);
+  }, [fontError]);
 
-  if (!fontsLoaded) return null;
+  if (!fontsLoaded && !fontError && !fontTimeout) return null;
 
   return (
     <AuthProvider>

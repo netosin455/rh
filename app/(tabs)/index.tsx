@@ -669,6 +669,8 @@ export default function DashboardScreen() {
   const canSeeInsights = ['super_admin', 'admin', 'rh'].includes(user?.role ?? '');
 
   const load = useCallback(async () => {
+    // Sem sessão o AuthGuard vai redirecionar para o login: não dispara chamadas nem toast de erro.
+    if (!user) return;
     try {
       const [emp, evt, ntc] = await Promise.all([getEmployees(), getUpcomingEvents(5), getNotices().catch(() => [] as Notice[])]);
       setEmployees(emp);

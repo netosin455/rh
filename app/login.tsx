@@ -1,23 +1,63 @@
 import React, { useState } from 'react';
 import {
-  View, Text, TouchableOpacity,
+  View, Text, TextInput, TouchableOpacity,
   StyleSheet, KeyboardAvoidingView,
   Platform, ScrollView, Linking, useWindowDimensions,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '../contextos/Autenticacao';
 import { Button } from '../componentes/Button';
-import { Card } from '../componentes/Card';
-import { Input } from '../componentes/Input';
 import { theme } from '../estilo/cores';
 import { fonts } from '../estilo/tipografia';
+
+// Fundo escuro com halo dourado: mesma composição do login do Araujo Prev.
+const BG_COLORS = ['#0F0F0F', '#1A1510', '#0D0D0D', '#1A1510'] as const;
+
+type FieldProps = {
+  label: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  value: string;
+  onChangeText: (text: string) => void;
+  placeholder: string;
+  secureTextEntry?: boolean;
+  autoComplete?: 'username' | 'current-password';
+  returnKeyType?: 'next' | 'go';
+  onSubmitEditing?: () => void;
+  autoCapitalize?: 'none';
+  rightAccessory?: React.ReactNode;
+  compact: boolean;
+};
+
+// Campo "clean": ícone + linha embaixo, sem caixa fechada. Foco muda ícone e linha para dourado.
+function Field({ label, icon, rightAccessory, compact, ...input }: FieldProps) {
+  const [focused, setFocused] = useState(false);
+  return (
+    <View style={styles.group}>
+      <Text style={styles.label}>{label}</Text>
+      <View style={[styles.inputWrap, focused && styles.inputWrapFocused]}>
+        <Ionicons name={icon} size={16} color={focused ? theme.gold : theme.textMuted} style={styles.inputIcon} />
+        <TextInput
+          {...input}
+          accessibilityLabel={label}
+          autoCorrect={false}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          placeholderTextColor={theme.textMuted}
+          style={[styles.input, compact && styles.inputCompact, Platform.OS === 'web' && ({ outlineStyle: 'none' } as any)]}
+        />
+        {rightAccessory}
+      </View>
+    </View>
+  );
+}
 
 export default function LoginScreen() {
   const { login } = useAuth();
   const router = useRouter();
   const { width } = useWindowDimensions();
-  const isWide = width > 768;
+  const compact = width <= 768;
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPass, setShowPass] = useState(false);
@@ -53,101 +93,124 @@ export default function LoginScreen() {
   }
 
   return (
-    <KeyboardAvoidingView style={loginStyles.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView contentContainerStyle={loginStyles.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-        <View style={loginStyles.shell}>
-          <View style={loginStyles.halo} pointerEvents="none" />
-          <View style={[loginStyles.nav, isWide && loginStyles.navWide]}>
-            <View>
-              <Text style={loginStyles.brand}>SuperRH</Text>
-              <Text style={loginStyles.brandSub}>GESTÃO DE PESSOAS</Text>
+    <View style={styles.root}>
+      <LinearGradient colors={BG_COLORS} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
+      <View style={styles.haloTop} pointerEvents="none" />
+      <View style={styles.haloLeft} pointerEvents="none" />
+      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <ScrollView
+          contentContainerStyle={[styles.scroll, compact && styles.scrollCompact]}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={[styles.box, compact && styles.boxCompact]}>
+            <View accessibilityRole="header" style={styles.brandWrap}>
+              <Text style={styles.brand}>
+                Super<Text style={styles.brandAccent}>RH</Text>
+              </Text>
             </View>
-          </View>
+            <Text style={styles.subtitle}>Sistema de Gestão de RH</Text>
 
-          <View style={loginStyles.content}>
-            <Card style={loginStyles.card}>
-              <Text style={loginStyles.formEyebrow}>BEM-VINDO</Text>
-              <Text style={loginStyles.formTitle}>Entre no SuperRH</Text>
-              <Text style={loginStyles.formSubtitle}>Use suas credenciais para continuar.</Text>
+            <Field
+              label="Usuário"
+              icon="person-outline"
+              placeholder="Digite seu usuário"
+              value={username}
+              onChangeText={setUsername}
+              autoCapitalize="none"
+              autoComplete="username"
+              returnKeyType="next"
+              compact={compact}
+            />
+            <Field
+              label="Senha"
+              icon="lock-closed-outline"
+              placeholder="Digite sua senha"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry={!showPass}
+              autoComplete="current-password"
+              returnKeyType="go"
+              onSubmitEditing={handleLogin}
+              compact={compact}
+              rightAccessory={
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  accessibilityLabel={showPass ? 'Ocultar senha' : 'Mostrar senha'}
+                  onPress={() => setShowPass(value => !value)}
+                  style={styles.eyeButton}
+                >
+                  <Ionicons name={showPass ? 'eye-off-outline' : 'eye-outline'} size={18} color={theme.textMuted} />
+                </TouchableOpacity>
+              }
+            />
 
-              {error ? (
-                <View style={loginStyles.errorBox}>
-                  <Ionicons name="alert-circle-outline" size={18} color={theme.danger} />
-                  <Text style={loginStyles.errorText}>{error}</Text>
+            <Button label="Entrar" onPress={handleLogin} loading={loading} style={styles.submit} />
+            {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
+
+            {GOOGLE_SSO_ENABLED ? (
+              <View style={styles.sso}>
+                <View style={styles.divider}>
+                  <View style={styles.line} />
+                  <Text style={styles.dividerText}>ou</Text>
+                  <View style={styles.line} />
                 </View>
-              ) : null}
-
-              <View style={loginStyles.fields}>
-                <Input
-                  label="Usuário"
-                  placeholder="seu.usuario"
-                  value={username}
-                  onChangeText={setUsername}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  autoComplete="username"
-                  returnKeyType="next"
-                />
-                <Input
-                  label="Senha"
-                  placeholder="Digite sua senha"
-                  value={password}
-                  onChangeText={setPassword}
-                  secureTextEntry={!showPass}
-                  autoComplete="current-password"
-                  returnKeyType="go"
-                  onSubmitEditing={handleLogin}
-                  rightAccessory={
-                    <TouchableOpacity
-                      accessibilityRole="button"
-                      accessibilityLabel={showPass ? 'Ocultar senha' : 'Mostrar senha'}
-                      onPress={() => setShowPass(value => !value)}
-                      style={loginStyles.eyeButton}
-                    >
-                      <Ionicons name={showPass ? 'eye-off-outline' : 'eye-outline'} size={20} color={theme.textMuted} />
-                    </TouchableOpacity>
-                  }
-                />
+                <Button label="Entrar com Google" icon="logo-google" variant="secondary" onPress={handleGoogleLogin} />
               </View>
-
-              <Button label="Entrar na plataforma" onPress={handleLogin} loading={loading} style={loginStyles.submit} />
-              {GOOGLE_SSO_ENABLED ? (
-                <View style={loginStyles.sso}>
-                  <View style={loginStyles.divider}><View style={loginStyles.line} /><Text style={loginStyles.dividerText}>ou</Text><View style={loginStyles.line} /></View>
-                  <Button label="Entrar com Google" icon="logo-google" variant="secondary" onPress={handleGoogleLogin} />
-                </View>
-              ) : null}
-            </Card>
+            ) : null}
           </View>
-          <Text style={loginStyles.footer}>© 2026 SuperRH · Plataforma de Gestão Jurídica e RH</Text>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </View>
   );
 }
 
-const loginStyles = StyleSheet.create({
-  root: { backgroundColor: theme.bg, flex: 1 },
-  scroll: { flexGrow: 1 },
-  shell: { flex: 1, justifyContent: 'space-between', minHeight: '100%', overflow: 'hidden', paddingBottom: 24 },
-  halo: { backgroundColor: theme.goldPale, borderRadius: 320, height: 460, opacity: 0.62, position: 'absolute', right: -220, top: -250, width: 460 },
-  nav: { borderBottomColor: theme.border, borderBottomWidth: 1, paddingHorizontal: 24, paddingVertical: 20 },
-  navWide: { paddingHorizontal: 64 },
-  brand: { color: theme.textPrimary, fontFamily: fonts.display, fontSize: 30, lineHeight: 30 },
-  brandSub: { color: theme.goldDeep, fontFamily: fonts.bold, fontSize: 10, letterSpacing: 1.2, marginTop: 3 },
-  content: { flex: 1, justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 48 },
-  card: { alignSelf: 'center', maxWidth: 410, padding: 28, width: '100%' },
-  formEyebrow: { color: theme.goldDeep, fontFamily: fonts.bold, fontSize: 11, letterSpacing: 1.2 },
-  formTitle: { color: theme.textPrimary, fontFamily: fonts.display, fontSize: 34, lineHeight: 38, marginTop: 5 },
-  formSubtitle: { color: theme.textMuted, fontFamily: fonts.body, fontSize: 13, lineHeight: 19, marginTop: 4 },
-  fields: { gap: 14, marginTop: 24 },
-  eyeButton: { alignItems: 'center', height: 44, justifyContent: 'center', width: 44 },
-  errorBox: { alignItems: 'center', backgroundColor: theme.dangerBackground, borderRadius: 8, flexDirection: 'row', gap: 8, marginTop: 18, padding: 10 },
-  errorText: { color: theme.danger, flex: 1, fontFamily: fonts.medium, fontSize: 12, lineHeight: 17 },
-  submit: { marginTop: 22 },
-  sso: { marginTop: 20 },
+const styles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: '#0F0F0F', overflow: 'hidden' },
+  flex: { flex: 1 },
+  haloTop: {
+    position: 'absolute', right: -160, top: -180, width: 560, height: 560, borderRadius: 280,
+    backgroundColor: 'rgba(184,151,58,0.13)',
+  },
+  haloLeft: {
+    position: 'absolute', left: -220, top: '30%', width: 520, height: 520, borderRadius: 260,
+    backgroundColor: 'rgba(184,151,58,0.07)',
+  },
+  scroll: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: 16 },
+  scrollCompact: { justifyContent: 'flex-start', paddingTop: 24 },
+
+  box: {
+    width: 380, maxWidth: '100%',
+    backgroundColor: 'rgba(255,255,255,0.94)',
+    borderRadius: 12, paddingVertical: 40, paddingHorizontal: 44,
+    borderWidth: 1, borderColor: 'rgba(184,151,58,0.15)',
+    shadowColor: '#B8973A', shadowOpacity: 0.3, shadowRadius: 40, shadowOffset: { width: 0, height: 12 },
+    elevation: 12,
+  },
+  boxCompact: { backgroundColor: '#FFFDF8', paddingVertical: 28, paddingHorizontal: 20 },
+
+  brandWrap: { alignItems: 'center', marginBottom: 6 },
+  brand: { color: theme.textPrimary, fontFamily: fonts.display, fontSize: 52, lineHeight: 56, letterSpacing: -1 },
+  brandAccent: { color: theme.gold },
+  subtitle: { color: theme.textMuted, fontFamily: fonts.body, fontSize: 11, marginBottom: 28, textAlign: 'center' },
+
+  group: { marginBottom: 16 },
+  label: {
+    color: theme.textMuted, fontFamily: fonts.semibold, fontSize: 10, letterSpacing: 0.6,
+    marginBottom: 6, textTransform: 'uppercase',
+  },
+  inputWrap: { alignItems: 'center', borderBottomColor: theme.border, borderBottomWidth: 1.5, flexDirection: 'row' },
+  inputWrapFocused: { borderBottomColor: theme.gold },
+  inputIcon: { marginRight: 8, marginLeft: 2 },
+  input: { color: theme.textPrimary, flex: 1, fontFamily: fonts.body, fontSize: 13, paddingVertical: 10 },
+  inputCompact: { fontSize: 16, minHeight: 46 },
+  eyeButton: { alignItems: 'center', height: 44, justifyContent: 'center', marginRight: -8, width: 44 },
+
+  submit: { marginTop: 6 },
+  error: { color: theme.danger, fontFamily: fonts.body, fontSize: 12, marginTop: 12, textAlign: 'center' },
+
+  sso: { marginTop: 18 },
   divider: { alignItems: 'center', flexDirection: 'row', gap: 10, marginBottom: 14 },
   line: { backgroundColor: theme.border, flex: 1, height: 1 },
   dividerText: { color: theme.textMuted, fontFamily: fonts.body, fontSize: 12 },
-  footer: { color: theme.textMuted, fontFamily: fonts.body, fontSize: 12, paddingHorizontal: 24, paddingTop: 24, textAlign: 'center' },
 });
