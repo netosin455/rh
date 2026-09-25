@@ -10,7 +10,7 @@ Maestri orquestra; não programa tudo. Toda tarefa entra com: objetivo, módulos
 | Frontend / Mobile | Codex | `estilo/`, `componentes/`, `app/` (visual e UX) |
 | Backend / Banco / Testes | Codex #2 | `api/`, `helpers/`, `contextos/`, `banco/`, `tests/` |
 
-Security, Privacy/LGPD, QA e Domínio RH são checklists aplicados pelo Maestri em cada branch antes do merge (ver `08_RELEASE_CHECKLIST.md`).
+Security, Privacy/LGPD, AI Reviewer, QA e Domínio RH são checklists aplicados pelo Maestri em cada branch: `04_SECURITY_FINDINGS.md`, `05_PRIVACY_LGPD.md`, `06_AI_GOVERNANCE.md`, `07_TEST_MATRIX.md` e `08_RELEASE_CHECKLIST.md`. Reviewers independentes reais só com agentes recrutados (exige modo Maestro).
 
 ## Níveis de risco
 
