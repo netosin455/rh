@@ -129,7 +129,7 @@ class ErrorBoundary extends Component<{ children: React.ReactNode }, { error: Er
   render() {
     if (this.state.error) {
       return (
-        <View style={{ flex: 1, backgroundColor: '#0F1115', justifyContent: 'center', alignItems: 'center', padding: 32 }}>
+        <View style={{ flex: 1, backgroundColor: theme.bg, justifyContent: 'center', alignItems: 'center', padding: 32 }}>
           <Text style={{ color: '#F87171', fontSize: 16, fontWeight: '700', marginBottom: 12 }}>Erro ao carregar perfil</Text>
           <Text style={{ color: '#9CA3AF', fontSize: 12, textAlign: 'center' }}>{String(this.state.error)}</Text>
         </View>

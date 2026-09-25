@@ -18,6 +18,23 @@
 - `npx tsc --noEmit` sem erros.
 - `npm test -- --run`: 30 testes em 10 arquivos, todos aprovados.
 
+## [2026-09-25] — RH-001: redesign visual claro
+
+### Alterado
+- Tema visual migrado para a paleta clara de referência Araujo Prev: fundo quente, cartões brancos, bordas discretas, dourado sóbrio e tokens semânticos em `estilo/cores.ts` com aliases de compatibilidade.
+- Carregadas as famílias Inter e Cormorant Garamond via `expo-font`; títulos, marca e componentes novos adotam a tipografia.
+- Login redesenhado inteiramente em fundo claro `#F4F0EA`, com cartão branco, halo dourado sutil e sem animação decorativa.
+- Dashboard e Equipe passaram a usar a hierarquia clara, textos legíveis e componentes compartilhados; removida a animação decorativa da lista de Equipe.
+- Navegação responsiva: barra lateral escura no web amplo e cinco abas compactas no celular, com a nova tela `Mais` para módulos secundários.
+- `app.json` e StatusBar configurados para aparência clara.
+
+### Adicionado
+- Componentes compartilhados: `Card`, `Button`, `Input`, `AppModal`, `Badge`, `EmptyState` e `ScreenHeader`.
+
+### Validação
+- `npx tsc --noEmit` passou sem erros novos.
+- `npm test` permanece com duas falhas preexistentes em `tests/absences.test.ts`, causadas pelo mock sem `createAbsenceRecord`; nenhuma API ou lógica foi alterada nesta tarefa.
+
 ## [2026-09-25] — Maestri Fase 0: governança multi-agente (só documentação)
 
 ### Alterado

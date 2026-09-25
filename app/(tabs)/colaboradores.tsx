@@ -4,7 +4,6 @@ import {
   StyleSheet, ActivityIndicator, RefreshControl, Modal,
   KeyboardAvoidingView, Platform,
 } from 'react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../contextos/Autenticacao';
 import { Ionicons } from '@expo/vector-icons';
@@ -15,6 +14,8 @@ import { theme } from '../../estilo/cores';
 import { brToIso, maskDate, todayBr, getTodayString } from '../../helpers/datas';
 import { exportEmployeesPDF } from '../../helpers/pdf';
 import { useToast } from '../../contextos/Toast';
+import { EmptyState } from '../../componentes/EmptyState';
+import { ScreenHeader } from '../../componentes/ScreenHeader';
 
 const STATUS_COLORS: Record<EmployeeStatus, string> = {
   ativo:                theme.success,
@@ -216,6 +217,9 @@ export default function ColaboradoresScreen() {
 
   return (
     <View style={styles.container}>
+      <View style={styles.screenHeader}>
+        <ScreenHeader eyebrow="Pessoas" title="Equipe" subtitle="Gerencie colaboradores, cargos e disponibilidade." />
+      </View>
       {/* Barra de busca */}
       <View style={styles.searchRow}>
         <Ionicons name="search-outline" size={16} color={theme.textMuted} />
@@ -228,7 +232,7 @@ export default function ColaboradoresScreen() {
           autoCorrect={false}
         />
         {search.length > 0 && (
-          <TouchableOpacity onPress={() => setSearch('')}>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="Limpar busca" onPress={() => setSearch('')}>
             <Ionicons name="close-circle" size={16} color={theme.textMuted} />
           </TouchableOpacity>
         )}
@@ -275,16 +279,14 @@ export default function ColaboradoresScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.gold} />}
       >
         {filtered.length === 0 ? (
-          <View style={styles.empty}>
-            <Ionicons name="people-outline" size={44} color={theme.textMuted} />
-            <Text style={styles.emptyTitle}>Nenhum colaborador</Text>
-            <Text style={styles.emptyText}>
-              {search ? 'Tente outro termo de busca' : 'Nenhum resultado para este filtro'}
-            </Text>
-          </View>
+          <EmptyState
+            icon="people-outline"
+            title="Nenhum colaborador"
+            description={search ? 'Tente outro termo de busca.' : 'Nenhum resultado para este filtro.'}
+          />
         ) : (
-          filtered.map((emp, i) => (
-            <Animated.View key={emp.id} entering={FadeInDown.delay(i * 40).duration(300)}>
+          filtered.map(emp => (
+            <View key={emp.id}>
               <TouchableOpacity
                 style={styles.empRow}
                 onPress={() => router.push(`/colaborador/${emp.id}` as any)}
@@ -338,7 +340,7 @@ export default function ColaboradoresScreen() {
                   )}
                 </View>
               </TouchableOpacity>
-            </Animated.View>
+            </View>
           ))
         )}
         <View style={{ height: 80 }} />
@@ -346,7 +348,7 @@ export default function ColaboradoresScreen() {
 
       {/* FAB */}
       {canManageEmployees && (
-        <TouchableOpacity style={styles.fab} onPress={openModal} activeOpacity={0.85}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Adicionar colaborador" style={styles.fab} onPress={openModal} activeOpacity={0.85}>
           <Ionicons name="add" size={26} color="#000" />
         </TouchableOpacity>
       )}
@@ -359,7 +361,7 @@ export default function ColaboradoresScreen() {
               <Text style={styles.modalTitle}>Novo Colaborador</Text>
               <Text style={styles.modalSubtitle}>Preencha os dados do colaborador</Text>
             </View>
-            <TouchableOpacity onPress={() => setShowModal(false)} style={styles.modalClose}>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fechar cadastro de colaborador" onPress={() => setShowModal(false)} style={styles.modalClose}>
               <Ionicons name="close" size={20} color={theme.textMuted} />
             </TouchableOpacity>
           </View>
