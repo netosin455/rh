@@ -1,54 +1,33 @@
 import React, { useState } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity,
-  StyleSheet, ActivityIndicator, KeyboardAvoidingView,
+  View, Text, TouchableOpacity,
+  StyleSheet, KeyboardAvoidingView,
   Platform, ScrollView, Dimensions, Linking,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contextos/Autenticacao';
+import { Button } from '../componentes/Button';
+import { Card } from '../componentes/Card';
+import { Input } from '../componentes/Input';
+import { theme } from '../estilo/cores';
+import { fonts } from '../estilo/tipografia';
 
 const { width } = Dimensions.get('window');
 const isWide = width > 768;
-
-// Paleta nova — contraste forte entre seções
-const NAVY    = '#0B0F1A';   // hero bg
-const NAVY2   = '#111827';   // seção features bg
-const LIGHT   = '#F8F7F4';   // seção clara
-const GOLD    = '#C9A84C';
-const GOLD2   = '#E2C97E';
-const GOLD_BG = 'rgba(201,168,76,0.12)';
-const BORDER  = 'rgba(201,168,76,0.18)';
-const DARK    = '#09090B';
-const CARD    = '#161B27';
-const WHITE   = '#FFFFFF';
-const MUTED_D = '#8A8FA8';   // muted no dark
-const MUTED_L = '#6B7280';   // muted no light
-const ACCENT  = '#1C2333';   // card no dark
-
-const FEATURES = [
-  { icon: 'people-outline',      color: '#4A8FD4', label: 'Equipe',     desc: 'Colaboradores, cargos e histórico em um painel.' },
-  { icon: 'briefcase-outline',   color: '#C9A84C', label: 'Jurídico',   desc: 'Processos, OAB e prazos integrados ao RH.' },
-  { icon: 'calendar-outline',    color: '#2EBD7C', label: 'Agenda',     desc: 'Audiências, reuniões e prazos com alertas.' },
-  { icon: 'megaphone-outline',   color: '#9B72CF', label: 'Avisos',     desc: 'Comunicados fixados para toda a equipe.' },
-  { icon: 'umbrella-outline',    color: '#E8955A', label: 'Férias',     desc: 'Solicitações e aprovações de ausências.' },
-  { icon: 'sparkles-outline',    color: '#E05252', label: 'IA',         desc: 'Assistente inteligente responde em segundos.' },
-];
-
 export default function LoginScreen() {
   const { login } = useAuth();
-  const router    = useRouter();
+  const router = useRouter();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPass, setShowPass] = useState(false);
-  const [loading,  setLoading]  = useState(false);
-  const [error,    setError]    = useState('');
-
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://super-rh.vercel.app';
   const GOOGLE_SSO_ENABLED = !!process.env.EXPO_PUBLIC_GOOGLE_SSO;
 
   function handleGoogleLogin() {
-    const url = `${API_URL}/api/auth/google`;
+    const url = API_URL + '/api/auth/google';
     if (Platform.OS === 'web' && typeof window !== 'undefined') {
       window.location.href = url;
     } else {
@@ -57,7 +36,10 @@ export default function LoginScreen() {
   }
 
   async function handleLogin() {
-    if (!username.trim() || !password) { setError('Preencha usuário e senha.'); return; }
+    if (!username.trim() || !password) {
+      setError('Preencha usuário e senha.');
+      return;
+    }
     setLoading(true);
     setError('');
     try {
@@ -71,428 +53,131 @@ export default function LoginScreen() {
   }
 
   return (
-    <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-
-        {/* ══════════════════════════════════════════
-            HERO — fundo escuro azul-marinho
-        ══════════════════════════════════════════ */}
-        <View style={styles.hero}>
-
-          {/* Navbar */}
-          <View style={styles.nav}>
-            <Text style={styles.navBrand}>SuperRH</Text>
-            <View style={styles.navPill}>
-              <View style={styles.navDot} />
-              <Text style={styles.navStatus}>Online</Text>
+    <KeyboardAvoidingView style={loginStyles.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <ScrollView contentContainerStyle={loginStyles.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        <View style={loginStyles.shell}>
+          <View style={loginStyles.halo} pointerEvents="none" />
+          <View style={loginStyles.nav}>
+            <View>
+              <Text style={loginStyles.brand}>SuperRH</Text>
+              <Text style={loginStyles.brandSub}>GESTÃO DE PESSOAS</Text>
+            </View>
+            <View style={loginStyles.status}>
+              <View style={loginStyles.statusDot} />
+              <Text style={loginStyles.statusText}>Acesso seguro</Text>
             </View>
           </View>
 
-          {/* Conteúdo hero */}
-          <View style={[styles.heroContent, isWide && styles.heroContentWide]}>
-            <View style={styles.heroLeft}>
-              <View style={styles.heroBadge}>
-                <Text style={styles.heroBadgeText}>✦ GESTÃO JURÍDICA & RH</Text>
-              </View>
-
-              <Text style={styles.heroH1}>
-                Gerencie sua{'\n'}equipe com{'\n'}
-                <Text style={styles.heroH1Gold}>precisão.</Text>
-              </Text>
-
-              <Text style={styles.heroP}>
-                Plataforma completa para escritórios de advocacia e departamentos jurídicos gerenciarem pessoas, processos e prazos.
-              </Text>
-
-              <View style={styles.pillsRow}>
-                {['Processos', 'Colaboradores', 'Agenda', 'IA'].map(p => (
-                  <View key={p} style={styles.pill}>
-                    <Text style={styles.pillText}>{p}</Text>
-                  </View>
-                ))}
-              </View>
-            </View>
-
-            {/* Card flutuante decorativo */}
-            <View style={styles.heroRight}>
-              <View style={styles.floatCard}>
-                <View style={styles.floatCardHeader}>
-                  <View style={styles.floatAvatar}>
-                    <Text style={styles.floatAvatarText}>SR</Text>
-                  </View>
-                  <View>
-                    <Text style={styles.floatName}>SuperRH</Text>
-                    <Text style={styles.floatRole}>Plataforma ativa</Text>
-                  </View>
-                  <View style={styles.floatBadge}>
-                    <Text style={styles.floatBadgeText}>PRO</Text>
-                  </View>
-                </View>
-                <View style={styles.floatDivider} />
-                {[
-                  { label: 'Colaboradores', value: '∞', icon: 'people' },
-                  { label: 'Processos',     value: '∞', icon: 'briefcase' },
-                  { label: 'IA Ativa',      value: 'Sim', icon: 'sparkles' },
-                ].map(item => (
-                  <View key={item.label} style={styles.floatRow}>
-                    <Ionicons name={item.icon as any} size={14} color={GOLD} />
-                    <Text style={styles.floatRowLabel}>{item.label}</Text>
-                    <Text style={styles.floatRowValue}>{item.value}</Text>
-                  </View>
-                ))}
-              </View>
-            </View>
-          </View>
-        </View>
-
-        {/* ══════════════════════════════════════════
-            FEATURES — fundo claro
-        ══════════════════════════════════════════ */}
-        <View style={styles.featSection}>
-          <Text style={styles.featEyebrow}>FUNCIONALIDADES</Text>
-          <Text style={styles.featTitle}>Tudo que seu escritório precisa</Text>
-          <Text style={styles.featSub}>Módulos integrados para gestão completa de pessoas e processos jurídicos.</Text>
-
-          <View style={styles.featGrid}>
-            {FEATURES.map(f => (
-              <View key={f.label} style={styles.featCard}>
-                <View style={[styles.featIconBox, { backgroundColor: `${f.color}18`, borderColor: `${f.color}30` }]}>
-                  <Ionicons name={f.icon as any} size={22} color={f.color} />
-                </View>
-                <Text style={styles.featLabel}>{f.label}</Text>
-                <Text style={styles.featDesc}>{f.desc}</Text>
-              </View>
-            ))}
-          </View>
-        </View>
-
-        {/* ══════════════════════════════════════════
-            LOGIN — fundo escuro com card central
-        ══════════════════════════════════════════ */}
-        <View style={styles.loginSection}>
-          <View style={styles.loginWrap}>
-
-            {/* Lado esquerdo (só no desktop) */}
-            {isWide && (
-              <View style={styles.loginLeft}>
-                <Text style={styles.loginLeftTitle}>
-                  Acesso{'\n'}seguro e{'\n'}
-                  <Text style={{ color: GOLD }}>rápido.</Text>
-                </Text>
-                <Text style={styles.loginLeftSub}>
-                  Login por credenciais com autenticação JWT. Seus dados protegidos.
-                </Text>
-                <View style={styles.loginFeats}>
-                  {['Autenticação JWT', 'Criptografia bcrypt', 'Sessão segura'].map(f => (
-                    <View key={f} style={styles.loginFeatRow}>
-                      <Ionicons name="checkmark-circle" size={16} color={GOLD} />
-                      <Text style={styles.loginFeatText}>{f}</Text>
+          <View style={[loginStyles.content, isWide && loginStyles.contentWide]}>
+            {isWide ? (
+              <View style={loginStyles.intro}>
+                <Text style={loginStyles.eyebrow}>GESTÃO JURÍDICA E RH</Text>
+                <Text style={loginStyles.title}>Pessoas bem cuidadas, trabalho bem conduzido.</Text>
+                <Text style={loginStyles.description}>Centralize equipe, agenda, férias e comunicados em uma experiência organizada e tranquila.</Text>
+                <View style={loginStyles.valueList}>
+                  {['Dados protegidos', 'Acesso por perfil', 'Visão completa da equipe'].map(value => (
+                    <View key={value} style={loginStyles.valueRow}>
+                      <Ionicons name="checkmark-circle" size={18} color={theme.success} />
+                      <Text style={loginStyles.valueText}>{value}</Text>
                     </View>
                   ))}
                 </View>
               </View>
-            )}
+            ) : null}
 
-            {/* Formulário */}
-            <View style={styles.loginCard}>
-              <View style={styles.loginCardHeader}>
-                <View style={styles.loginSeal}>
-                  <Text style={{ fontSize: 20 }}>⚖</Text>
-                </View>
-                <View>
-                  <Text style={styles.loginCardTitle}>Entrar no SuperRH</Text>
-                  <Text style={styles.loginCardSub}>Use suas credenciais de acesso</Text>
-                </View>
-              </View>
+            <Card style={loginStyles.card}>
+              <Text style={loginStyles.formEyebrow}>BEM-VINDO</Text>
+              <Text style={loginStyles.formTitle}>Entre no SuperRH</Text>
+              <Text style={loginStyles.formSubtitle}>Use suas credenciais para continuar.</Text>
 
               {error ? (
-                <View style={styles.errorBox}>
-                  <Ionicons name="alert-circle-outline" size={15} color="#E05252" />
-                  <Text style={styles.errorText}>{error}</Text>
+                <View style={loginStyles.errorBox}>
+                  <Ionicons name="alert-circle-outline" size={18} color={theme.danger} />
+                  <Text style={loginStyles.errorText}>{error}</Text>
                 </View>
               ) : null}
 
-              <Text style={styles.inputLabel}>USUÁRIO</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="seu.usuario"
-                placeholderTextColor={MUTED_D}
-                value={username}
-                onChangeText={setUsername}
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-
-              <Text style={styles.inputLabel}>SENHA</Text>
-              <View style={styles.passRow}>
-                <TextInput
-                  style={[styles.input, { flex: 1, marginBottom: 0 }]}
-                  placeholder="••••••••"
-                  placeholderTextColor={MUTED_D}
+              <View style={loginStyles.fields}>
+                <Input
+                  label="Usuário"
+                  placeholder="seu.usuario"
+                  value={username}
+                  onChangeText={setUsername}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  autoComplete="username"
+                  returnKeyType="next"
+                />
+                <Input
+                  label="Senha"
+                  placeholder="Digite sua senha"
                   value={password}
                   onChangeText={setPassword}
                   secureTextEntry={!showPass}
+                  autoComplete="current-password"
+                  returnKeyType="go"
+                  onSubmitEditing={handleLogin}
+                  rightAccessory={
+                    <TouchableOpacity
+                      accessibilityRole="button"
+                      accessibilityLabel={showPass ? 'Ocultar senha' : 'Mostrar senha'}
+                      onPress={() => setShowPass(value => !value)}
+                      style={loginStyles.eyeButton}
+                    >
+                      <Ionicons name={showPass ? 'eye-off-outline' : 'eye-outline'} size={20} color={theme.textMuted} />
+                    </TouchableOpacity>
+                  }
                 />
-                <TouchableOpacity style={styles.eyeBtn} onPress={() => setShowPass(v => !v)}>
-                  <Ionicons name={showPass ? 'eye-off-outline' : 'eye-outline'} size={18} color={MUTED_D} />
-                </TouchableOpacity>
               </View>
 
-              <TouchableOpacity
-                style={[styles.loginBtn, loading && { opacity: 0.7 }]}
-                onPress={handleLogin}
-                disabled={loading}
-                activeOpacity={0.85}
-              >
-                {loading
-                  ? <ActivityIndicator color="#000" />
-                  : <Text style={styles.loginBtnText}>Entrar na plataforma</Text>
-                }
-              </TouchableOpacity>
-
-              {GOOGLE_SSO_ENABLED && (
-                <>
-                  <View style={styles.dividerRow}>
-                    <View style={styles.dividerLine} />
-                    <Text style={styles.dividerText}>ou</Text>
-                    <View style={styles.dividerLine} />
-                  </View>
-                  <TouchableOpacity
-                    style={styles.googleBtn}
-                    onPress={handleGoogleLogin}
-                    activeOpacity={0.85}
-                  >
-                    <Text style={styles.googleIcon}>G</Text>
-                    <Text style={styles.googleBtnText}>Entrar com Google</Text>
-                  </TouchableOpacity>
-                </>
-              )}
-            </View>
+              <Button label="Entrar na plataforma" onPress={handleLogin} loading={loading} style={loginStyles.submit} />
+              {GOOGLE_SSO_ENABLED ? (
+                <View style={loginStyles.sso}>
+                  <View style={loginStyles.divider}><View style={loginStyles.line} /><Text style={loginStyles.dividerText}>ou</Text><View style={loginStyles.line} /></View>
+                  <Button label="Entrar com Google" icon="logo-google" variant="secondary" onPress={handleGoogleLogin} />
+                </View>
+              ) : null}
+            </Card>
           </View>
+          <Text style={loginStyles.footer}>© 2026 SuperRH · Plataforma de Gestão Jurídica e RH</Text>
         </View>
-
-        {/* ══════════════════════════════════════════
-            FOOTER
-        ══════════════════════════════════════════ */}
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>© 2026 SuperRH · Plataforma de Gestão Jurídica e RH</Text>
-        </View>
-
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
-const styles = StyleSheet.create({
-  root:   { flex: 1, backgroundColor: NAVY },
+const loginStyles = StyleSheet.create({
+  root: { backgroundColor: theme.bg, flex: 1 },
   scroll: { flexGrow: 1 },
-
-  // ── Navbar
-  nav: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: isWide ? 64 : 20, paddingTop: 20, paddingBottom: 12,
-  },
-  navBrand: { fontSize: 20, fontWeight: '800', color: WHITE, letterSpacing: 0.5 },
-  navPill:  {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: 'rgba(46,189,124,0.12)', borderWidth: 1,
-    borderColor: 'rgba(46,189,124,0.25)', borderRadius: 999,
-    paddingHorizontal: 10, paddingVertical: 5,
-  },
-  navDot:    { width: 6, height: 6, borderRadius: 3, backgroundColor: '#2EBD7C' },
-  navStatus: { fontSize: 11, color: '#2EBD7C', fontWeight: '600' },
-
-  // ── Hero
-  hero: {
-    backgroundColor: NAVY,
-    paddingBottom: 64,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.06)',
-  },
-  heroContent: {
-    paddingHorizontal: isWide ? 64 : 20,
-    paddingTop: 40,
-    flexDirection: 'column',
-    gap: 40,
-  },
-  heroContentWide: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  heroLeft: { flex: isWide ? 1 : undefined, maxWidth: isWide ? 560 : undefined },
-
-  heroBadge: {
-    backgroundColor: GOLD_BG, borderWidth: 1, borderColor: BORDER,
-    borderRadius: 999, paddingHorizontal: 14, paddingVertical: 7,
-    alignSelf: 'flex-start', marginBottom: 24,
-  },
-  heroBadgeText: { fontSize: 10, fontWeight: '700', color: GOLD2, letterSpacing: 2 },
-
-  heroH1: {
-    fontSize: isWide ? 56 : 40,
-    fontWeight: '900',
-    color: WHITE,
-    lineHeight: isWide ? 66 : 50,
-    marginBottom: 20,
-    letterSpacing: -1,
-  },
-  heroH1Gold: { color: GOLD },
-
-  heroP: {
-    fontSize: 16, color: MUTED_D, lineHeight: 26,
-    marginBottom: 28, maxWidth: 480,
-  },
-
-  pillsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  pill: {
-    backgroundColor: ACCENT, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
-    borderRadius: 999, paddingHorizontal: 14, paddingVertical: 7,
-  },
-  pillText: { fontSize: 12, color: '#CBD5E1', fontWeight: '500' },
-
-  // Float card
-  heroRight: { alignItems: isWide ? 'flex-end' : 'flex-start' },
-  floatCard: {
-    backgroundColor: CARD, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
-    borderRadius: 16, padding: 20, width: isWide ? 260 : '100%',
-    shadowColor: '#000', shadowOpacity: 0.4, shadowRadius: 20, shadowOffset: { width: 0, height: 8 },
-  },
-  floatCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 16 },
-  floatAvatar: {
-    width: 38, height: 38, borderRadius: 19,
-    backgroundColor: GOLD_BG, borderWidth: 1, borderColor: BORDER,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  floatAvatarText: { fontSize: 12, fontWeight: '700', color: GOLD },
-  floatName:       { fontSize: 13, fontWeight: '700', color: WHITE },
-  floatRole:       { fontSize: 11, color: MUTED_D },
-  floatBadge: {
-    marginLeft: 'auto', backgroundColor: GOLD_BG, borderWidth: 1, borderColor: BORDER,
-    borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3,
-  },
-  floatBadgeText: { fontSize: 10, fontWeight: '700', color: GOLD },
-  floatDivider:   { height: 1, backgroundColor: 'rgba(255,255,255,0.06)', marginBottom: 14 },
-  floatRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    paddingVertical: 7, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.04)',
-  },
-  floatRowLabel: { flex: 1, fontSize: 12, color: MUTED_D },
-  floatRowValue: { fontSize: 12, fontWeight: '700', color: WHITE },
-
-  // ── Features (fundo CLARO)
-  featSection: {
-    backgroundColor: LIGHT,
-    paddingHorizontal: isWide ? 64 : 20,
-    paddingVertical: 64,
-  },
-  featEyebrow: {
-    fontSize: 10, fontWeight: '800', color: GOLD,
-    letterSpacing: 2.5, marginBottom: 10,
-  },
-  featTitle: {
-    fontSize: isWide ? 36 : 26, fontWeight: '800',
-    color: '#0B0F1A', marginBottom: 12, letterSpacing: -0.5,
-  },
-  featSub: {
-    fontSize: 15, color: MUTED_L, lineHeight: 24,
-    marginBottom: 40, maxWidth: 500,
-  },
-  featGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 16 },
-  featCard: {
-    backgroundColor: WHITE, borderWidth: 1, borderColor: '#E5E7EB',
-    borderRadius: 14, padding: 22,
-    width: isWide ? '30%' : '46%', flexGrow: 1,
-    shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 8, shadowOffset: { width: 0, height: 2 },
-  },
-  featIconBox: {
-    width: 44, height: 44, borderRadius: 12,
-    borderWidth: 1, alignItems: 'center', justifyContent: 'center',
-    marginBottom: 14,
-  },
-  featLabel: { fontSize: 14, fontWeight: '700', color: '#111827', marginBottom: 6 },
-  featDesc:  { fontSize: 12, color: MUTED_L, lineHeight: 18 },
-
-  // ── Login (fundo escuro)
-  loginSection: {
-    backgroundColor: NAVY2,
-    paddingHorizontal: isWide ? 64 : 20,
-    paddingVertical: 64,
-    borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.06)',
-  },
-  loginWrap: {
-    flexDirection: isWide ? 'row' : 'column',
-    alignItems: isWide ? 'center' : 'stretch',
-    gap: 48, maxWidth: 900, alignSelf: 'center', width: '100%',
-  },
-  loginLeft: { flex: 1 },
-  loginLeftTitle: {
-    fontSize: isWide ? 44 : 30, fontWeight: '900',
-    color: WHITE, lineHeight: isWide ? 54 : 38,
-    marginBottom: 16, letterSpacing: -0.5,
-  },
-  loginLeftSub: { fontSize: 15, color: MUTED_D, lineHeight: 24, marginBottom: 28 },
-  loginFeats: { gap: 12 },
-  loginFeatRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  loginFeatText: { fontSize: 14, color: '#CBD5E1' },
-
-  loginCard: {
-    backgroundColor: CARD, borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    borderRadius: 20, padding: 32,
-    flex: isWide ? 1 : undefined, maxWidth: isWide ? 420 : undefined,
-  },
-  loginCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 24 },
-  loginSeal: {
-    width: 48, height: 48, borderRadius: 24,
-    backgroundColor: GOLD_BG, borderWidth: 1.5, borderColor: BORDER,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  loginCardTitle: { fontSize: 18, fontWeight: '800', color: WHITE },
-  loginCardSub:   { fontSize: 12, color: MUTED_D, marginTop: 2 },
-
-  errorBox: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: 'rgba(224,82,82,0.10)',
-    borderWidth: 1, borderColor: 'rgba(224,82,82,0.25)',
-    borderRadius: 8, padding: 12, marginBottom: 16,
-  },
-  errorText: { color: '#E05252', fontSize: 13, flex: 1 },
-
-  inputLabel: {
-    fontSize: 10, fontWeight: '700', color: GOLD,
-    letterSpacing: 1.5, marginBottom: 6, marginTop: 16,
-  },
-  input: {
-    backgroundColor: NAVY, borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.10)',
-    borderRadius: 10, padding: 14,
-    fontSize: 14, color: WHITE,
-  },
-  passRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  eyeBtn: {
-    padding: 14, backgroundColor: NAVY,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.10)', borderRadius: 10,
-  },
-  loginBtn: {
-    backgroundColor: GOLD, borderRadius: 10,
-    paddingVertical: 15, alignItems: 'center', marginTop: 24,
-  },
-  loginBtnText: { color: '#000', fontWeight: '800', fontSize: 15 },
-
-  dividerRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginVertical: 16 },
-  dividerLine: { flex: 1, height: 1, backgroundColor: 'rgba(255,255,255,0.08)' },
-  dividerText: { fontSize: 11, color: MUTED_D },
-
-  googleBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)',
-    borderRadius: 10, paddingVertical: 13,
-  },
-  googleIcon:    { fontSize: 16, fontWeight: '900', color: WHITE },
-  googleBtnText: { color: WHITE, fontWeight: '600', fontSize: 14 },
-
-  // ── Footer
-  footer: {
-    backgroundColor: DARK, paddingVertical: 20, alignItems: 'center',
-    borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.04)',
-  },
-  footerText: { fontSize: 11, color: '#4B5563', letterSpacing: 0.3 },
+  shell: { flex: 1, justifyContent: 'space-between', minHeight: '100%', overflow: 'hidden', paddingBottom: 24 },
+  halo: { backgroundColor: theme.goldPale, borderRadius: 320, height: 460, opacity: 0.62, position: 'absolute', right: -220, top: -250, width: 460 },
+  nav: { alignItems: 'center', borderBottomColor: theme.border, borderBottomWidth: 1, flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: isWide ? 64 : 24, paddingVertical: 20 },
+  brand: { color: theme.textPrimary, fontFamily: fonts.display, fontSize: 30, lineHeight: 30 },
+  brandSub: { color: theme.gold, fontFamily: fonts.bold, fontSize: 10, letterSpacing: 1.2, marginTop: 3 },
+  status: { alignItems: 'center', backgroundColor: theme.successBackground, borderRadius: 99, flexDirection: 'row', gap: 6, paddingHorizontal: 10, paddingVertical: 6 },
+  statusDot: { backgroundColor: theme.success, borderRadius: 4, height: 7, width: 7 },
+  statusText: { color: theme.success, fontFamily: fonts.semibold, fontSize: 12 },
+  content: { flex: 1, justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 48 },
+  contentWide: { alignItems: 'center', alignSelf: 'center', flexDirection: 'row', gap: 80, maxWidth: 1080, width: '100%' },
+  intro: { flex: 1, maxWidth: 520 },
+  eyebrow: { color: theme.gold, fontFamily: fonts.bold, fontSize: 11, letterSpacing: 1.4, marginBottom: 10 },
+  title: { color: theme.textPrimary, fontFamily: fonts.display, fontSize: 52, lineHeight: 54 },
+  description: { color: theme.textSecondary, fontFamily: fonts.body, fontSize: 15, lineHeight: 23, marginTop: 16, maxWidth: 455 },
+  valueList: { gap: 12, marginTop: 28 },
+  valueRow: { alignItems: 'center', flexDirection: 'row', gap: 9 },
+  valueText: { color: theme.textPrimary, fontFamily: fonts.medium, fontSize: 14 },
+  card: { alignSelf: 'center', maxWidth: 410, padding: 28, width: '100%' },
+  formEyebrow: { color: theme.gold, fontFamily: fonts.bold, fontSize: 11, letterSpacing: 1.2 },
+  formTitle: { color: theme.textPrimary, fontFamily: fonts.display, fontSize: 34, lineHeight: 38, marginTop: 5 },
+  formSubtitle: { color: theme.textMuted, fontFamily: fonts.body, fontSize: 13, lineHeight: 19, marginTop: 4 },
+  fields: { gap: 14, marginTop: 24 },
+  eyeButton: { alignItems: 'center', height: 44, justifyContent: 'center', width: 44 },
+  errorBox: { alignItems: 'center', backgroundColor: theme.dangerBackground, borderRadius: 8, flexDirection: 'row', gap: 8, marginTop: 18, padding: 10 },
+  errorText: { color: theme.danger, flex: 1, fontFamily: fonts.medium, fontSize: 12, lineHeight: 17 },
+  submit: { marginTop: 22 },
+  sso: { marginTop: 20 },
+  divider: { alignItems: 'center', flexDirection: 'row', gap: 10, marginBottom: 14 },
+  line: { backgroundColor: theme.border, flex: 1, height: 1 },
+  dividerText: { color: theme.textMuted, fontFamily: fonts.body, fontSize: 12 },
+  footer: { color: theme.textMuted, fontFamily: fonts.body, fontSize: 12, paddingHorizontal: 24, paddingTop: 24, textAlign: 'center' },
 });

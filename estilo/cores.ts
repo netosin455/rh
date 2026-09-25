@@ -4,34 +4,50 @@
 // ============================================================
 
 export const theme = {
+  // Tokens semânticos para o tema claro. Prefira estes em componentes novos.
+  card: '#FFFFFF',
+  borderStrong: '#D8D0C0',
+  textPrimary: '#1A1A1A',
+  textSecondary: '#4D4D4D',
+  goldPale: '#F5EDD6',
+  onGold: '#1A1A1A',
+  successBackground: '#E6F0EA',
+  dangerBackground: '#F9ECE9',
+  warningBackground: '#F5EDD6',
+  infoBackground: '#E9F0F8',
+  sidebar: '#1A1A1A',
+  sidebarMuted: 'rgba(255,255,255,0.58)',
+  shadow: 'rgba(26,22,15,0.10)',
+  shadowStrong: 'rgba(26,22,15,0.14)',
+
   // ── Fundos ──────────────────────────────────────────────
-  bg:           '#0F1115',   // grafite profundo
-  surface:      '#181B21',   // card glassmorphism base
-  surface2:     '#1F2229',   // superfície elevada (modais)
-  surface3:     '#272B34',   // superfície mais elevada
+  bg:           '#F4F0EA',
+  surface:      '#FFFFFF',
+  surface2:     '#FFFFFF',
+  surface3:     '#F8F1DE',
 
   // ── Champagne Gold — metal precioso, uso esparso ─────────
-  gold:         '#D4AF37',   // champagne gold
-  goldLight:    '#E8CB6A',   // gold claro para texto
-  goldDim:      'rgba(212,175,55,0.12)', // toque sutil de gold
-  goldGlow:     'rgba(212,175,55,0.07)', // brilho quase imperceptível
+  gold:         '#B8973A',
+  goldLight:    '#D4AF5A',
+  goldDim:      'rgba(184,151,58,0.12)',
+  goldGlow:     'rgba(184,151,58,0.07)',
 
   // ── Bordas glass ────────────────────────────────────────
-  border:       'rgba(255,255,255,0.07)', // borda glass neutra
-  border2:      'rgba(212,175,55,0.28)',  // borda gold enfatizada
-  borderWhite:  'rgba(255,255,255,0.10)', // borda branca
+  border:       '#E7E1D6',
+  border2:      '#D8D0C0',
+  borderWhite:  '#E7E1D6',
 
   // ── Textos ──────────────────────────────────────────────
-  white:        '#FFFFFF',
-  text:         '#E5E7EB',   // off-white principal
-  textMuted:    '#6B7280',   // cinza médio
-  textLight:    '#9CA3AF',   // cinza claro
+  white:        '#1A1A1A',
+  text:         '#1A1A1A',
+  textMuted:    '#857F73',
+  textLight:    '#4D4D4D',
 
   // ── Status ──────────────────────────────────────────────
-  success:      '#34D399',
-  warning:      '#FBBF24',
-  danger:       '#F87171',
-  info:         '#60A5FA',
+  success:      '#3D7A5E',
+  warning:      '#B8973A',
+  danger:       '#A53A2F',
+  info:         '#2A5581',
 
   // ── Categorias jurídicas ─────────────────────────────────
   category: {
@@ -56,9 +72,9 @@ export const spacing = {
 
 // Border radius
 export const radius = {
-  sm: 6,
-  md: 10,
-  lg: 14,
+  sm: 8,
+  md: 12,
+  lg: 12,
   xl: 20,
   full: 999,
 } as const;

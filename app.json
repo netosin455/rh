@@ -5,15 +5,15 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "scheme": "superrh",
-    "userInterfaceStyle": "dark",
-    "backgroundColor": "#09090B",
+    "userInterfaceStyle": "light",
+    "backgroundColor": "#F4F0EA",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.superrh.app"
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#09090B"
+        "backgroundColor": "#F4F0EA"
       },
       "package": "com.superrh.app"
     },
@@ -23,9 +23,13 @@
     },
     "plugins": [
       "expo-router",
-      ["expo-notifications", {
-        "color": "#C9A84C"
-      }]
+      [
+        "expo-notifications",
+        {
+        "color": "#B8973A"
+        }
+      ],
+      "expo-font"
     ],
     "experiments": {
       "typedRoutes": true

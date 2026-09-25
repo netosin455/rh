@@ -6,6 +6,8 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import { useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import { useFonts, Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
+import { CormorantGaramond_600SemiBold } from '@expo-google-fonts/cormorant-garamond';
 import { AuthProvider, useAuth } from '../contextos/Autenticacao';
 import { ToastProvider } from '../contextos/Toast';
 import { PushProvider } from '../componentes/PushProvider';
@@ -73,11 +75,21 @@ function AuthGuard() {
 }
 
 export default function RootLayout() {
+  const [fontsLoaded] = useFonts({
+    Inter_400Regular,
+    Inter_500Medium,
+    Inter_600SemiBold,
+    Inter_700Bold,
+    CormorantGaramond_600SemiBold,
+  });
+
+  if (!fontsLoaded) return null;
+
   return (
     <AuthProvider>
       <ToastProvider>
         <PushProvider>
-          <StatusBar style="light" />
+          <StatusBar style="dark" />
           <AuthGuard />
         </PushProvider>
       </ToastProvider>

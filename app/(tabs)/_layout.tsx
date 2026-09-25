@@ -2,11 +2,12 @@
 // app/(tabs)/_layout.tsx — SuperRH
 // ============================================================
 import { Tabs } from 'expo-router';
-import { Platform, TouchableOpacity, View, Text, StyleSheet } from 'react-native';
+import { Platform, TouchableOpacity, View, Text, StyleSheet, useWindowDimensions } from 'react-native';
 
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contextos/Autenticacao';
 import { theme } from '../../estilo/cores';
+import { fonts } from '../../estilo/tipografia';
 import { useEffect, useState } from 'react';
 import { countPendentes } from '../../conexoes/ausencias';
 import { confirmAction } from '../../helpers/confirm';
@@ -22,13 +23,17 @@ const TABS = [
   { name: 'reconhecimentos', title: 'Kudos',     icon: 'trophy',           roles: null },
   { name: 'ia',            title: 'Assistente',  icon: 'sparkles',         roles: null },
   { name: 'admin',         title: 'Admin',       icon: 'shield-checkmark', roles: ['super_admin'] },
+  { name: 'mais',          title: 'Mais',        icon: 'ellipsis-horizontal-circle', roles: null },
 ] as const;
 
 const CAN_APPROVE = ['super_admin', 'admin', 'rh', 'adm', 'gestor'];
+const MOBILE_TABS = new Set(['index', 'colaboradores', 'agenda', 'ferias', 'mais']);
 
 export default function TabLayout() {
   const { user, logout } = useAuth();
+  const { width } = useWindowDimensions();
   const [pendentesCount, setPendentesCount] = useState(0);
+  const isWideWeb = Platform.OS === 'web' && width >= 960;
 
   useEffect(() => {
     if (!CAN_APPROVE.includes(user?.role ?? '')) return;
@@ -48,26 +53,22 @@ export default function TabLayout() {
     <Tabs
       screenOptions={{
         tabBarActiveTintColor:   theme.gold,
-        tabBarInactiveTintColor: '#555250',
-        tabBarStyle: {
-          backgroundColor: '#0C0E12',
-          borderTopWidth: 1,
-          borderTopColor: theme.border,
-          height: Platform.OS === 'ios' ? 80 : 62,
-          paddingBottom: Platform.OS === 'ios' ? 20 : 8,
-        },
-        tabBarLabelStyle: { fontSize: 9, fontWeight: '700', letterSpacing: 0.4 },
-        headerStyle: { backgroundColor: '#0C0E12', borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.07)' } as any,
-        headerTintColor: theme.gold,
+        tabBarInactiveTintColor: theme.sidebarMuted,
+        tabBarPosition: isWideWeb ? 'left' : 'bottom',
+        tabBarStyle: isWideWeb ? styles.sidebar : styles.mobileTabs,
+        tabBarItemStyle: isWideWeb ? styles.sidebarItem : styles.mobileItem,
+        tabBarLabelStyle: isWideWeb ? styles.sidebarLabel : styles.mobileLabel,
+        headerStyle: styles.header,
+        headerTintColor: theme.textPrimary,
         headerTitleStyle: {
-          fontWeight: '800', color: theme.white,
-          letterSpacing: 0.5, fontSize: 16,
+          fontFamily: fonts.display, color: theme.textPrimary,
+          fontSize: 24,
         },
         headerShadowVisible: false,
         headerLeft: () => null,
         headerRight: () => (
-          <TouchableOpacity onPress={handleLogout} style={{ marginRight: 16 }}>
-            <Ionicons name="log-out-outline" size={22} color={theme.gold} />
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="Sair da conta" onPress={handleLogout} style={styles.logout}>
+            <Ionicons name="log-out-outline" size={20} color={theme.gold} />
           </TouchableOpacity>
         ),
       }}
@@ -78,7 +79,11 @@ export default function TabLayout() {
           name={tab.name}
           options={{
             title: tab.title,
-            href: tab.roles && !tab.roles.includes(user?.role as any) ? null : undefined,
+            href: (tab.roles && !tab.roles.includes(user?.role as any))
+              || (!isWideWeb && !MOBILE_TABS.has(tab.name))
+              || (isWideWeb && tab.name === 'mais')
+              ? null
+              : undefined,
             tabBarIcon: ({ color, focused }) => (
               <View>
                 <Ionicons
@@ -108,5 +113,16 @@ const badgeStyles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
     paddingHorizontal: 2,
   },
-  text: { fontSize: 9, color: '#fff', fontWeight: '800' },
+  text: { fontFamily: fonts.bold, fontSize: 10, color: theme.card },
+});
+
+const styles = StyleSheet.create({
+  header: { backgroundColor: theme.card, borderBottomColor: theme.border, borderBottomWidth: 1 },
+  logout: { alignItems: 'center', height: 44, justifyContent: 'center', marginRight: 12, width: 44 },
+  sidebar: { backgroundColor: theme.sidebar, borderRightColor: 'rgba(184,151,58,0.18)', borderRightWidth: 1, borderTopWidth: 0, paddingHorizontal: 10, paddingTop: 24, width: 232 },
+  sidebarItem: { borderRadius: 8, marginBottom: 4, minHeight: 46 },
+  sidebarLabel: { fontFamily: fonts.medium, fontSize: 12, marginTop: -2 },
+  mobileTabs: { backgroundColor: theme.card, borderTopColor: theme.border, borderTopWidth: 1, height: Platform.OS === 'ios' ? 82 : 66, paddingBottom: Platform.OS === 'ios' ? 20 : 8 },
+  mobileItem: { minHeight: 48 },
+  mobileLabel: { fontFamily: fonts.semibold, fontSize: 11, marginTop: 1 },
 });
