@@ -1,5 +1,17 @@
 # Changelog — SuperRH
 
+## [2026-09-28] — Kudos ganha notificação interna (canal grátis, sem depender de domínio de email)
+
+### Contexto
+- O Carlo pediu feedback por email pros colaboradores. Já estava implementado pro Kudos (reconhecimentos), mas o remetente padrão (`noreply@super-rh.vercel.app`) não pode ser verificado no Resend — `vercel.app` não é domínio do Carlo, e ele decidiu não comprar um domínio agora. Email continua no código, pronto pra ativar quando/se houver domínio.
+- Achado nessa investigação: hoje **nenhum dos 43 colaboradores tem `email` na ficha nem conta de login vinculada** — o gargalo real não é o canal de envio, é o cadastro. Notificação interna só alcança quem tem conta.
+
+### Adicionado
+- `POST /api/recognitions` agora também cria uma notificação interna (tabela `notifications`, tipo `reconhecimento` — já previsto no schema, nunca usado) para o colaborador, quando ele tem conta de usuário vinculada (`employees.user_id`). Aparece no sino, mesma cadência de férias/avisos. Falha na notificação nunca quebra a criação do Kudos (mesmo padrão do email).
+- 2 testes novos em `tests/recognitions.test.ts` (51 no total).
+
+Verificado: tsc, npm test (51/51), expo export --platform web, e o INSERT testado direto contra o banco de produção.
+
 ## [2026-09-28] — Bug crítico ativo: "Próximos eventos" sempre quebrava (500 mascarado de CORS)
 
 ### Corrigido

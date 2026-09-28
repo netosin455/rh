@@ -131,7 +131,7 @@ async function handleRecognitions(req: VercelRequest, res: VercelResponse, ctx: 
     // (sempre da mesma empresa do JWT). company_id nunca vem do body e um email de outra
     // empresa nunca é selecionado.
     const emp = await sql`
-      SELECT e.name, COALESCE(NULLIF(e.email, ''), u.email) AS email
+      SELECT e.name, COALESCE(NULLIF(e.email, ''), u.email) AS email, u.id AS user_id
       FROM employees e
       LEFT JOIN users u ON u.id = e.user_id AND u.company_id = e.company_id
       WHERE e.id = ${Number(to_employee_id)} AND e.company_id = ${ctx.company_id}
@@ -144,10 +144,21 @@ async function handleRecognitions(req: VercelRequest, res: VercelResponse, ctx: 
       VALUES (${ctx.company_id}, ${ctx.sub}, ${ctx.name}, ${Number(to_employee_id)}, ${emp[0].name as string}, ${message.trim()}, ${category})
       RETURNING *
     `;
-    // O reconhecimento já existe neste ponto. Email é efeito colateral: qualquer
-    // falha é registrada, mas nunca altera a resposta de criação.
+    // O reconhecimento já existe neste ponto. Email e notificação são efeito colateral:
+    // qualquer falha é registrada, mas nunca altera a resposta de criação.
+    const recipient = emp[0] as { name: string; email?: string | null; user_id?: number | null };
+
+    if (recipient.user_id) {
+      await sql`
+        INSERT INTO notifications (company_id, user_id, title, body, type, route)
+        VALUES (${ctx.company_id}, ${recipient.user_id}, ${'🏆 Você recebeu um reconhecimento'}, ${`${ctx.name}: "${message.trim()}"`}, 'reconhecimento', '/(tabs)/reconhecimentos')
+      `.catch((error: unknown) => {
+        const detail = error instanceof Error ? error.message : 'erro desconhecido';
+        console.error(`[recognitions/notification] company=${ctx.company_id} employee=${Number(to_employee_id)}: ${detail}`);
+      });
+    }
+
     try {
-      const recipient = emp[0] as { name: string; email?: string | null };
       const email = buildRecognitionEmail({
         employeeName: recipient.name,
         senderName: ctx.name,
