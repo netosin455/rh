@@ -19,7 +19,6 @@ import { Avatar } from '../../componentes/Avatar';
 import { Button } from '../../componentes/Button';
 import { EmptyState } from '../../componentes/EmptyState';
 import { Input } from '../../componentes/Input';
-import { ListRow } from '../../componentes/ListRow';
 import { Modal } from '../../componentes/Modal';
 import { ScreenHeader } from '../../componentes/ScreenHeader';
 import { Skeleton } from '../../componentes/Skeleton';
@@ -289,50 +288,60 @@ export default function ColaboradoresScreen() {
           />
         ) : (
           filtered.map(emp => (
-            <ListRow
-              accessibilityLabel={`Abrir perfil de ${emp.name}`}
-              description={emp.oab_number ? `${emp.role_title} · OAB ${emp.oab_number}` : emp.role_title}
-              key={emp.id}
-              leading={<Avatar name={emp.name} />}
-              onPress={() => router.push(`/colaborador/${emp.id}` as any)}
-              title={emp.name}
-              trailing={
-                <View style={styles.trailing}>
-                  <StatusPill label={STATUS_LABELS[emp.status]} status={employeeStatusTone(emp.status)} />
-                  {canManageEmployees && (
-                    <View style={styles.quickActionsRow}>
-                      <Pressable
-                        accessibilityLabel={`Registrar falta hoje para ${emp.name}`}
-                        accessibilityRole="button"
-                        hitSlop={espaco.xs}
-                        onPress={() => openQuickModal(emp, 'falta')}
-                        style={styles.quickActionBtn}
-                      >
-                        <Ionicons color={cores.status.erro.forte} name="close-circle-outline" size={tamanho.iconePequeno} />
-                      </Pressable>
-                      <Pressable
-                        accessibilityLabel={`Registrar folga hoje para ${emp.name}`}
-                        accessibilityRole="button"
-                        hitSlop={espaco.xs}
-                        onPress={() => openQuickModal(emp, 'folga')}
-                        style={styles.quickActionBtn}
-                      >
-                        <Ionicons color={cores.accent.douradoProfundo} name="time-outline" size={tamanho.iconePequeno} />
-                      </Pressable>
-                      <Pressable
-                        accessibilityLabel={`Creditar horas no banco de ${emp.name}`}
-                        accessibilityRole="button"
-                        hitSlop={espaco.xs}
-                        onPress={() => openQuickModal(emp, 'credito')}
-                        style={styles.quickActionBtn}
-                      >
-                        <Ionicons color={cores.status.sucesso.forte} name="add-circle-outline" size={tamanho.iconePequeno} />
-                      </Pressable>
-                    </View>
-                  )}
+            // Sem ListRow aqui de propósito: as ações rápidas do trailing são botões
+            // próprios, e ListRow com onPress embrulha tudo (incluindo o trailing) num
+            // <button>, o que aninhava botão dentro de botão (HTML inválido, quebra o
+            // clique e confunde leitor de tela). Só a área de navegação é pressionável.
+            <View key={emp.id} style={styles.row}>
+              <Pressable
+                accessibilityLabel={`Abrir perfil de ${emp.name}`}
+                accessibilityRole="button"
+                onPress={() => router.push(`/colaborador/${emp.id}` as any)}
+                style={styles.rowPress}
+              >
+                <Avatar name={emp.name} />
+                <View style={styles.rowCopy}>
+                  <Text style={styles.rowTitle}>{emp.name}</Text>
+                  <Text numberOfLines={2} style={styles.rowDescription}>
+                    {emp.oab_number ? `${emp.role_title} · OAB ${emp.oab_number}` : emp.role_title}
+                  </Text>
                 </View>
-              }
-            />
+              </Pressable>
+              <View style={styles.trailing}>
+                <StatusPill label={STATUS_LABELS[emp.status]} status={employeeStatusTone(emp.status)} />
+                {canManageEmployees && (
+                  <View style={styles.quickActionsRow}>
+                    <Pressable
+                      accessibilityLabel={`Registrar falta hoje para ${emp.name}`}
+                      accessibilityRole="button"
+                      hitSlop={espaco.xs}
+                      onPress={() => openQuickModal(emp, 'falta')}
+                      style={styles.quickActionBtn}
+                    >
+                      <Ionicons color={cores.status.erro.forte} name="close-circle-outline" size={tamanho.iconePequeno} />
+                    </Pressable>
+                    <Pressable
+                      accessibilityLabel={`Registrar folga hoje para ${emp.name}`}
+                      accessibilityRole="button"
+                      hitSlop={espaco.xs}
+                      onPress={() => openQuickModal(emp, 'folga')}
+                      style={styles.quickActionBtn}
+                    >
+                      <Ionicons color={cores.accent.douradoProfundo} name="time-outline" size={tamanho.iconePequeno} />
+                    </Pressable>
+                    <Pressable
+                      accessibilityLabel={`Creditar horas no banco de ${emp.name}`}
+                      accessibilityRole="button"
+                      hitSlop={espaco.xs}
+                      onPress={() => openQuickModal(emp, 'credito')}
+                      style={styles.quickActionBtn}
+                    >
+                      <Ionicons color={cores.status.sucesso.forte} name="add-circle-outline" size={tamanho.iconePequeno} />
+                    </Pressable>
+                  </View>
+                )}
+              </View>
+            </View>
           ))
         )}
         <View style={{ height: espaco.tela }} />
@@ -445,6 +454,11 @@ const styles = StyleSheet.create({
   countLabel: { ...tipografia.legenda, color: cores.texto.discreto },
 
   list: { flex: 1 },
+  row: { alignItems: 'center', borderBottomColor: cores.borda.sutil, borderBottomWidth: borda.fina, flexDirection: 'row', gap: espaco.md, minHeight: tamanho.toqueMinimo, paddingHorizontal: espaco.lg, paddingVertical: espaco.md },
+  rowPress: { alignItems: 'center', flex: 1, flexDirection: 'row', gap: espaco.md },
+  rowCopy: { flex: 1, gap: espaco.micro },
+  rowTitle: { ...tipografia.corpoForte, color: cores.texto.primario },
+  rowDescription: { ...tipografia.legenda, color: cores.texto.discreto },
   trailing: { alignItems: 'flex-end', gap: espaco.xs },
   quickActionsRow: { flexDirection: 'row', gap: espaco.xs },
   quickActionBtn: { alignItems: 'center', height: tamanho.toqueMinimo, justifyContent: 'center', width: tamanho.toqueMinimo },
