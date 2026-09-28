@@ -285,3 +285,15 @@
 
 ### Removido
 - Módulo de processos jurídicos (fora do escopo de RH)
+
+## [2026-09-28] — Redesign V2, telas de gestão
+
+### Alterado
+- `app/(tabs)/admin.tsx` — administração migrada para componentes e tokens V2, com estados de lista, criação/edição, exclusão e bloqueio de `super_admin` preservados.
+- `app/pesquisas/index.tsx` e `app/pesquisas/[id].tsx` — criação, listagem e resultados migrados para métricas, listas, modal e barras de progresso compartilhadas.
+- `app/onboarding/index.tsx` e `app/onboarding/[id].tsx` — processos e checklist migrados, preservando filtros, prazos, marcação de etapas e encerramento confirmado.
+- `app/colaborador/[id].tsx` — perfil, edição por papel, ausências, holerites e início de onboarding migrados para os componentes V2.
+
+### Qualidade
+- As telas migradas usam tokens sem hex/rgba locais, estados de carregamento/vazio/erro, foco via componentes compartilhados e motion funcional.
+- Validação por tela: `npx expo export --platform web` e `npm test` (48 testes aprovados).
