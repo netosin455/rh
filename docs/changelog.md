@@ -1,5 +1,15 @@
 # Changelog — SuperRH
 
+## [2026-09-28] - V2 polish: login com profundidade, sino duplicado, bug de eventos
+
+Resposta ao feedback do Carlo de que o login/dashboard não tinham comparação com o gerador de recibos. Auditei contra print real (não só estrutura) e corrigi 3 problemas concretos:
+
+1. **Login sem profundidade**: `BrandMark` ganhou variante `size="grande"` (só o login usa); halo dourado único atrás do cartão via `boxShadow` real (blur de verdade, web); sombra de profundidade no cartão.
+2. **Sino de notificação duplicado**: existia um na topbar do shell (sem contador) e outro no Dashboard (com contador). Unificado no shell, único dono, web largo e celular.
+3. **Bug crítico achado testando logado contra produção**: `GET /api/events?upcoming=true` sempre dava 500 (mascarado de erro de CORS no navegador). `events.date` é `text`, comparado sem cast contra `::date`. Corrigido e já em produção (`main`, 12:29) — pré-existente, não introduzido pelo V2.
+
+Verificado: tsc, npm test (49/49), expo export --platform web, e visualmente contra produção logado (Dashboard real: 43 colaboradores, eventos corretos, um só sino).
+
 ## [2026-09-28] - V2-F6d: Equipe (achado tardio, feito por mim)
 
 ### Corrigido
