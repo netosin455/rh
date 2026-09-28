@@ -1,5 +1,17 @@
 # Changelog — SuperRH
 
+## [2026-09-28] - V2-F6a: Férias, Agenda, Avisos, Reconhecimentos e Analytics
+
+### Alterado
+- As cinco telas passaram a compor a interface com tokens semânticos e componentes compartilhados (`ScreenHeader`, `Section`, `Card`, `Button`, `Input`, `Modal`, `ListRow`, `MetricCard`, `EmptyState`, `Skeleton`, `StatusPill`, `ProgressBar` e `Avatar` conforme o contexto).
+- Férias preserva aprovações, edição, exclusão, saldos e PDF; Agenda preserva calendário, aniversários, criação e ICS; Avisos preserva expansão, fixação e exclusão; Reconhecimentos preserva o fluxo em duas etapas e exclusão autorizada; Analytics preserva métricas, riscos, casos urgentes e atalhos.
+- Foram removidos `FadeInDown`, cartões locais duplicados, FABs e estilos com cores legadas dessas telas; a interação recebe feedback pelos componentes de motion e os controles mantêm rótulos acessíveis e foco web.
+
+### Verificado
+- Busca sem hex/rgba, `theme`, `eyebrow`, componentes legados e caracteres corrompidos nos cinco arquivos.
+- `npm test`: 48 testes aprovados em 11 arquivos após cada migração.
+- `npx expo export --platform web` executado após cada tela; as exportações concluídas geraram as 30 rotas web (com o aviso ambiental já conhecido de `EXPO_PUBLIC_API_URL` ausente).
+
 ## [2026-09-28] - V2-F5: Dashboard
 
 ### Alterado

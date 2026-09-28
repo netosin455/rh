@@ -2,25 +2,32 @@
 // app/(tabs)/avisos.tsx — Mural de Avisos
 // ============================================================
 
-import React, { useEffect, useState, useCallback } from 'react';
-import {
-  View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, ActivityIndicator, RefreshControl, Modal,
-  KeyboardAvoidingView, Platform, TextInput,
-} from 'react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import React, { useCallback, useEffect, useState } from 'react';
+import { KeyboardAvoidingView, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contextos/Autenticacao';
 import { getNotices, createNotice, pinNotice, deleteNotice } from '../../conexoes/avisos';
 import { Notice, CreateNoticeData, NoticePriority, NOTICE_PRIORITY_LABELS } from '../../tipos/modelos';
 import { useToast } from '../../contextos/Toast';
-import { theme } from '../../estilo/cores';
+import { cores } from '../../estilo/cores';
 import { confirmAction } from '../../helpers/confirm';
+import { Badge } from '../../componentes/Badge';
+import { Button } from '../../componentes/Button';
+import { Card } from '../../componentes/Card';
+import { EmptyState } from '../../componentes/EmptyState';
+import { Input } from '../../componentes/Input';
+import { ListRow } from '../../componentes/ListRow';
+import { Modal } from '../../componentes/Modal';
+import { ScreenHeader } from '../../componentes/ScreenHeader';
+import { Section } from '../../componentes/Section';
+import { Skeleton } from '../../componentes/Skeleton';
+import { borda, espaco, largura, raio, tamanho } from '../../estilo/espaco';
+import { tipografia } from '../../estilo/tipografia';
 
-const PRIORITY_COLORS: Record<NoticePriority, string> = {
-  normal:     theme.info,
-  importante: theme.warning,
-  urgente:    theme.danger,
+const priorityTone: Record<NoticePriority, 'gold' | 'danger' | 'info'> = {
+  normal: 'info',
+  importante: 'gold',
+  urgente: 'danger',
 };
 
 const PRIORITY_ICONS: Record<NoticePriority, keyof typeof Ionicons.glyphMap> = {
@@ -145,8 +152,12 @@ export default function AvisosScreen() {
 
   if (loading) {
     return (
-      <View style={styles.centered}>
-        <ActivityIndicator color={theme.gold} size="large" />
+      <View style={styles.container}>
+        <View style={styles.loadingContent}>
+          <Skeleton height={tamanho.tela} />
+          <Skeleton height={tamanho.tela} />
+          <Skeleton height={tamanho.tela} />
+        </View>
       </View>
     );
   }
@@ -157,330 +168,83 @@ export default function AvisosScreen() {
   return (
     <View style={styles.container}>
       <ScrollView
-        style={styles.list}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.gold} />}
+        contentContainerStyle={styles.content}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={cores.accent.dourado} />}
       >
+        <ScreenHeader title="Avisos" subtitle="Comunicados para manter toda a equipe informada." action={canManage ? <Button label="Novo aviso" icon="add" onPress={openModal} /> : undefined} />
         {notices.length === 0 ? (
-          <View style={styles.empty}>
-            <Ionicons name="megaphone-outline" size={44} color={theme.textMuted} />
-            <Text style={styles.emptyTitle}>Nenhum aviso publicado</Text>
-            {canManage && (
-              <Text style={styles.emptyText}>Toque em + para publicar um aviso</Text>
-            )}
-          </View>
+          <Card><EmptyState icon="megaphone-outline" title="Nenhum aviso publicado" description={canManage ? 'Publique o primeiro aviso para a equipe.' : 'Quando houver um comunicado, ele aparecerá aqui.'} action={canManage ? <Button label="Publicar aviso" icon="add" onPress={openModal} /> : undefined} /></Card>
         ) : (
           <>
             {pinned.length > 0 && (
-              <>
-                <View style={styles.sectionHeader}>
-                  <Ionicons name="pin" size={12} color={theme.gold} />
-                  <Text style={styles.sectionTitle}>Fixados</Text>
-                  <Text style={styles.sectionCount}>{pinned.length}</Text>
-                </View>
-                {pinned.map((n, i) => (
-                  <NoticeCard
-                    key={n.id} notice={n} index={i}
-                    expanded={expanded === n.id} canManage={canManage}
-                    onToggle={() => setExpanded(prev => prev === n.id ? null : n.id)}
-                    onPin={() => handlePin(n)}
-                    onDelete={() => handleDelete(n)}
-                  />
-                ))}
-              </>
+              <Section title="Fixados" description={`${pinned.length} aviso${pinned.length === 1 ? '' : 's'} prioritário${pinned.length === 1 ? '' : 's'}`}><View style={styles.noticeList}>{pinned.map((notice) => <NoticeRow key={notice.id} notice={notice} expanded={expanded === notice.id} canManage={canManage} onToggle={() => setExpanded((current) => current === notice.id ? null : notice.id)} onPin={() => handlePin(notice)} onDelete={() => handleDelete(notice)} />)}</View></Section>
             )}
 
             {unpinned.length > 0 && (
-              <>
-                {pinned.length > 0 && (
-                  <View style={styles.sectionHeader}>
-                    <Ionicons name="list-outline" size={12} color={theme.textMuted} />
-                    <Text style={[styles.sectionTitle, { color: theme.textMuted }]}>Todos os avisos</Text>
-                    <Text style={[styles.sectionCount, { color: theme.textMuted }]}>{unpinned.length}</Text>
-                  </View>
-                )}
-                {unpinned.map((n, i) => (
-                  <NoticeCard
-                    key={n.id} notice={n} index={i}
-                    expanded={expanded === n.id} canManage={canManage}
-                    onToggle={() => setExpanded(prev => prev === n.id ? null : n.id)}
-                    onPin={() => handlePin(n)}
-                    onDelete={() => handleDelete(n)}
-                  />
-                ))}
-              </>
+              <Section title={pinned.length > 0 ? 'Todos os avisos' : 'Avisos'} description={`${unpinned.length} comunicado${unpinned.length === 1 ? '' : 's'} publicado${unpinned.length === 1 ? '' : 's'}`}><View style={styles.noticeList}>{unpinned.map((notice) => <NoticeRow key={notice.id} notice={notice} expanded={expanded === notice.id} canManage={canManage} onToggle={() => setExpanded((current) => current === notice.id ? null : notice.id)} onPin={() => handlePin(notice)} onDelete={() => handleDelete(notice)} />)}</View></Section>
             )}
           </>
         )}
-        <View style={{ height: 80 }} />
       </ScrollView>
 
-      {canManage && (
-        <TouchableOpacity style={styles.fab} onPress={openModal} activeOpacity={0.85}>
-          <Ionicons name="add" size={26} color="#000" />
-        </TouchableOpacity>
-      )}
-
-      <Modal visible={showModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowModal(false)}>
-        <KeyboardAvoidingView style={styles.modal} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-          <View style={styles.modalHeader}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.modalTitle}>Novo Aviso</Text>
-              <Text style={styles.modalSubtitle}>Publicar para toda a equipe</Text>
-            </View>
-            <TouchableOpacity onPress={() => setShowModal(false)} style={styles.modalClose}>
-              <Ionicons name="close" size={20} color={theme.textMuted} />
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView style={styles.modalBody} keyboardShouldPersistTaps="handled">
-            <Text style={styles.label}>Título *</Text>
-            <TextInput style={styles.input} placeholder="Assunto do aviso" placeholderTextColor={theme.textMuted} value={form.title} onChangeText={v => setF('title', v)} />
-
-            <Text style={styles.label}>Conteúdo *</Text>
-            <TextInput
-              style={[styles.input, { height: 100, textAlignVertical: 'top' }]}
-              placeholder="Escreva o aviso aqui..."
-              placeholderTextColor={theme.textMuted}
-              value={form.body}
-              onChangeText={v => setF('body', v)}
-              multiline
-            />
-
-            <Text style={styles.label}>Prioridade</Text>
-            <View style={styles.chipGroup}>
-              {PRIORITY_OPTIONS.map(o => (
-                <TouchableOpacity
-                  key={o.key}
-                  style={[styles.chip, form.priority === o.key && styles.chipActive, form.priority === o.key && { borderColor: PRIORITY_COLORS[o.key] }]}
-                  onPress={() => setF('priority', o.key)}
-                >
-                  <Ionicons name={PRIORITY_ICONS[o.key]} size={12} color={form.priority === o.key ? PRIORITY_COLORS[o.key] : theme.textMuted} />
-                  <Text style={[styles.chipText, form.priority === o.key && { color: PRIORITY_COLORS[o.key] }]}>{o.label}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <Text style={styles.label}>Opções</Text>
-            <TouchableOpacity
-              style={[styles.toggleRow, form.pinned && styles.toggleRowActive]}
-              onPress={() => setF('pinned', !form.pinned)}
-            >
-              <Ionicons name={form.pinned ? 'pin' : 'pin-outline'} size={16} color={form.pinned ? theme.gold : theme.textMuted} />
-              <Text style={[styles.toggleText, form.pinned && styles.toggleTextActive]}>Fixar no topo</Text>
-              {form.pinned && <Ionicons name="checkmark" size={14} color={theme.gold} style={{ marginLeft: 'auto' }} />}
-            </TouchableOpacity>
-
-            <Text style={styles.label}>Válido até (AAAA-MM-DD)</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Ex: 2025-12-31 (deixe em branco para não expirar)"
-              placeholderTextColor={theme.textMuted}
-              value={form.expires_at}
-              onChangeText={v => setF('expires_at', v)}
-              keyboardType="numeric" maxLength={10}
-            />
-
-            <View style={{ height: 20 }} />
-          </ScrollView>
-
-          {formError ? (
-            <View style={styles.errorBox}>
-              <Ionicons name="alert-circle-outline" size={15} color={theme.danger} />
-              <Text style={styles.errorText}>{formError}</Text>
-            </View>
-          ) : null}
-
-          <View style={styles.modalFooter}>
-            <TouchableOpacity style={styles.btnCancel} onPress={() => setShowModal(false)}>
-              <Text style={styles.btnCancelText}>Cancelar</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.btnSave} onPress={handleSave} disabled={saving}>
-              {saving
-                ? <ActivityIndicator size="small" color="#000" />
-                : <Text style={styles.btnSaveText}>Publicar</Text>
-              }
-            </TouchableOpacity>
-          </View>
-        </KeyboardAvoidingView>
+      <Modal visible={showModal} title="Novo aviso" subtitle="Publicar para toda a equipe." onClose={() => setShowModal(false)} footer={<View style={styles.modalActions}><Button label="Cancelar" variant="secondary" onPress={() => setShowModal(false)} style={styles.actionButton} /><Button label="Publicar aviso" loading={saving} onPress={handleSave} style={styles.actionButton} /></View>}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}><ScrollView style={styles.modalScroll} contentContainerStyle={styles.formContent} keyboardShouldPersistTaps="handled">
+          <Input label="Título" placeholder="Assunto do aviso" value={form.title} onChangeText={(value) => setF('title', value)} error={formError && !form.title.trim() ? formError : undefined} />
+          <Input label="Conteúdo" placeholder="Escreva o aviso aqui" value={form.body} onChangeText={(value) => setF('body', value)} multiline numberOfLines={4} inputStyle={styles.textarea} error={formError && !form.body.trim() ? formError : undefined} />
+          <Section title="Prioridade"><View style={styles.optionGroup}>{PRIORITY_OPTIONS.map((option) => <Button key={option.key} label={option.label} icon={PRIORITY_ICONS[option.key]} variant={form.priority === option.key ? 'primary' : 'secondary'} accessibilityLabel={`Prioridade ${option.label}`} onPress={() => setF('priority', option.key)} />)}</View></Section>
+          <Section title="Opções"><Button label={form.pinned ? 'Fixado no topo' : 'Fixar no topo'} icon={form.pinned ? 'pin' : 'pin-outline'} variant={form.pinned ? 'primary' : 'secondary'} onPress={() => setF('pinned', !form.pinned)} /></Section>
+          <Input label="Válido até (AAAA-MM-DD)" placeholder="Deixe em branco para não expirar" value={form.expires_at} onChangeText={(value) => setF('expires_at', value)} keyboardType="numeric" maxLength={10} />
+          {formError ? <Card style={styles.errorCard}><View style={styles.errorContent}><Ionicons name="alert-circle-outline" size={tamanho.iconeMedio} color={cores.status.erro.forte} /><Text style={styles.errorText}>{formError}</Text></View></Card> : null}
+        </ScrollView></KeyboardAvoidingView>
       </Modal>
     </View>
   );
 }
 
-function NoticeCard({
-  notice, index, expanded, canManage, onToggle, onPin, onDelete,
+function NoticeRow({
+  notice, expanded, canManage, onToggle, onPin, onDelete,
 }: {
-  notice: Notice; index: number; expanded: boolean;
+  notice: Notice; expanded: boolean;
   canManage: boolean; onToggle: () => void; onPin: () => void; onDelete: () => void;
 }) {
-  const color = PRIORITY_COLORS[notice.priority];
-  const icon  = PRIORITY_ICONS[notice.priority];
-
   return (
-    <Animated.View entering={FadeInDown.delay(index * 50).duration(300)}>
-      <TouchableOpacity
-        style={[styles.noticeCard, notice.pinned && styles.noticePinned]}
+    <Card padded={false} style={notice.priority === 'urgente' ? styles.urgentNotice : undefined}>
+      <ListRow
+        title={notice.title}
+        description={`${NOTICE_PRIORITY_LABELS[notice.priority]} · ${notice.author_name ?? 'RH'} · ${timeAgo(notice.created_at)}`}
+        leading={<View style={styles.priorityIcon}><Ionicons name={PRIORITY_ICONS[notice.priority]} size={tamanho.iconeMedio} color={notice.priority === 'urgente' ? cores.status.erro.forte : notice.priority === 'importante' ? cores.accent.douradoProfundo : cores.status.informacao.forte} /></View>}
+        trailing={<View style={styles.noticeTrailing}><Badge label={NOTICE_PRIORITY_LABELS[notice.priority]} tone={priorityTone[notice.priority]} />{notice.pinned ? <Ionicons name="pin" size={tamanho.iconePequeno} color={cores.accent.douradoProfundo} /> : null}</View>}
         onPress={onToggle}
-        activeOpacity={0.8}
-      >
-        <View style={[styles.priorityBar, { backgroundColor: color }]} />
-        <View style={styles.noticeContent}>
-          <View style={styles.noticeTop}>
-            <View style={[styles.priorityBadge, { backgroundColor: `${color}18` }]}>
-              <Ionicons name={icon} size={11} color={color} />
-              <Text style={[styles.priorityLabel, { color }]}>
-                {NOTICE_PRIORITY_LABELS[notice.priority]}
-              </Text>
-            </View>
-            {notice.pinned && (
-              <Ionicons name="pin" size={11} color={theme.gold} />
-            )}
-            <Text style={styles.noticeTime}>{timeAgo(notice.created_at)}</Text>
-          </View>
-
-          <Text style={styles.noticeTitle}>{notice.title}</Text>
-
-          {expanded ? (
-            <Text style={styles.noticeBody}>{notice.body}</Text>
-          ) : (
-            <Text style={styles.noticeBodyPreview} numberOfLines={2}>{notice.body}</Text>
-          )}
-
-          <View style={styles.noticeFooter}>
-            <Text style={styles.noticeAuthor}>{notice.author_name ?? 'RH'}</Text>
-            <View style={styles.noticeRight}>
-              <Text style={[styles.expandHint, { color: expanded ? theme.textMuted : theme.gold }]}>
-                {expanded ? 'Recolher' : 'Ler mais'}
-              </Text>
-              {canManage && (
-                <View style={styles.noticeActions}>
-                  <TouchableOpacity onPress={onPin} style={styles.actionBtn}>
-                    <Ionicons name={notice.pinned ? 'pin' : 'pin-outline'} size={15} color={theme.textMuted} />
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={onDelete} style={styles.actionBtn}>
-                    <Ionicons name="trash-outline" size={15} color={theme.danger} />
-                  </TouchableOpacity>
-                </View>
-              )}
-            </View>
-          </View>
-        </View>
-      </TouchableOpacity>
-    </Animated.View>
+        accessibilityLabel={`${expanded ? 'Recolher' : 'Expandir'} aviso: ${notice.title}`}
+      />
+      <Text numberOfLines={expanded ? undefined : 2} style={styles.noticeBody}>{notice.body}</Text>
+      <View style={styles.noticeFooter}>
+        <Text style={styles.expandHint}>{expanded ? 'Recolher' : 'Ler mais'}</Text>
+        {canManage ? <View style={styles.noticeActions}><Button label={notice.pinned ? 'Desafixar' : 'Fixar'} icon={notice.pinned ? 'pin' : 'pin-outline'} variant="ghost" onPress={onPin} /><Button label="Excluir" icon="trash-outline" variant="danger" onPress={onDelete} /></View> : null}
+      </View>
+    </Card>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: theme.bg },
-  centered:  { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.bg },
-  list: { flex: 1 },
-
-  empty: { alignItems: 'center', paddingTop: 80, gap: 10 },
-  emptyTitle: { fontSize: 15, fontWeight: '600', color: theme.textLight },
-  emptyText:  { fontSize: 13, color: theme.textMuted },
-
-  sectionHeader: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingHorizontal: 16, paddingVertical: 10,
-    borderBottomWidth: 1, borderBottomColor: theme.border,
-    backgroundColor: theme.surface,
-  },
-  sectionTitle: { fontSize: 11, color: theme.gold, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', flex: 1 },
-  sectionCount: { fontSize: 11, color: theme.gold, fontWeight: '600', backgroundColor: theme.goldDim, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 10 },
-
-  noticeCard: {
-    flexDirection: 'row',
-    backgroundColor: 'rgba(24,27,33,0.92)',
-    borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.06)',
-  },
-  noticePinned:  { backgroundColor: theme.goldGlow },
-  priorityBar:   { width: 4 },
-  noticeContent: { flex: 1, padding: 14, gap: 6 },
-
-  noticeTop: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  priorityBadge: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    paddingHorizontal: 7, paddingVertical: 3, borderRadius: 5,
-  },
-  priorityLabel: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
-  noticeTime:    { fontSize: 10, color: theme.textMuted, marginLeft: 'auto' },
-
-  noticeTitle:       { fontSize: 14, fontWeight: '800', color: theme.white },
-  noticeBody:        { fontSize: 13, color: theme.white, lineHeight: 20 },
-  noticeBodyPreview: { fontSize: 13, color: theme.textLight, lineHeight: 18 },
-
-  noticeFooter:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 2 },
-  noticeAuthor:  { fontSize: 11, color: theme.textMuted },
-  noticeRight:   { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  expandHint:    { fontSize: 11, fontWeight: '600' },
-  noticeActions: { flexDirection: 'row', gap: 2 },
-  actionBtn:     { padding: 5 },
-
-  fab: {
-    position: 'absolute', bottom: 24, right: 20,
-    width: 54, height: 54, borderRadius: 27,
-    backgroundColor: theme.gold,
-    alignItems: 'center', justifyContent: 'center',
-    shadowColor: theme.gold, shadowOpacity: 0.5, shadowRadius: 14, shadowOffset: { width: 0, height: 4 },
-    elevation: 8,
-  },
-
-  modal:       { flex: 1, backgroundColor: theme.bg },
-  modalHeader: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start',
-    paddingHorizontal: 20, paddingVertical: 16,
-    borderBottomWidth: 1, borderBottomColor: theme.border,
-    backgroundColor: theme.surface,
-  },
-  modalTitle:    { fontSize: 17, fontWeight: '700', color: theme.white },
-  modalSubtitle: { fontSize: 12, color: theme.textMuted, marginTop: 2 },
-  modalClose:    { padding: 2 },
-  modalBody:     { flex: 1, paddingHorizontal: 20, paddingTop: 16 },
-
-  label: {
-    fontSize: 11, color: theme.textMuted, fontWeight: '600',
-    letterSpacing: 0.5, marginBottom: 6, marginTop: 14, textTransform: 'uppercase',
-  },
-  input: {
-    backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.border,
-    borderRadius: 8, paddingHorizontal: 14, paddingVertical: 11,
-    fontSize: 14, color: theme.text,
-  },
-  chipGroup: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingHorizontal: 12, paddingVertical: 7,
-    borderRadius: 20, borderWidth: 1, borderColor: theme.border,
-    backgroundColor: theme.surface,
-  },
-  chipActive:     { backgroundColor: theme.surface2 },
-  chipText:       { fontSize: 12, color: theme.textMuted, fontWeight: '500' },
-  chipTextActive: { color: theme.gold },
-
-  toggleRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    padding: 13, borderRadius: 8, borderWidth: 1, borderColor: theme.border,
-    backgroundColor: theme.surface,
-  },
-  toggleRowActive:  { backgroundColor: theme.goldGlow, borderColor: theme.border2 },
-  toggleText:       { fontSize: 13, color: theme.textMuted, flex: 1 },
-  toggleTextActive: { color: theme.gold },
-
-  errorBox: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: 'rgba(224,82,82,0.08)', borderTopWidth: 1, borderTopColor: 'rgba(224,82,82,0.2)',
-    paddingHorizontal: 20, paddingVertical: 10,
-  },
-  errorText: { fontSize: 13, color: theme.danger, flex: 1 },
-
-  modalFooter: {
-    flexDirection: 'row', gap: 10,
-    paddingHorizontal: 20, paddingVertical: 16,
-    borderTopWidth: 1, borderTopColor: theme.border,
-    backgroundColor: theme.surface,
-  },
-  btnCancel:     { flex: 1, paddingVertical: 12, borderRadius: 8, borderWidth: 1, borderColor: theme.border, alignItems: 'center' },
-  btnCancelText: { fontSize: 14, color: theme.textMuted, fontWeight: '600' },
-  btnSave:       { flex: 2, paddingVertical: 12, borderRadius: 8, backgroundColor: theme.gold, alignItems: 'center' },
-  btnSaveText:   { fontSize: 14, fontWeight: '700', color: '#000' },
+  container: { backgroundColor: cores.superficie.pagina, flex: 1 },
+  content: { gap: espaco.secao, padding: espaco.xl, paddingBottom: espaco.tela },
+  loadingContent: { gap: espaco.lg, padding: espaco.xl },
+  noticeList: { gap: espaco.sm },
+  urgentNotice: { backgroundColor: cores.status.erro.superficie, borderColor: cores.status.erro.borda },
+  priorityIcon: { alignItems: 'center', backgroundColor: cores.superficie.sutil, borderRadius: raio.pill, height: tamanho.avatarPequeno, justifyContent: 'center', width: tamanho.avatarPequeno },
+  noticeTrailing: { alignItems: 'flex-end', gap: espaco.xs },
+  noticeBody: { ...tipografia.corpo, color: cores.texto.secundario, marginHorizontal: espaco.md, marginBottom: espaco.md },
+  noticeFooter: { alignItems: 'center', borderTopColor: cores.borda.sutil, borderTopWidth: borda.fina, flexDirection: 'row', gap: espaco.md, justifyContent: 'space-between', padding: espaco.md },
+  expandHint: { ...tipografia.legenda, color: cores.texto.accentSobreClaro },
+  noticeActions: { flexDirection: 'row', gap: espaco.xs },
+  modalScroll: { maxHeight: largura.leitura },
+  formContent: { gap: espaco.xxl },
+  optionGroup: { flexDirection: 'row', flexWrap: 'wrap', gap: espaco.sm },
+  textarea: { minHeight: tamanho.toqueMinimo * 2, textAlignVertical: 'top' },
+  errorCard: { backgroundColor: cores.status.erro.superficie, borderColor: cores.status.erro.borda },
+  errorContent: { alignItems: 'center', flexDirection: 'row', gap: espaco.sm },
+  errorText: { ...tipografia.corpo, color: cores.status.erro.forte, flex: 1 },
+  modalActions: { flexDirection: 'row', gap: espaco.sm },
+  actionButton: { flex: 1 },
 });
