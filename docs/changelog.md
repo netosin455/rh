@@ -1,5 +1,12 @@
 # Changelog — SuperRH
 
+## [2026-09-28] — Aviso na tela de Kudos quando o colaborador não tem email
+
+### Adicionado
+- Ao escolher a pessoa e escrever a mensagem no Kudos, se ela não tem email cadastrado na ficha, aparece um aviso claro no modal: "não tem email cadastrado — o aviso só aparece pra ele(a) quando acessar o SuperRH". Não bloqueia a publicação, só avisa quem está dando o Kudos.
+
+Verificado: tsc, npm test (51/51), expo export --platform web.
+
 ## [2026-09-28] — Kudos ganha notificação interna (canal grátis, sem depender de domínio de email)
 
 ### Contexto
