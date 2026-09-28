@@ -3,7 +3,7 @@
 // ============================================================
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { KeyboardAvoidingView, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contextos/Autenticacao';
 import { getNotices, createNotice, pinNotice, deleteNotice } from '../../conexoes/avisos';
