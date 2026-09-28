@@ -90,7 +90,9 @@ export default function AdminScreen() {
   async function handleSave() {
     setModalError('');
     if (!form.name.trim())                                { setModalError('Informe o nome.'); return; }
-    if (!form.email.trim())                               { setModalError('Informe o email.'); return; }
+    // TEMPORÁRIO (pedido do Carlo, 2026-09-28): email so obrigatorio ao editar;
+    // ao criar, pode ficar em branco por enquanto (a API preenche um placeholder).
+    if (modalMode === 'edit' && !form.email.trim())        { setModalError('Informe o email.'); return; }
     if (modalMode === 'create' && !form.username.trim())  { setModalError('Informe o nome de usuário (usado no login).'); return; }
     if (modalMode === 'create' && !form.password)         { setModalError('Informe a senha.'); return; }
 

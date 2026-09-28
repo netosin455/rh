@@ -1,5 +1,17 @@
 # Changelog — SuperRH
 
+## [2026-09-28] — Bug crítico: criar conta de usuário sempre quebrava (500)
+
+### Corrigido
+- **`POST /api/users` (criar conta na Admin) sempre retornava 500.** A coluna `users.username` é `NOT NULL UNIQUE` no banco (usada no login) e já existia em produção, mas nunca tinha sido documentada em `banco/schema.sql` nem em `banco/migrations/`. O `INSERT` do endpoint nunca preenchia esse campo, mesmo o formulário da Admin já coletando e enviando `username` — toda criação de conta violava a constraint e caía num 500 sem explicação. Corrigido: `username` é normalizado (trim + minúsculas), validado e gravado; erro de duplicidade agora retorna 409 em vez de 500. Adicionada `banco/migrations/013_username_column.sql` (no-op em produção, documenta a coluna) e `username` foi incluído em `banco/schema.sql` e nas respostas de GET/PUT.
+- Achado durante depuração ao vivo com o Carlo (diagnóstico direto no banco de produção reproduzindo o INSERT do endpoint).
+
+### Alterado (temporário, a revisar)
+- **Email deixou de ser obrigatório ao criar conta de usuário** (pedido do Carlo, 2026-09-28). Sem email informado, a API gera um placeholder (`usuario@sememail.local`) — o campo continua `NOT NULL UNIQUE` no banco, então algo precisa preenchê-lo. Editar conta continua exigindo email. Revisar esse fluxo quando o requisito de email for definido.
+
+### Adicionado
+- 4 testes de regressão em `tests/users.test.ts` cobrindo: falta de username, normalização do username, placeholder de email, e email inválido quando informado.
+
 ## [2026-09-25] — RH-002 Auditoria de lógica e RH-003 Email de feedback
 
 ### Corrigido
