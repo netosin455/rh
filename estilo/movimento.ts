@@ -6,7 +6,7 @@ export const movimento = {
     instant: 100,
     fast: 140,
     normal: 200,
-    estrutural: 280,
+    estrutural: 260,
   },
   curva: {
     entrada: Easing.out(Easing.cubic),
