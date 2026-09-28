@@ -11,6 +11,13 @@
 - `npx expo export --platform web` concluido.
 - `npm test`: 44 testes aprovados em 11 arquivos.
 
+## [2026-09-28] - V2-F4: Login V2
+
+### Alterado
+
+- `app/login.tsx`: login redesenhado como um cartão central em fundo grafite liso, usando somente `BrandMark`, `Input` e `Button` compartilhados e os tokens do sistema.
+- Removidos o gradiente, halos, `Field` local e valores de cor locais; foco dos campos, erro inline, confirmação breve de sucesso e entrada curta respeitando redução de movimento ficaram padronizados.
+
 ## [2026-09-28] - V2-F1F2: sistema de design e motion
 
 ### Adicionado
