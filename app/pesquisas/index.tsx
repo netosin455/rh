@@ -2,20 +2,30 @@
 // app/pesquisas/index.tsx — Lista + Criar pesquisas de pulso
 // ============================================================
 
-import React, { useEffect, useState, useCallback } from 'react';
-import {
-  View, Text, ScrollView, TouchableOpacity, TextInput,
-  StyleSheet, ActivityIndicator, RefreshControl,
-  Share, Switch, Platform,
-} from 'react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
-import { Ionicons } from '@expo/vector-icons';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { KeyboardAvoidingView, Platform, RefreshControl, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
+import Animated, { FadeIn } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import { getSurveys, createSurvey, deleteSurvey } from '../../conexoes/pesquisas';
 import { confirmAction } from '../../helpers/confirm';
 import { PulseSurvey, CreateSurveyData } from '../../tipos/modelos';
-import { theme } from '../../estilo/cores';
 import { useToast } from '../../contextos/Toast';
+import { Badge } from '../../componentes/Badge';
+import { Button } from '../../componentes/Button';
+import { Card } from '../../componentes/Card';
+import { EmptyState } from '../../componentes/EmptyState';
+import { Input } from '../../componentes/Input';
+import { ListRow } from '../../componentes/ListRow';
+import { MetricCard } from '../../componentes/MetricCard';
+import { Modal } from '../../componentes/Modal';
+import { ScreenHeader } from '../../componentes/ScreenHeader';
+import { Section } from '../../componentes/Section';
+import { Skeleton } from '../../componentes/Skeleton';
+import { StatusPill } from '../../componentes/StatusPill';
+import { cores } from '../../estilo/cores';
+import { espaco } from '../../estilo/espaco';
+import { tipografia } from '../../estilo/tipografia';
+import { useMotion } from '../../estilo/movimento';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? '';
 
@@ -39,28 +49,44 @@ function daysLeft(expires_at: string | null | undefined) {
 export default function PesquisasScreen() {
   const router = useRouter();
   const toast  = useToast();
+  const motion = useMotion();
   const [surveys,    setSurveys]    = useState<PulseSurvey[]>([]);
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadError,  setLoadError]  = useState('');
   const [showForm,   setShowForm]   = useState(false);
   const [saving,     setSaving]     = useState(false);
   const [form,       setForm]       = useState<CreateSurveyData>(EMPTY);
   const [optionText, setOptionText] = useState('');
+  const [latestCreatedId, setLatestCreatedId] = useState<number | null>(null);
+
+  const activeSurveyCount = surveys.filter((survey) => !survey.expires_at || new Date(survey.expires_at) >= new Date()).length;
+  const newSurveyEntering = useMemo(
+    () => FadeIn.duration(motion.duracao('normal')),
+    [motion],
+  );
 
   const load = useCallback(async () => {
+    setLoadError('');
     try {
       setSurveys(await getSurveys());
-    } catch (e: any) {
-      toast.error(e?.message ?? 'Não foi possível carregar pesquisas');
+    } catch (error: any) {
+      const message = error?.message ?? 'Não foi possível carregar pesquisas';
+      setLoadError(message);
+      toast.error(message);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [toast]);
 
   useEffect(() => { load(); }, [load]);
 
   const onRefresh = () => { setRefreshing(true); load(); };
+
+  function closeForm() {
+    if (!saving) setShowForm(false);
+  }
 
   function addOption() {
     const t = optionText.trim();
@@ -84,7 +110,8 @@ export default function PesquisasScreen() {
     }
     setSaving(true);
     try {
-      await createSurvey({ ...form, title: form.title.trim(), question: form.question.trim() });
+      const created = await createSurvey({ ...form, title: form.title.trim(), question: form.question.trim() });
+      setLatestCreatedId(created.id);
       setForm(EMPTY);
       setShowForm(false);
       load();
@@ -109,273 +136,194 @@ export default function PesquisasScreen() {
 
   function shareLink(s: PulseSurvey) {
     const link = `${API_URL.replace('/api', '')}/responder/${s.id}`.replace('undefined', 'https://super-rh.vercel.app');
-    Share.share({ message: `📊 ${s.title}\n\n${s.question}\n\nResponda aqui: ${link}` });
-  }
-
-  if (loading) {
-    return (
-      <View style={styles.centered}>
-        <ActivityIndicator color={theme.gold} size="large" />
-      </View>
-    );
+    Share.share({ message: `${s.title}\n\n${s.question}\n\nResponda aqui: ${link}` });
   }
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.content}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.gold} />}
-    >
-      {/* Header */}
-      <Animated.View entering={FadeInDown.duration(300)} style={styles.header}>
-        <View>
-          <Text style={styles.headerTitle}>Pesquisas de Pulso</Text>
-          <Text style={styles.headerSub}>{surveys.length} pesquisa{surveys.length !== 1 ? 's' : ''} criada{surveys.length !== 1 ? 's' : ''}</Text>
-        </View>
-        <TouchableOpacity style={styles.newBtn} onPress={() => setShowForm(v => !v)}>
-          <Ionicons name={showForm ? 'close' : 'add'} size={18} color={theme.bg} />
-          <Text style={styles.newBtnText}>{showForm ? 'Cancelar' : 'Nova'}</Text>
-        </TouchableOpacity>
-      </Animated.View>
+    <View style={styles.container}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={cores.accent.dourado} />}
+      >
+        <ScreenHeader
+          title="Pesquisas de pulso"
+          subtitle="Colete feedback da equipe e acompanhe as respostas."
+          action={<Button icon="add-outline" label="Nova pesquisa" onPress={() => setShowForm(true)} />}
+        />
 
-      {/* Formulário de criação */}
-      {showForm && (
-        <Animated.View entering={FadeInDown.duration(280)} style={styles.formCard}>
-          <Text style={styles.formTitle}>Nova Pesquisa</Text>
+        <MetricCard
+          detail={`${surveys.length} pesquisa${surveys.length !== 1 ? 's' : ''} criada${surveys.length !== 1 ? 's' : ''}`}
+          indicator={<StatusPill label="Ativas" status="ativo" />}
+          label="Pesquisas ativas"
+          value={loading ? '—' : activeSurveyCount}
+        />
 
-          <Text style={styles.label}>Título</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Ex: Clima organizacional — Maio"
-            placeholderTextColor={theme.textMuted}
-            value={form.title}
-            onChangeText={v => setForm(f => ({ ...f, title: v }))}
-          />
-
-          <Text style={styles.label}>Pergunta</Text>
-          <TextInput
-            style={[styles.input, styles.inputMulti]}
-            placeholder="Ex: Como você avalia o ambiente de trabalho esta semana?"
-            placeholderTextColor={theme.textMuted}
-            multiline
-            numberOfLines={3}
-            value={form.question}
-            onChangeText={v => setForm(f => ({ ...f, question: v }))}
-          />
-
-          {/* Tipo */}
-          <Text style={styles.label}>Tipo de resposta</Text>
-          <View style={styles.typeRow}>
-            {(['scale', 'choice'] as const).map(t => (
-              <TouchableOpacity
-                key={t}
-                style={[styles.typeBtn, form.type === t && styles.typeBtnActive]}
-                onPress={() => setForm(f => ({ ...f, type: t, options: t === 'scale' ? null : f.options }))}
-              >
-                <Ionicons
-                  name={t === 'scale' ? 'stats-chart' : 'list'}
-                  size={14}
-                  color={form.type === t ? theme.bg : theme.gold}
-                />
-                <Text style={[styles.typeBtnText, form.type === t && styles.typeBtnTextActive]}>
-                  {t === 'scale' ? 'Escala 1-5' : 'Múltipla Escolha'}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          {/* Opções (choice) */}
-          {form.type === 'choice' && (
-            <View>
-              <Text style={styles.label}>Opções de resposta</Text>
-              {(form.options ?? []).map((o, i) => (
-                <View key={i} style={styles.optionRow}>
-                  <View style={styles.optionDot} />
-                  <Text style={styles.optionText}>{o}</Text>
-                  <TouchableOpacity onPress={() => removeOption(i)}>
-                    <Ionicons name="close-circle" size={18} color={theme.danger} />
-                  </TouchableOpacity>
-                </View>
-              ))}
-              <View style={styles.optionInputRow}>
-                <TextInput
-                  style={[styles.input, { flex: 1, marginBottom: 0 }]}
-                  placeholder="Nova opção…"
-                  placeholderTextColor={theme.textMuted}
-                  value={optionText}
-                  onChangeText={setOptionText}
-                  onSubmitEditing={addOption}
-                  returnKeyType="done"
-                />
-                <TouchableOpacity style={styles.addOptionBtn} onPress={addOption}>
-                  <Ionicons name="add" size={20} color={theme.gold} />
-                </TouchableOpacity>
-              </View>
+        <Section title="Todas as pesquisas" description="Abra uma pesquisa para consultar os resultados.">
+          {loading ? (
+            <Card padded={false} style={styles.listCard}>
+              <Skeleton accessibilityLabel="Carregando pesquisas" style={styles.skeleton} />
+              <Skeleton accessibilityLabel="Carregando pesquisas" style={styles.skeleton} />
+              <Skeleton accessibilityLabel="Carregando pesquisas" style={styles.skeleton} />
+            </Card>
+          ) : loadError ? (
+            <EmptyState
+              icon="alert-circle-outline"
+              title="Não foi possível carregar as pesquisas"
+              description={loadError}
+              action={<Button icon="refresh-outline" label="Tentar novamente" onPress={load} />}
+            />
+          ) : surveys.length === 0 ? (
+            <EmptyState
+              icon="clipboard-outline"
+              title="Nenhuma pesquisa criada"
+              description="Crie uma pesquisa para coletar feedback da equipe."
+              action={<Button icon="add-outline" label="Criar pesquisa" onPress={() => setShowForm(true)} />}
+            />
+          ) : (
+            <View style={styles.surveyList}>
+              {surveys.map((survey) => {
+                const expired = Boolean(survey.expires_at && new Date(survey.expires_at) < new Date());
+                const responseCount = survey.response_count ?? 0;
+                return (
+                  <Animated.View entering={survey.id === latestCreatedId ? newSurveyEntering : undefined} key={survey.id}>
+                    <Card padded={false} style={expired ? styles.expiredCard : undefined}>
+                      <ListRow
+                        accessibilityLabel={`Ver resultados de ${survey.title}`}
+                        description={survey.question}
+                        onPress={() => router.push(`/pesquisas/${survey.id}` as any)}
+                        title={survey.title}
+                        trailing={(
+                          <View style={styles.rowBadges}>
+                            <Badge label={survey.type === 'scale' ? 'Escala 1–5' : 'Múltipla escolha'} tone={survey.type === 'scale' ? 'info' : 'success'} />
+                            {survey.expires_at ? <StatusPill label={daysLeft(survey.expires_at) ?? ''} status={expired ? 'inativo' : 'pendente'} /> : null}
+                          </View>
+                        )}
+                      />
+                      <View style={styles.metaRow}>
+                        <Text style={styles.metaText}>{responseCount} resposta{responseCount !== 1 ? 's' : ''}</Text>
+                        <Text style={styles.metaText}>{survey.dept_name || 'Toda a empresa'}</Text>
+                      </View>
+                      <View style={styles.actions}>
+                        <Button icon="share-social-outline" label="Compartilhar" onPress={() => shareLink(survey)} style={styles.actionButton} variant="ghost" />
+                        <Button icon="bar-chart-outline" label="Ver resultados" onPress={() => router.push(`/pesquisas/${survey.id}` as any)} style={styles.actionButton} variant="ghost" />
+                        <Button accessibilityLabel={`Excluir ${survey.title}`} icon="trash-outline" onPress={() => handleDelete(survey)} variant="danger" />
+                      </View>
+                    </Card>
+                  </Animated.View>
+                );
+              })}
             </View>
           )}
+        </Section>
+      </ScrollView>
 
-          {/* Data de expiração */}
-          <Text style={styles.label}>Encerrar em (opcional)</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="AAAA-MM-DD"
-            placeholderTextColor={theme.textMuted}
-            value={form.expires_at ?? ''}
-            onChangeText={v => setForm(f => ({ ...f, expires_at: v || null }))}
-          />
-
-          <TouchableOpacity
-            style={[styles.saveBtn, saving && { opacity: 0.6 }]}
-            onPress={handleSave}
-            disabled={saving}
-          >
-            {saving
-              ? <ActivityIndicator color={theme.bg} size="small" />
-              : <Text style={styles.saveBtnText}>Criar Pesquisa</Text>
-            }
-          </TouchableOpacity>
-        </Animated.View>
-      )}
-
-      {/* Lista */}
-      {surveys.length === 0 && !showForm ? (
-        <View style={styles.empty}>
-          <Ionicons name="clipboard-outline" size={40} color={theme.textMuted} />
-          <Text style={styles.emptyText}>Nenhuma pesquisa criada ainda</Text>
-          <Text style={styles.emptySub}>Crie uma pesquisa para coletar feedback da equipe</Text>
-        </View>
-      ) : (
-        surveys.map((s, i) => {
-          const expired = s.expires_at && new Date(s.expires_at) < new Date();
-          return (
-            <Animated.View key={s.id} entering={FadeInDown.delay(i * 40).duration(300)} style={[styles.card, expired && styles.cardExpired]}>
-              <TouchableOpacity
-                style={styles.cardTop}
-                onPress={() => router.push(`/pesquisas/${s.id}` as any)}
-                activeOpacity={0.75}
-              >
-                <View style={[styles.typeIcon, { backgroundColor: s.type === 'scale' ? `${theme.info}18` : `${theme.success}18` }]}>
-                  <Ionicons
-                    name={s.type === 'scale' ? 'stats-chart' : 'list'}
-                    size={16}
-                    color={s.type === 'scale' ? theme.info : theme.success}
-                  />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.cardTitle}>{s.title}</Text>
-                  <Text style={styles.cardQuestion} numberOfLines={2}>{s.question}</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={16} color={theme.textMuted} />
-              </TouchableOpacity>
-
-              <View style={styles.cardMeta}>
-                <View style={styles.metaItem}>
-                  <Ionicons name="people-outline" size={12} color={theme.textMuted} />
-                  <Text style={styles.metaText}>{s.response_count ?? 0} resposta{(s.response_count ?? 0) !== 1 ? 's' : ''}</Text>
-                </View>
-                {s.dept_name ? (
-                  <View style={styles.metaItem}>
-                    <Ionicons name="business-outline" size={12} color={theme.textMuted} />
-                    <Text style={styles.metaText}>{s.dept_name}</Text>
-                  </View>
-                ) : (
-                  <View style={styles.metaItem}>
-                    <Ionicons name="globe-outline" size={12} color={theme.textMuted} />
-                    <Text style={styles.metaText}>Toda empresa</Text>
-                  </View>
-                )}
-                {s.expires_at && (
-                  <View style={styles.metaItem}>
-                    <Ionicons name="time-outline" size={12} color={expired ? theme.danger : theme.textMuted} />
-                    <Text style={[styles.metaText, expired && { color: theme.danger }]}>{daysLeft(s.expires_at)}</Text>
-                  </View>
-                )}
+      <Modal
+        footer={(
+          <View style={styles.footerActions}>
+            <Button disabled={saving} label="Cancelar" onPress={closeForm} style={styles.footerButton} variant="secondary" />
+            <Button label="Criar pesquisa" loading={saving} onPress={handleSave} style={styles.footerButton} />
+          </View>
+        )}
+        onClose={closeForm}
+        subtitle="Defina uma pergunta e como a equipe poderá respondê-la."
+        title="Nova pesquisa"
+        visible={showForm}
+      >
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <ScrollView contentContainerStyle={styles.form} keyboardShouldPersistTaps="handled">
+            <Input
+              editable={!saving}
+              label="Título"
+              onChangeText={(value) => setForm((current) => ({ ...current, title: value }))}
+              placeholder="Ex.: Clima organizacional — Maio"
+              value={form.title}
+            />
+            <Input
+              editable={!saving}
+              inputStyle={styles.multilineInput}
+              label="Pergunta"
+              multiline
+              numberOfLines={3}
+              onChangeText={(value) => setForm((current) => ({ ...current, question: value }))}
+              placeholder="Como você avalia o ambiente de trabalho esta semana?"
+              textAlignVertical="top"
+              value={form.question}
+            />
+            <Section title="Tipo de resposta">
+              <View style={styles.typeRow}>
+                {(['scale', 'choice'] as const).map((type) => {
+                  const selected = form.type === type;
+                  return (
+                    <Button
+                      disabled={saving}
+                      icon={type === 'scale' ? 'stats-chart-outline' : 'list-outline'}
+                      key={type}
+                      label={type === 'scale' ? 'Escala 1–5' : 'Múltipla escolha'}
+                      onPress={() => setForm((current) => ({ ...current, type, options: type === 'scale' ? null : current.options }))}
+                      style={styles.typeButton}
+                      variant={selected ? 'primary' : 'secondary'}
+                    />
+                  );
+                })}
               </View>
+            </Section>
 
-              <View style={styles.cardActions}>
-                <TouchableOpacity style={styles.actionBtn} onPress={() => shareLink(s)}>
-                  <Ionicons name="share-social-outline" size={15} color={theme.gold} />
-                  <Text style={styles.actionText}>Compartilhar link</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.actionBtn} onPress={() => router.push(`/pesquisas/${s.id}` as any)}>
-                  <Ionicons name="bar-chart-outline" size={15} color={theme.info} />
-                  <Text style={[styles.actionText, { color: theme.info }]}>Ver resultados</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => handleDelete(s)}>
-                  <Ionicons name="trash-outline" size={16} color={theme.danger} />
-                </TouchableOpacity>
-              </View>
-            </Animated.View>
-          );
-        })
-      )}
+            {form.type === 'choice' ? (
+              <Section title="Opções de resposta" description="Adicione entre duas e seis opções.">
+                {(form.options ?? []).length > 0 ? (
+                  <Card padded={false}>
+                    {(form.options ?? []).map((option, index) => (
+                      <ListRow
+                        key={`${option}-${index}`}
+                        title={option}
+                        trailing={<Button accessibilityLabel={`Remover opção ${option}`} icon="close-outline" onPress={() => removeOption(index)} variant="danger" />}
+                      />
+                    ))}
+                  </Card>
+                ) : null}
+                <Input
+                  editable={!saving}
+                  label="Nova opção"
+                  onChangeText={setOptionText}
+                  onSubmitEditing={addOption}
+                  placeholder="Digite uma opção"
+                  returnKeyType="done"
+                  rightAccessory={<Button accessibilityLabel="Adicionar opção" disabled={saving} icon="add-outline" onPress={addOption} variant="ghost" />}
+                  value={optionText}
+                />
+              </Section>
+            ) : null}
 
-      <View style={{ height: 32 }} />
-    </ScrollView>
+            <Input
+              editable={!saving}
+              label="Encerrar em (opcional)"
+              onChangeText={(value) => setForm((current) => ({ ...current, expires_at: value || null }))}
+              placeholder="AAAA-MM-DD"
+              value={form.expires_at ?? ''}
+            />
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </Modal>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: theme.bg },
-  content:   { padding: 16 },
-  centered:  { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.bg },
-
-  header:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  headerTitle: { fontSize: 20, fontWeight: '800', color: theme.white },
-  headerSub:  { fontSize: 12, color: theme.textMuted, marginTop: 2 },
-  newBtn:     { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: theme.gold, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 10 },
-  newBtnText: { fontSize: 13, fontWeight: '700', color: theme.bg },
-
-  formCard: {
-    backgroundColor: theme.surface, borderRadius: 14, borderWidth: 1, borderColor: theme.border,
-    padding: 16, marginBottom: 16,
-  },
-  formTitle: { fontSize: 15, fontWeight: '800', color: theme.gold, marginBottom: 14 },
-  label:     { fontSize: 11, color: theme.textMuted, fontWeight: '700', letterSpacing: 0.5, textTransform: 'uppercase', marginBottom: 6 },
-  input: {
-    backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 10, borderWidth: 1, borderColor: theme.border,
-    color: theme.white, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, marginBottom: 14,
-  },
-  inputMulti: { minHeight: 70, textAlignVertical: 'top' },
-
-  typeRow:        { flexDirection: 'row', gap: 10, marginBottom: 14 },
-  typeBtn:        { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: theme.border },
-  typeBtnActive:  { backgroundColor: theme.gold, borderColor: theme.gold },
-  typeBtnText:    { fontSize: 13, fontWeight: '600', color: theme.gold },
-  typeBtnTextActive: { color: theme.bg },
-
-  optionRow:      { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
-  optionDot:      { width: 6, height: 6, borderRadius: 3, backgroundColor: theme.gold },
-  optionText:     { flex: 1, fontSize: 14, color: theme.text },
-  optionInputRow: { flexDirection: 'row', gap: 8, marginBottom: 14 },
-  addOptionBtn:   { width: 44, height: 44, borderRadius: 10, borderWidth: 1, borderColor: theme.border, alignItems: 'center', justifyContent: 'center' },
-
-  saveBtn:     { backgroundColor: theme.gold, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 4 },
-  saveBtnText: { fontSize: 15, fontWeight: '800', color: theme.bg },
-
-  empty:     { alignItems: 'center', paddingVertical: 60, gap: 10 },
-  emptyText: { fontSize: 16, color: theme.textMuted, fontWeight: '600' },
-  emptySub:  { fontSize: 13, color: theme.textMuted, textAlign: 'center', paddingHorizontal: 32 },
-
-  card: {
-    backgroundColor: 'rgba(24,27,33,0.92)', borderRadius: 14, borderWidth: 1, borderColor: theme.border,
-    marginBottom: 12, overflow: 'hidden',
-  },
-  cardExpired: { opacity: 0.6 },
-  cardTop:    { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 },
-  typeIcon:   { width: 38, height: 38, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  cardTitle:  { fontSize: 14, fontWeight: '700', color: theme.white, marginBottom: 2 },
-  cardQuestion: { fontSize: 12, color: theme.textMuted },
-
-  cardMeta:   { flexDirection: 'row', flexWrap: 'wrap', gap: 12, paddingHorizontal: 14, paddingBottom: 10 },
-  metaItem:   { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  metaText:   { fontSize: 11, color: theme.textMuted },
-
-  cardActions: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    paddingHorizontal: 14, paddingVertical: 10,
-    borderTopWidth: 1, borderTopColor: theme.border,
-  },
-  actionBtn:  { flexDirection: 'row', alignItems: 'center', gap: 5, flex: 1 },
-  actionText: { fontSize: 12, color: theme.gold, fontWeight: '600' },
+  container: { backgroundColor: cores.superficie.pagina, flex: 1 },
+  content: { gap: espaco.secao, padding: espaco.xl, paddingBottom: espaco.tela },
+  listCard: { overflow: 'hidden' },
+  skeleton: { marginHorizontal: espaco.md, marginVertical: espaco.sm },
+  surveyList: { gap: espaco.md },
+  expiredCard: { opacity: 0.55 },
+  rowBadges: { alignItems: 'flex-end', gap: espaco.xs },
+  metaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: espaco.md, paddingHorizontal: espaco.lg, paddingVertical: espaco.sm },
+  metaText: { ...tipografia.legenda, color: cores.texto.discreto },
+  actions: { borderTopColor: cores.borda.sutil, borderTopWidth: 1, flexDirection: 'row', gap: espaco.xs, padding: espaco.sm },
+  actionButton: { flex: 1 },
+  footerActions: { flexDirection: 'row', gap: espaco.md },
+  footerButton: { flex: 1 },
+  form: { gap: espaco.lg, paddingBottom: espaco.xs },
+  multilineInput: { minHeight: espaco.secao },
+  typeRow: { flexDirection: 'row', gap: espaco.sm },
+  typeButton: { flex: 1 },
 });
