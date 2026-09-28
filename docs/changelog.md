@@ -1,5 +1,16 @@
 # Changelog — SuperRH
 
+## [2026-09-28] — Bug crítico ativo: "Próximos eventos" sempre quebrava (500 mascarado de CORS)
+
+### Corrigido
+- `GET /api/events?upcoming=true` comparava `e.date` (coluna `text`, formato "YYYY-MM-DD") direto com um valor `::date` — Postgres não tem operador `text >= date`, então a query sempre lançava exceção (`FUNCTION_INVOCATION_FAILED`, 500). Como o handler crashava antes de `cors()` rodar, o navegador reportava isso como bloqueio de CORS, escondendo o erro real. Achado ao testar o redesign V2 logado de verdade (não aparecia em teste com mock, nem via curl sem o parâmetro exato `upcoming=true`). Esse mesmo código já existia na versão anterior do Dashboard — bug ativo em produção, não introduzido pelo V2. Corrigido com `e.date::date >= ...`.
+- Teste de regressão novo em `tests/events.test.ts` (49 no total).
+
+### Observação
+- Testes com `sql` mockado não capturam erro de tipo do Postgres real — só apareceu testando contra o banco de fato. Vale considerar, no futuro, algum teste de integração pontual pra queries com comparação de data/hora.
+
+Verificado: tsc, npm test (49/49), expo export --platform web.
+
 ## [2026-09-28] — Bug crítico: criar conta de usuário sempre quebrava (500)
 
 ### Corrigido

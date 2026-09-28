@@ -85,7 +85,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         LEFT JOIN users u ON u.id = e.user_id
         LEFT JOIN legal_cases c ON c.id = e.case_id
         WHERE e.company_id = ${ctx.company_id}
-          AND e.date >= (NOW() AT TIME ZONE 'America/Sao_Paulo')::date
+          AND e.date::date >= (NOW() AT TIME ZONE 'America/Sao_Paulo')::date
         ORDER BY e.date ASC, e.start_time ASC
         LIMIT ${Number(limit)}
       `;
