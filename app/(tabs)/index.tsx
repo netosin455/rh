@@ -234,9 +234,8 @@ export default function DashboardScreen() {
       style={styles.screen}
     >
       <ScreenHeader
-        eyebrow={todayName}
         title={`Olá, ${user?.name?.split(' ')[0] || 'Usuário'}`}
-        subtitle={formatDateDisplay(today)}
+        subtitle={`${todayName} · ${formatDateDisplay(today)}`}
         action={
           <View style={styles.notificationAction}>
             <Button

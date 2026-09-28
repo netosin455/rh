@@ -24,7 +24,7 @@ export default function MaisScreen() {
 
   return (
     <ScrollView contentContainerStyle={styles.content} style={styles.screen}>
-      <ScreenHeader eyebrow="Navegação" title="Mais opções" subtitle="Módulos organizados por área de trabalho." />
+      <ScreenHeader title="Mais opções" subtitle="Módulos organizados por área de trabalho." />
       {groups.map((group) => (
         <Section key={group.title} title={group.title}>
           <Card padded={false} style={styles.groupCard}>
