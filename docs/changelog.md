@@ -1,5 +1,19 @@
 # Changelog — SuperRH
 
+## [2026-09-28] - V2-F5: Dashboard
+
+### Alterado
+- `app/(tabs)/index.tsx` reorganizado para saudacao e data, atencao prioritaria, metricas, agenda, equipe e insights secundarios recolhiveis.
+- Alertas de alta severidade, pendencias de ferias e faltas agora recebem enfase semantica; metricas usam `MetricCard`, listas usam `ListRow`, e os carregamentos usam `Skeleton`.
+- Guard de sessao, consultas existentes, roles de insights/aprovacao e contador de notificacoes foram preservados.
+
+### Removido
+- `LegacyDashboardScreen`, seus estilos, imports e helpers de renderizacao nao usados.
+
+### Verificado
+- `npx expo export --platform web` concluido.
+- `npm test`: 44 testes aprovados em 11 arquivos.
+
 ## [2026-09-28] - V2-F3: shell e navegacao
 
 ### Alterado

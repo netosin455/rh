@@ -1,660 +1,108 @@
-// ============================================================
-// app/(tabs)/index.tsx — SuperRH Dashboard
-// ============================================================
-
-import React, { useEffect, useState, useCallback } from 'react';
-import {
-  View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, ActivityIndicator, RefreshControl,
-} from 'react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
-import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from '../../contextos/Autenticacao';
-import { getEmployees } from '../../conexoes/colaboradores';
-import { getUpcomingEvents } from '../../conexoes/eventos';
-import { getNotices } from '../../conexoes/avisos';
-import { getAlerts } from '../../conexoes/analytics';
-import { countAbsences, countPendentes } from '../../conexoes/ausencias';
-import { buscarInsights, Insight } from '../../conexoes/insights';
-import { buscarNotificacoes } from '../../conexoes/notificacoes';
-import { Employee, Event, Notice, ProactiveAlert } from '../../tipos/modelos';
-import { theme } from '../../estilo/cores';
-import { formatDateDisplay, getTodayString, ymd } from '../../helpers/datas';
-import { Badge } from '../../componentes/Badge';
+import { useRouter } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
+import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import { Avatar } from '../../componentes/Avatar';
 import { Button } from '../../componentes/Button';
 import { Card } from '../../componentes/Card';
 import { EmptyState } from '../../componentes/EmptyState';
+import { ListRow } from '../../componentes/ListRow';
+import { MetricCard } from '../../componentes/MetricCard';
 import { ScreenHeader } from '../../componentes/ScreenHeader';
-import { fonts } from '../../estilo/tipografia';
+import { Section } from '../../componentes/Section';
+import { Skeleton } from '../../componentes/Skeleton';
+import { StatusPill } from '../../componentes/StatusPill';
+import { getAlerts } from '../../conexoes/analytics';
+import { countAbsences, countPendentes } from '../../conexoes/ausencias';
+import { getNotices } from '../../conexoes/avisos';
+import { getEmployees } from '../../conexoes/colaboradores';
+import { getUpcomingEvents } from '../../conexoes/eventos';
+import { buscarInsights, Insight } from '../../conexoes/insights';
+import { buscarNotificacoes } from '../../conexoes/notificacoes';
+import { useAuth } from '../../contextos/Autenticacao';
+import { cores } from '../../estilo/cores';
+import { borda, espaco, raio, tamanho } from '../../estilo/espaco';
+import { useMotion } from '../../estilo/movimento';
+import { tipografia } from '../../estilo/tipografia';
+import { formatDateDisplay, getTodayString, ymd } from '../../helpers/datas';
+import { Employee, Event, Notice, ProactiveAlert } from '../../tipos/modelos';
 
 const WEEKDAY_NAMES = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+const APPROVER_ROLES = ['super_admin', 'admin', 'rh', 'adm', 'gestor'];
+const INSIGHT_ROLES = ['super_admin', 'admin', 'rh'];
 
-const STATUS_COLORS: Record<string, string> = {
-  ativo:     theme.success,
-  ferias:    theme.info,
-  licenca:   theme.warning,
-  afastado:  theme.warning,
-  desligado: theme.textMuted,
+type AttentionLevel = 'urgent' | 'important';
+
+type AttentionItem = {
+  id: string;
+  title: string;
+  description: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  level: AttentionLevel;
+  route?: string;
 };
 
-const QUICK_ACTIONS = [
-  { label: 'Colaboradores', icon: 'people-outline',    route: '/(tabs)/colaboradores' as const },
-  { label: 'Férias',        icon: 'umbrella-outline',  route: '/(tabs)/ferias'        as const },
-  { label: 'Avisos',        icon: 'megaphone-outline', route: '/(tabs)/avisos'        as const },
-  { label: 'Agenda',        icon: 'calendar-outline',  route: '/(tabs)/agenda'        as const },
-];
-
-function MetricCard({
-  label, value, sub, accent, delay, icon,
-}: {
-  label: string; value: string | number; sub?: string;
-  accent?: string; delay: number; icon: string;
-}) {
-  const color = accent || theme.gold;
-  return (
-    <Animated.View entering={FadeInDown.delay(delay).duration(350)} style={styles.metricCard}>
-      <View style={[styles.metricIconWrap, { backgroundColor: `${color}18` }]}>
-        <Ionicons name={icon as any} size={15} color={color} />
-      </View>
-      <Text style={[styles.metricValue, { color }]}>{value}</Text>
-      <Text style={styles.metricLabel}>{label}</Text>
-      {sub ? <Text style={styles.metricSub}>{sub}</Text> : null}
-    </Animated.View>
-  );
+function employeeStatusTone(status: string): 'success' | 'info' | 'pending' | 'muted' {
+  if (status === 'ativo') return 'success';
+  if (status === 'ferias' || status.startsWith('licenca')) return 'info';
+  if (status === 'afastado') return 'pending';
+  return 'muted';
 }
 
-function SectionHeader({ title, onPress }: { title: string; onPress?: () => void }) {
-  return (
-    <View style={styles.sectionHeader}>
-      <View style={styles.sectionAccent} />
-      <Text style={styles.sectionTitle}>{title}</Text>
-      {onPress && (
-        <TouchableOpacity onPress={onPress} style={styles.sectionLinkBtn}>
-          <Text style={styles.sectionLink}>Ver todos</Text>
-          <Ionicons name="arrow-forward" size={10} color={theme.gold} />
-        </TouchableOpacity>
-      )}
-    </View>
-  );
+function employeeStatusLabel(status: string) {
+  return status.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-function LegacyDashboardScreen() {
-  const router = useRouter();
-  const { user } = useAuth();
+function insightColor(severity: Insight['severity']) {
+  if (severity === 'high') return cores.status.erro.forte;
+  if (severity === 'medium') return cores.status.pendente.forte;
+  return cores.status.informacao.forte;
+}
 
-  const [employees,  setEmployees]  = useState<Employee[]>([]);
-  const [events,     setEvents]     = useState<Event[]>([]);
-  const [notices,    setNotices]    = useState<Notice[]>([]);
-  const [alerts,     setAlerts]     = useState<ProactiveAlert[]>([]);
-  const [faltaCount,        setFaltaCount]        = useState<number>(0);
-  const [pendentesCount,    setPendentesCount]    = useState<number>(0);
-  const [insights,          setInsights]          = useState<Insight[]>([]);
-  const [insightsLoading,   setInsightsLoading]   = useState(false);
-  const [unreadCount,       setUnreadCount]       = useState(0);
-  const [loading,           setLoading]           = useState(true);
-  const [refreshing,        setRefreshing]        = useState(false);
-
-  const canSeeInsights = ['super_admin','admin','rh'].includes(user?.role ?? '');
-
-  const load = useCallback(async () => {
-    try {
-      const [emp, evt, ntc] = await Promise.all([
-        getEmployees(),
-        getUpcomingEvents(5),
-        getNotices().catch(() => [] as Notice[]),
-      ]);
-      setEmployees(emp);
-      setEvents(evt);
-      setNotices(ntc);
-      // Alertas e faltas carregam após o render inicial (non-blocking)
-      getAlerts().then(setAlerts).catch(() => {});
-      const currentMonth = getTodayString().slice(0, 7); // YYYY-MM
-      countAbsences('falta', currentMonth).then(setFaltaCount).catch(() => {});
-      // Pendentes de aprovação (visível apenas para RH/admin)
-      if (['super_admin','admin','rh','adm','gestor'].includes(user?.role ?? '')) {
-        countPendentes().then(setPendentesCount).catch(() => {});
-      }
-      // Contador de notificações não lidas
-      buscarNotificacoes().then(r => setUnreadCount(r.unread)).catch(() => {});
-
-      // Insights de IA apenas para gestores autorizados
-      if (['super_admin','admin','rh'].includes(user?.role ?? '')) {
-        setInsightsLoading(true);
-        buscarInsights().then(r => setInsights(r.insights)).catch(() => {}).finally(() => setInsightsLoading(false));
-      }
-    } catch (err) {
-      console.error('[Dashboard] Erro ao carregar dados:', err);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, []);
-
-  useEffect(() => { load(); }, [load]);
-
-  const onRefresh = useCallback(() => {
-    setRefreshing(true);
-    load();
-  }, [load]);
-
-  const activeEmployees = employees.filter(e => e.status === 'ativo').length;
-  const onLeave         = employees.filter(e => e.status === 'licenca' || e.status === 'afastado').length;
-  const today           = getTodayString();
-  const todayName       = WEEKDAY_NAMES[new Date(today + 'T00:00:00').getDay()];
-
-  const upcomingBirthdays = (() => {
-    const DAYS = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
-    const base = new Date(today + 'T00:00:00');
-    const window: { mmdd: string; label: string }[] = [];
-    for (let i = 0; i < 7; i++) {
-      const d = new Date(base);
-      d.setDate(base.getDate() + i);
-      const mmdd = `${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-      window.push({ mmdd, label: i === 0 ? 'Hoje' : DAYS[d.getDay()] });
-    }
-    return employees
-      .filter(e => e.birth_date && window.some(w => ymd(e.birth_date!).slice(5) === w.mmdd))
-      .map(e => ({
-        ...e,
-        birthdayLabel: window.find(w => ymd(e.birth_date!).slice(5) === w.mmdd)!.label,
-      }))
-      .sort((a, b) => {
-        const ai = window.findIndex(w => a.birth_date!.slice(5) === w.mmdd);
-        const bi = window.findIndex(w => b.birth_date!.slice(5) === w.mmdd);
-        return ai - bi;
-      });
-  })();
-
-  if (loading) {
-    return (
-      <View style={styles.centered}>
-        <ActivityIndicator color={theme.gold} size="large" />
-      </View>
-    );
-  }
+function AttentionCard({ item, onPress }: { item: AttentionItem; onPress: () => void }) {
+  const urgent = item.level === 'urgent';
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.content}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.gold} />
-      }
+    <Card
+      accessibilityLabel={`${item.title}. ${item.description}`}
+      onPress={onPress}
+      padded={false}
+      style={[styles.attentionCard, urgent ? styles.attentionUrgent : styles.attentionImportant]}
     >
-      {/* Greeting */}
-      <Animated.View entering={FadeInDown.duration(300)} style={styles.greeting}>
-        <View style={styles.greetingLeft}>
-          <Text style={styles.greetingDay}>{todayName}</Text>
-          <Text style={styles.greetingName}>{user?.name?.split(' ')[0] || 'Usuário'}</Text>
-          <Text style={styles.greetingDate}>{formatDateDisplay(today)}</Text>
+      <View style={styles.attentionContent}>
+        <View style={[styles.attentionIcon, urgent ? styles.attentionIconUrgent : styles.attentionIconImportant]}>
+          <Ionicons color={urgent ? cores.status.erro.forte : cores.status.pendente.forte} name={item.icon} size={tamanho.iconeMedio} />
         </View>
-        <View style={styles.greetingRight}>
-          <TouchableOpacity style={styles.bellBtn} onPress={() => router.push('/notificacoes' as any)}>
-            <Ionicons name="notifications-outline" size={20} color={theme.gold} />
-            {unreadCount > 0 && (
-              <View style={styles.bellBadge}>
-                <Text style={styles.bellBadgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
-              </View>
-            )}
-          </TouchableOpacity>
-          <View style={styles.greetingBadge}>
-            <Ionicons name="briefcase-outline" size={14} color={theme.gold} />
-            <Text style={styles.greetingRole}>{user?.role?.toUpperCase() ?? 'USER'}</Text>
-          </View>
+        <View style={styles.attentionCopy}>
+          <Text style={styles.attentionTitle}>{item.title}</Text>
+          <Text style={styles.attentionDescription}>{item.description}</Text>
         </View>
-      </Animated.View>
-
-      {/* Quick actions */}
-      <Animated.View entering={FadeInDown.delay(60).duration(300)} style={styles.quickRow}>
-        {QUICK_ACTIONS.map(qa => (
-          <TouchableOpacity
-            key={qa.route}
-            style={styles.quickBtn}
-            onPress={() => router.push(qa.route)}
-            activeOpacity={0.75}
-          >
-            <View style={styles.quickIcon}>
-              <Ionicons name={qa.icon as any} size={18} color={theme.gold} />
-            </View>
-            <Text style={styles.quickLabel}>{qa.label}</Text>
-          </TouchableOpacity>
-        ))}
-      </Animated.View>
-
-      {/* Metrics */}
-      <View style={styles.metricsGrid}>
-        <MetricCard label="Ativos"      value={activeEmployees}
-          icon="people"            delay={80}  />
-        <MetricCard label="Em Férias"   value={employees.filter(e => e.status === 'ferias').length}
-          icon="umbrella"          delay={130} />
-        <MetricCard
-          label="Faltas (mês)"  value={faltaCount}
-          icon="close-circle"   delay={180}
-          accent={faltaCount > 0 ? theme.danger : undefined}
-        />
-        <MetricCard
-          label="Em Licença"   value={onLeave}
-          icon="medical"       delay={230}
-          accent={onLeave > 0 ? theme.warning : undefined}
-        />
+        <StatusPill label={urgent ? 'Urgente' : 'Importante'} status={urgent ? 'danger' : 'pending'} />
+        <Ionicons color={urgent ? cores.status.erro.forte : cores.status.pendente.forte} name="chevron-forward" size={tamanho.iconePequeno} />
       </View>
-
-      {/* Card de aprovações pendentes para RH/admin */}
-      {canSeeInsights && pendentesCount > 0 && (
-        <Animated.View entering={FadeInDown.delay(235).duration(350)}>
-          <TouchableOpacity
-            style={styles.pendentesCard}
-            onPress={() => router.push('/(tabs)/ferias')}
-            activeOpacity={0.8}
-          >
-            <View style={styles.pendentesCardIcon}>
-              <Ionicons name="time" size={16} color={theme.warning} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.pendentesCardTitle}>
-                {pendentesCount} solicitaç{pendentesCount === 1 ? 'ão' : 'ões'} pendente{pendentesCount === 1 ? '' : 's'}
-              </Text>
-              <Text style={styles.pendentesCardSub}>Toque para aprovar ou recusar</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={15} color={theme.warning} />
-          </TouchableOpacity>
-        </Animated.View>
-      )}
-
-      {/* Alertas IA */}
-      {alerts.length > 0 && (
-        <Animated.View entering={FadeInDown.delay(200).duration(350)} style={styles.alertsWrap}>
-          <View style={styles.alertsHeader}>
-            <Ionicons name="sparkles" size={12} color={theme.gold} />
-            <Text style={styles.alertsHeaderText}>ALERTAS INTELIGENTES</Text>
-          </View>
-          {alerts.map((alert, i) => {
-            const color = alert.severity === 'alta' ? theme.danger : theme.warning;
-            return (
-              <TouchableOpacity
-                key={i}
-                style={[styles.alertCard, { borderLeftColor: color }]}
-                onPress={() => router.push(`/${alert.route}` as any)}
-                activeOpacity={0.75}
-              >
-                <View style={[styles.alertIconWrap, { backgroundColor: `${color}18` }]}>
-                  <Ionicons name={alert.icon as any} size={14} color={color} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.alertTitle}>{alert.title}</Text>
-                  {alert.description ? (
-                    <Text style={styles.alertDesc} numberOfLines={1}>{alert.description}</Text>
-                  ) : null}
-                </View>
-                <Ionicons name="chevron-forward" size={13} color={theme.textMuted} />
-              </TouchableOpacity>
-            );
-          })}
-        </Animated.View>
-      )}
-
-      {/* Aniversários */}
-      {upcomingBirthdays.length > 0 && (
-        <Animated.View entering={FadeInDown.delay(260).duration(350)} style={styles.birthdayCard}>
-          <View style={styles.birthdayLeft}>
-            <Text style={styles.birthdayEmoji}>🎂</Text>
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.birthdayTitle}>Aniversários próximos</Text>
-            {upcomingBirthdays.slice(0, 4).map(e => (
-              <Text key={e.id} style={styles.birthdayLine}>
-                <Text style={styles.birthdayDay}>{e.birthdayLabel}  </Text>
-                {e.name}
-              </Text>
-            ))}
-            {upcomingBirthdays.length > 4 && (
-              <Text style={styles.birthdayMore}>+{upcomingBirthdays.length - 4} mais</Text>
-            )}
-          </View>
-        </Animated.View>
-      )}
-
-      {/* Insights da IA */}
-      {canSeeInsights && (insightsLoading || insights.length > 0) && (
-        <Animated.View entering={FadeInDown.delay(270).duration(350)} style={styles.insightsWrap}>
-          <View style={styles.insightsHeader}>
-            <Ionicons name="sparkles" size={13} color={theme.gold} />
-            <Text style={styles.insightsHeaderText}>INSIGHTS DA IA</Text>
-            <TouchableOpacity
-              style={styles.insightsRefreshBtn}
-              onPress={() => {
-                setInsightsLoading(true);
-                buscarInsights(true).then(r => setInsights(r.insights)).catch(() => {}).finally(() => setInsightsLoading(false));
-              }}
-              disabled={insightsLoading}
-            >
-              <Ionicons name="refresh" size={13} color={insightsLoading ? theme.textMuted : theme.gold} />
-            </TouchableOpacity>
-          </View>
-
-          {insightsLoading && insights.length === 0 ? (
-            <View style={styles.insightsSkeleton}>
-              <ActivityIndicator size="small" color={theme.gold} />
-              <Text style={styles.insightsSkeletonText}>Analisando dados da empresa...</Text>
-            </View>
-          ) : (
-            insights.map((insight, i) => {
-              const color = insight.severity === 'high' ? theme.danger : insight.severity === 'medium' ? theme.warning : theme.info;
-              return (
-                <TouchableOpacity
-                  key={i}
-                  style={[styles.insightCard, { borderLeftColor: color }]}
-                  onPress={() => insight.action_route && router.push(insight.action_route as any)}
-                  activeOpacity={insight.action_route ? 0.75 : 1}
-                >
-                  <View style={[styles.insightDot, { backgroundColor: color }]} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.insightTitle}>{insight.title}</Text>
-                    <Text style={styles.insightDesc} numberOfLines={2}>{insight.description}</Text>
-                  </View>
-                  {insight.action_route && (
-                    <Ionicons name="chevron-forward" size={13} color={theme.textMuted} />
-                  )}
-                </TouchableOpacity>
-              );
-            })
-          )}
-        </Animated.View>
-      )}
-
-      {/* Próximos eventos */}
-      <Animated.View entering={FadeInDown.delay(290).duration(350)} style={styles.card}>
-        <SectionHeader title="Próximos eventos" onPress={() => router.push('/(tabs)/agenda')} />
-        {events.length === 0 ? (
-          <View style={styles.emptyRow}>
-            <Ionicons name="calendar-outline" size={22} color={theme.textMuted} />
-            <Text style={styles.emptyText}>Nenhum evento próximo</Text>
-          </View>
-        ) : (
-          events.slice(0, 4).map(evt => (
-            <TouchableOpacity key={evt.id} style={styles.eventRow} activeOpacity={0.7}>
-              <View style={[styles.eventColorBar, { backgroundColor: evt.color }]} />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.eventName}>{evt.title}</Text>
-                <Text style={styles.eventMeta}>
-                  {evt.date === today ? 'Hoje' : formatDateDisplay(evt.date)}
-                  {evt.start_time ? ` · ${evt.start_time}` : ''}
-                  {evt.location ? ` · ${evt.location}` : ''}
-                </Text>
-              </View>
-              <View style={[styles.categoryDot, { backgroundColor: evt.color }]} />
-            </TouchableOpacity>
-          ))
-        )}
-      </Animated.View>
-
-      {/* Colaboradores */}
-      <Animated.View entering={FadeInDown.delay(340).duration(350)} style={styles.card}>
-        <SectionHeader title="Colaboradores" onPress={() => router.push('/(tabs)/colaboradores')} />
-        {employees.slice(0, 4).map(emp => (
-          <TouchableOpacity
-            key={emp.id} style={styles.empRow} activeOpacity={0.7}
-            onPress={() => router.push(`/colaborador/${emp.id}` as any)}
-          >
-            <View style={styles.empAvatar}>
-              <Text style={styles.empInitials}>
-                {emp.name.split(' ').map(n => n[0]).slice(0, 2).join('')}
-              </Text>
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.empName}>{emp.name}</Text>
-              <Text style={styles.empRole}>{emp.role_title}</Text>
-            </View>
-            <View style={[styles.statusPill, { backgroundColor: `${STATUS_COLORS[emp.status] || theme.success}20` }]}>
-              <Text style={[styles.statusText, { color: STATUS_COLORS[emp.status] || theme.success }]}>
-                {emp.status.charAt(0).toUpperCase() + emp.status.slice(1)}
-              </Text>
-            </View>
-          </TouchableOpacity>
-        ))}
-      </Animated.View>
-
-      {/* Avisos */}
-      {notices.length > 0 && (
-        <Animated.View entering={FadeInDown.delay(390).duration(350)} style={styles.card}>
-          <SectionHeader title="Avisos recentes" onPress={() => router.push('/(tabs)/avisos')} />
-          {notices.slice(0, 3).map(n => (
-            <TouchableOpacity key={n.id} style={styles.eventRow} activeOpacity={0.7} onPress={() => router.push('/(tabs)/avisos')}>
-              <View style={[styles.eventColorBar, {
-                backgroundColor: n.priority === 'urgente' ? theme.danger : n.priority === 'importante' ? theme.warning : theme.info,
-              }]} />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.eventName}>{n.title}</Text>
-                <Text style={styles.eventMeta} numberOfLines={1}>{n.body}</Text>
-              </View>
-            </TouchableOpacity>
-          ))}
-        </Animated.View>
-      )}
-
-      <View style={{ height: 32 }} />
-    </ScrollView>
-  );
-}
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: theme.bg },
-  content:   { padding: 16 },
-  centered:  { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.bg },
-
-  greeting: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start',
-    marginBottom: 16, paddingHorizontal: 2,
-  },
-  greetingLeft:  {},
-  greetingDay:   { fontSize: 10, color: theme.gold, letterSpacing: 2, fontWeight: '700', textTransform: 'uppercase', marginBottom: 3 },
-  greetingName:  { fontSize: 24, fontWeight: '800', color: theme.white, marginBottom: 2 },
-  greetingDate:  { fontSize: 12, color: theme.textMuted },
-  greetingRight: { alignItems: 'flex-end', gap: 8 },
-  bellBtn: { position: 'relative', padding: 4 },
-  bellBadge: {
-    position: 'absolute', top: 0, right: 0,
-    minWidth: 16, height: 16, borderRadius: 8,
-    backgroundColor: theme.danger, alignItems: 'center', justifyContent: 'center',
-    paddingHorizontal: 3,
-  },
-  bellBadgeText: { fontSize: 9, color: '#fff', fontWeight: '800' },
-  greetingBadge: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
-    backgroundColor: theme.goldDim, borderWidth: 1, borderColor: theme.border2,
-    paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20,
-  },
-  greetingRole: { fontSize: 10, color: theme.gold, fontWeight: '700', letterSpacing: 0.8 },
-
-  quickRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
-  quickBtn: { flex: 1, alignItems: 'center', gap: 6 },
-  quickIcon: {
-    width: 46, height: 46, borderRadius: 14,
-    backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.border,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  quickLabel: { fontSize: 9, color: theme.textMuted, fontWeight: '600', textAlign: 'center', letterSpacing: 0.2 },
-
-  metricsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 14 },
-  metricCard: {
-    flex: 1, minWidth: '44%',
-    backgroundColor: 'rgba(24,27,33,0.92)',
-    borderRadius: 14,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
-    padding: 14,
-    shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 12, shadowOffset: { width: 0, height: 4 },
-    elevation: 4,
-  },
-  metricIconWrap: {
-    width: 30, height: 30, borderRadius: 8,
-    alignItems: 'center', justifyContent: 'center', marginBottom: 10,
-  },
-  metricValue: { fontSize: 28, fontWeight: '800', color: theme.gold, marginBottom: 2 },
-  metricLabel: { fontSize: 10, color: theme.textLight, fontWeight: '700', letterSpacing: 0.5, textTransform: 'uppercase' },
-  metricSub:   { fontSize: 11, color: theme.textMuted, marginTop: 2 },
-
-  alertsWrap: {
-    backgroundColor: 'rgba(24,27,33,0.92)',
-    borderRadius: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
-    marginBottom: 14, overflow: 'hidden',
-  },
-  alertsHeader: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingHorizontal: 14, paddingVertical: 10,
-    borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.05)',
-  },
-  alertsHeaderText: {
-    fontSize: 9, fontWeight: '800', color: theme.gold, letterSpacing: 1.5,
-  },
-  alertCard: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    paddingHorizontal: 14, paddingVertical: 12,
-    borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.03)',
-    borderLeftWidth: 3,
-  },
-  alertIconWrap: {
-    width: 28, height: 28, borderRadius: 8,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  alertTitle: { fontSize: 13, color: theme.white, fontWeight: '600', marginBottom: 1 },
-  alertDesc:  { fontSize: 11, color: theme.textMuted },
-
-  insightsWrap: {
-    backgroundColor: 'rgba(24,27,33,0.92)',
-    borderRadius: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
-    marginBottom: 14, overflow: 'hidden',
-  },
-  insightsHeader: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingHorizontal: 14, paddingVertical: 10,
-    borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.05)',
-  },
-  insightsHeaderText: { fontSize: 9, fontWeight: '800', color: theme.gold, letterSpacing: 1.5, flex: 1 },
-  insightsRefreshBtn: { padding: 4 },
-  insightsSkeleton: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    paddingHorizontal: 14, paddingVertical: 16,
-  },
-  insightsSkeletonText: { fontSize: 12, color: theme.textMuted, fontStyle: 'italic' },
-  insightCard: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    paddingHorizontal: 14, paddingVertical: 12,
-    borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.03)',
-    borderLeftWidth: 3,
-  },
-  insightDot:  { width: 8, height: 8, borderRadius: 4 },
-  insightTitle: { fontSize: 13, color: theme.white, fontWeight: '600', marginBottom: 3 },
-  insightDesc:  { fontSize: 11, color: theme.textMuted, lineHeight: 15 },
-
-  birthdayCard: {
-    flexDirection: 'row', alignItems: 'flex-start', gap: 12,
-    backgroundColor: theme.goldGlow, borderWidth: 1, borderColor: theme.border2,
-    borderRadius: 12, padding: 14, marginBottom: 14,
-  },
-  birthdayLeft:  { paddingTop: 2 },
-  birthdayEmoji: { fontSize: 24 },
-  birthdayTitle: { fontSize: 11, color: theme.gold, fontWeight: '700', letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 6 },
-  birthdayLine:  { fontSize: 13, color: theme.text, marginBottom: 2 },
-  birthdayDay:   { color: theme.gold, fontWeight: '600' },
-  birthdayMore:  { fontSize: 11, color: theme.textMuted, marginTop: 2 },
-
-  card: {
-    backgroundColor: 'rgba(24,27,33,0.92)',
-    borderRadius: 14,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
-    marginBottom: 14, overflow: 'hidden',
-    shadowColor: '#000', shadowOpacity: 0.30, shadowRadius: 10, shadowOffset: { width: 0, height: 3 },
-    elevation: 3,
-  },
-  sectionHeader: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    padding: 14, paddingBottom: 12,
-    borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.06)',
-  },
-  sectionAccent: { width: 3, height: 16, borderRadius: 2, backgroundColor: theme.gold },
-  sectionTitle:  { fontSize: 13, fontWeight: '800', color: theme.gold, flex: 1, letterSpacing: 0.3 },
-  sectionLinkBtn: { flexDirection: 'row', alignItems: 'center', gap: 3 },
-  sectionLink:   { fontSize: 11, color: theme.goldLight },
-
-  emptyRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    padding: 16, paddingHorizontal: 14,
-  },
-  emptyText: { fontSize: 13, color: theme.textMuted },
-
-  eventRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    paddingHorizontal: 14, paddingVertical: 12,
-    borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.03)',
-  },
-  eventColorBar: { width: 3, height: 36, borderRadius: 2 },
-  eventName:     { fontSize: 13, color: theme.white, fontWeight: '600', marginBottom: 2 },
-  eventMeta:     { fontSize: 11, color: theme.textMuted },
-  categoryDot:   { width: 6, height: 6, borderRadius: 3 },
-
-  empRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    paddingHorizontal: 14, paddingVertical: 11,
-    borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.03)',
-  },
-  empAvatar: {
-    width: 36, height: 36, borderRadius: 18,
-    backgroundColor: theme.goldDim, borderWidth: 1, borderColor: theme.border2,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  empInitials: { fontSize: 12, fontWeight: '700', color: theme.gold },
-  empName:     { fontSize: 13, color: theme.white, fontWeight: '700' },
-  empRole:     { fontSize: 11, color: theme.textMuted, marginTop: 1 },
-  statusPill:  { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 5 },
-  statusText:  { fontSize: 10, fontWeight: '700', letterSpacing: 0.3 },
-
-  pendentesCard: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: 'rgba(251,191,36,0.08)',
-    borderWidth: 1, borderColor: 'rgba(251,191,36,0.3)',
-    borderRadius: 12, padding: 14, marginBottom: 14,
-  },
-  pendentesCardIcon: {
-    width: 34, height: 34, borderRadius: 10,
-    backgroundColor: 'rgba(251,191,36,0.15)',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  pendentesCardTitle: { fontSize: 13, color: theme.warning, fontWeight: '700', marginBottom: 2 },
-  pendentesCardSub:   { fontSize: 11, color: theme.textMuted },
-});
-
-function ClearMetric({ label, value, icon, tone = 'gold' }: {
-  label: string;
-  value: string | number;
-  icon: keyof typeof Ionicons.glyphMap;
-  tone?: 'gold' | 'success' | 'danger' | 'info';
-}) {
-  const color = tone === 'success' ? theme.success : tone === 'danger' ? theme.danger : tone === 'info' ? theme.info : theme.gold;
-  const background = tone === 'success' ? theme.successBackground : tone === 'danger' ? theme.dangerBackground : tone === 'info' ? theme.infoBackground : theme.goldPale;
-  return (
-    <Card style={clearStyles.metric}>
-      <View style={[clearStyles.metricIcon, { backgroundColor: background }]}>
-        <Ionicons name={icon} size={18} color={color} />
-      </View>
-      <Text style={[clearStyles.metricValue, { color }]}>{value}</Text>
-      <Text style={clearStyles.metricLabel}>{label}</Text>
     </Card>
   );
 }
 
-function PanelTitle({ title, onPress }: { title: string; onPress?: () => void }) {
+function DashboardLoading() {
   return (
-    <View style={clearStyles.panelTitle}>
-      <Text style={clearStyles.panelTitleText}>{title}</Text>
-      {onPress ? <TouchableOpacity accessibilityRole="button" accessibilityLabel={'Ver todos os itens de ' + title} onPress={onPress} style={clearStyles.panelLink}><Text style={clearStyles.panelLinkText}>Ver todos</Text><Ionicons name="arrow-forward" color={theme.gold} size={16} /></TouchableOpacity> : null}
-    </View>
+    <ScrollView contentContainerStyle={styles.loadingContent} style={styles.screen}>
+      <Skeleton height={espaco.tela} />
+      <Skeleton height={tamanho.toqueMinimo} />
+      <View style={styles.skeletonMetrics}>
+        <Skeleton height={espaco.tela * 2} />
+        <Skeleton height={espaco.tela * 2} />
+      </View>
+      <Skeleton height={espaco.tela * 3} />
+    </ScrollView>
   );
 }
 
 export default function DashboardScreen() {
   const router = useRouter();
   const { user } = useAuth();
+  const motion = useMotion();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [events, setEvents] = useState<Event[]>([]);
   const [notices, setNotices] = useState<Notice[]>([]);
@@ -663,30 +111,36 @@ export default function DashboardScreen() {
   const [pendentesCount, setPendentesCount] = useState(0);
   const [insights, setInsights] = useState<Insight[]>([]);
   const [insightsLoading, setInsightsLoading] = useState(false);
+  const [insightsExpanded, setInsightsExpanded] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const canSeeInsights = ['super_admin', 'admin', 'rh'].includes(user?.role ?? '');
+  const canSeeInsights = INSIGHT_ROLES.includes(user?.role ?? '');
 
   const load = useCallback(async () => {
-    // Sem sessão o AuthGuard vai redirecionar para o login: não dispara chamadas nem toast de erro.
+    // Sem sessão o AuthGuard redireciona para login: não chamar a API evita erros falsos.
     if (!user) return;
+
     try {
-      const [emp, evt, ntc] = await Promise.all([getEmployees(), getUpcomingEvents(5), getNotices().catch(() => [] as Notice[])]);
-      setEmployees(emp);
-      setEvents(evt);
-      setNotices(ntc);
+      const [employeeList, eventList, noticeList] = await Promise.all([
+        getEmployees(),
+        getUpcomingEvents(5),
+        getNotices().catch(() => [] as Notice[]),
+      ]);
+      setEmployees(employeeList);
+      setEvents(eventList);
+      setNotices(noticeList);
       getAlerts().then(setAlerts).catch(() => {});
       const currentMonth = getTodayString().slice(0, 7);
       countAbsences('falta', currentMonth).then(setFaltaCount).catch(() => {});
-      if (['super_admin', 'admin', 'rh', 'adm', 'gestor'].includes(user?.role ?? '')) countPendentes().then(setPendentesCount).catch(() => {});
-      buscarNotificacoes().then(result => setUnreadCount(result.unread)).catch(() => {});
+      if (APPROVER_ROLES.includes(user.role ?? '')) countPendentes().then(setPendentesCount).catch(() => {});
+      buscarNotificacoes().then((result) => setUnreadCount(result.unread)).catch(() => {});
       if (canSeeInsights) {
         setInsightsLoading(true);
-        buscarInsights().then(result => setInsights(result.insights)).catch(() => {}).finally(() => setInsightsLoading(false));
+        buscarInsights().then((result) => setInsights(result.insights)).catch(() => {}).finally(() => setInsightsLoading(false));
       }
-    } catch (err) {
-      console.error('[Dashboard] Erro ao carregar dados:', err);
+    } catch (error) {
+      console.error('[Dashboard] Erro ao carregar dados:', error);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -694,117 +148,235 @@ export default function DashboardScreen() {
   }, [canSeeInsights, user?.role]);
 
   useEffect(() => { load(); }, [load]);
-  const onRefresh = useCallback(() => { setRefreshing(true); load(); }, [load]);
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    load();
+  }, [load]);
 
   const today = getTodayString();
-  const todayName = WEEKDAY_NAMES[new Date(today + 'T00:00:00').getDay()];
-  const activeEmployees = employees.filter(employee => employee.status === 'ativo').length;
-  const onLeave = employees.filter(employee => employee.status === 'licenca' || employee.status === 'afastado').length;
+  const todayName = WEEKDAY_NAMES[new Date(`${today}T00:00:00`).getDay()];
+  const activeEmployees = employees.filter((employee) => employee.status === 'ativo').length;
+  const employeesOnVacation = employees.filter((employee) => employee.status === 'ferias').length;
+  const onLeave = employees.filter((employee) => employee.status === 'licenca' || employee.status === 'afastado').length;
   const birthdayWindow = Array.from({ length: 7 }, (_, index) => {
-    const date = new Date(today + 'T00:00:00');
+    const date = new Date(`${today}T00:00:00`);
     date.setDate(date.getDate() + index);
-    return { mmdd: String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0'), label: index === 0 ? 'Hoje' : WEEKDAY_NAMES[date.getDay()] };
+    return {
+      mmdd: `${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`,
+      label: index === 0 ? 'Hoje' : WEEKDAY_NAMES[date.getDay()],
+    };
   });
   const upcomingBirthdays = employees
-    .filter(employee => employee.birth_date && birthdayWindow.some(day => ymd(employee.birth_date!).slice(5) === day.mmdd))
-    .map(employee => ({ ...employee, birthdayLabel: birthdayWindow.find(day => ymd(employee.birth_date!).slice(5) === day.mmdd)!.label }));
+    .filter((employee) => employee.birth_date && birthdayWindow.some((day) => ymd(employee.birth_date!).slice(5) === day.mmdd))
+    .map((employee) => ({
+      ...employee,
+      birthdayLabel: birthdayWindow.find((day) => ymd(employee.birth_date!).slice(5) === day.mmdd)!.label,
+    }));
+  const attentionItems: AttentionItem[] = [
+    ...alerts.filter((alert) => alert.severity === 'alta').map((alert, index) => ({
+      id: `urgent-alert-${index}`,
+      title: alert.title,
+      description: alert.description ?? 'Este alerta requer revisão.',
+      icon: alert.icon as keyof typeof Ionicons.glyphMap,
+      level: 'urgent' as const,
+      route: `/${alert.route}`,
+    })),
+    ...(canSeeInsights && pendentesCount > 0 ? [{
+      id: 'pending-vacations',
+      title: `${pendentesCount} solicitação${pendentesCount === 1 ? '' : 'ões'} de férias pendente${pendentesCount === 1 ? '' : 's'}`,
+      description: 'Revise os pedidos da equipe.',
+      icon: 'time-outline' as const,
+      level: 'important' as const,
+      route: '/(tabs)/ferias',
+    }] : []),
+    ...(faltaCount > 0 ? [{
+      id: 'monthly-absences',
+      title: `${faltaCount} falta${faltaCount === 1 ? '' : 's'} registrada${faltaCount === 1 ? '' : 's'} no mês`,
+      description: 'Consulte as ausências para acompanhar a equipe.',
+      icon: 'alert-circle-outline' as const,
+      level: 'important' as const,
+      route: '/(tabs)/ferias',
+    }] : []),
+    ...alerts.filter((alert) => alert.severity !== 'alta').map((alert, index) => ({
+      id: `important-alert-${index}`,
+      title: alert.title,
+      description: alert.description ?? 'Há um item para acompanhar.',
+      icon: alert.icon as keyof typeof Ionicons.glyphMap,
+      level: 'important' as const,
+      route: `/${alert.route}`,
+    })),
+  ];
+  const insightsVisible = insightsExpanded || insightsLoading;
+  const insightsProgress = useSharedValue(insightsVisible ? 1 : 0);
+  const insightsHeight = Math.max(espaco.tela, insights.length * (tamanho.toqueMinimo + espaco.lg));
 
-  if (loading) return <View style={clearStyles.centered}><ActivityIndicator color={theme.gold} size="large" /></View>;
+  useEffect(() => {
+    const target = insightsVisible ? 1 : 0;
+    if (motion.reduzMovimento) {
+      insightsProgress.value = target;
+      return;
+    }
+    insightsProgress.value = withTiming(target, { duration: motion.duracao('normal'), easing: motion.entrada });
+  }, [insightsProgress, insightsVisible, motion]);
+
+  const insightContentStyle = useAnimatedStyle(() => ({
+    maxHeight: insightsHeight * insightsProgress.value,
+    opacity: insightsProgress.value,
+  }));
+
+  if (loading) return <DashboardLoading />;
 
   return (
-    <ScrollView style={clearStyles.screen} contentContainerStyle={clearStyles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.gold} />}>
+    <ScrollView
+      contentContainerStyle={styles.content}
+      refreshControl={<RefreshControl onRefresh={onRefresh} refreshing={refreshing} tintColor={cores.accent.dourado} />}
+      style={styles.screen}
+    >
       <ScreenHeader
         eyebrow={todayName}
-        title={'Olá, ' + (user?.name?.split(' ')[0] || 'Usuário')}
+        title={`Olá, ${user?.name?.split(' ')[0] || 'Usuário'}`}
         subtitle={formatDateDisplay(today)}
         action={
-          <TouchableOpacity accessibilityRole="button" accessibilityLabel="Abrir notificações" onPress={() => router.push('/notificacoes' as never)} style={clearStyles.notification}>
-            <Ionicons name="notifications-outline" size={21} color={theme.gold} />
-            {unreadCount > 0 ? <View style={clearStyles.notificationBadge}><Text style={clearStyles.notificationText}>{unreadCount > 9 ? '9+' : unreadCount}</Text></View> : null}
-          </TouchableOpacity>
+          <View style={styles.notificationAction}>
+            <Button
+              accessibilityLabel={unreadCount > 0 ? `Abrir notificações, ${unreadCount} não lidas` : 'Abrir notificações'}
+              icon="notifications-outline"
+              onPress={() => router.navigate('/notificacoes' as never)}
+              variant="ghost"
+            />
+            {unreadCount > 0 ? <View style={styles.notificationBadge}><Text style={styles.notificationBadgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text></View> : null}
+          </View>
         }
       />
 
-      <View style={clearStyles.actions}>
-        {QUICK_ACTIONS.map(action => <Button key={action.route} label={action.label} icon={action.icon as keyof typeof Ionicons.glyphMap} variant="secondary" onPress={() => router.push(action.route)} style={clearStyles.actionButton} />)}
-      </View>
-
-      <View style={clearStyles.metrics}>
-        <ClearMetric label="Ativos" value={activeEmployees} icon="people-outline" tone="success" />
-        <ClearMetric label="Em férias" value={employees.filter(employee => employee.status === 'ferias').length} icon="umbrella-outline" tone="info" />
-        <ClearMetric label="Faltas no mês" value={faltaCount} icon="close-circle-outline" tone={faltaCount > 0 ? 'danger' : 'gold'} />
-        <ClearMetric label="Em licença" value={onLeave} icon="medical-outline" tone={onLeave > 0 ? 'gold' : 'info'} />
-      </View>
-
-      {canSeeInsights && pendentesCount > 0 ? (
-        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Ver solicitações pendentes de férias" onPress={() => router.push('/(tabs)/ferias')} style={clearStyles.pending}>
-          <View style={clearStyles.pendingIcon}><Ionicons name="time-outline" size={20} color={theme.gold} /></View>
-          <View style={clearStyles.pendingCopy}><Text style={clearStyles.pendingTitle}>{pendentesCount + ' solicitação' + (pendentesCount === 1 ? '' : 'ões') + ' pendente' + (pendentesCount === 1 ? '' : 's')}</Text><Text style={clearStyles.pendingDescription}>Aprove ou recuse os pedidos da equipe.</Text></View>
-          <Ionicons name="chevron-forward" size={18} color={theme.gold} />
-        </TouchableOpacity>
+      {attentionItems.length > 0 ? (
+        <Section title="Precisa de atenção">
+          <View style={styles.attentionStack}>
+            {attentionItems.map((item) => <AttentionCard item={item} key={item.id} onPress={() => router.navigate(item.route as never)} />)}
+          </View>
+        </Section>
       ) : null}
 
-      {alerts.length > 0 ? <Card padded={false}><PanelTitle title="Alertas inteligentes" />{alerts.map((alert, index) => {
-        const color = alert.severity === 'alta' ? theme.danger : theme.gold;
-        return <TouchableOpacity key={index} accessibilityRole="button" accessibilityLabel={'Abrir alerta: ' + alert.title} onPress={() => router.push(('/' + alert.route) as never)} style={[clearStyles.listRow, clearStyles.divider]}><View style={[clearStyles.rowIcon, { backgroundColor: color === theme.danger ? theme.dangerBackground : theme.goldPale }]}><Ionicons name={alert.icon as never} color={color} size={18} /></View><View style={clearStyles.rowCopy}><Text style={clearStyles.rowTitle}>{alert.title}</Text>{alert.description ? <Text numberOfLines={1} style={clearStyles.rowDescription}>{alert.description}</Text> : null}</View><Ionicons name="chevron-forward" size={16} color={theme.textMuted} /></TouchableOpacity>;
-      })}</Card> : null}
+      <Section title="Métricas principais">
+        <View style={styles.metrics}>
+          <View style={styles.metricItem}><MetricCard indicator={<Ionicons color={cores.status.sucesso.forte} name="people-outline" size={tamanho.iconeMedio} />} label="Ativos" value={activeEmployees} /></View>
+          <View style={styles.metricItem}><MetricCard indicator={<Ionicons color={cores.status.informacao.forte} name="umbrella-outline" size={tamanho.iconeMedio} />} label="Em férias" value={employeesOnVacation} /></View>
+          <View style={styles.metricItem}><MetricCard indicator={<Ionicons color={faltaCount > 0 ? cores.status.erro.forte : cores.accent.douradoProfundo} name="close-circle-outline" size={tamanho.iconeMedio} />} label="Faltas no mês" value={faltaCount} /></View>
+          <View style={styles.metricItem}><MetricCard indicator={<Ionicons color={onLeave > 0 ? cores.status.pendente.forte : cores.status.informacao.forte} name="medical-outline" size={tamanho.iconeMedio} />} label="Em licença" value={onLeave} /></View>
+        </View>
+      </Section>
 
-      {upcomingBirthdays.length > 0 ? <Card style={clearStyles.birthday}><Text style={clearStyles.birthdayTitle}>Aniversários próximos</Text>{upcomingBirthdays.slice(0, 4).map(employee => <Text key={employee.id} style={clearStyles.birthdayLine}><Text style={clearStyles.birthdayDay}>{employee.birthdayLabel + '  '}</Text>{employee.name}</Text>)}</Card> : null}
+      <Section action={<Button accessibilityLabel="Abrir agenda" label="Ver agenda" onPress={() => router.navigate('/(tabs)/agenda')} variant="ghost" />} title="Próximos eventos">
+        <Card padded={false} style={styles.listCard}>
+          {events.length === 0 ? <EmptyState description="Sua agenda está livre nos próximos dias." icon="calendar-outline" title="Nenhum evento próximo" /> : events.slice(0, 4).map((event) => (
+            <ListRow
+              description={`${event.date === today ? 'Hoje' : formatDateDisplay(event.date)}${event.start_time ? ` · ${event.start_time}` : ''}`}
+              key={event.id}
+              leading={<View style={styles.eventIcon}><Ionicons color={cores.status.informacao.forte} name="calendar-outline" size={tamanho.iconePequeno} /></View>}
+              title={event.title}
+            />
+          ))}
+        </Card>
+      </Section>
 
-      {canSeeInsights && (insightsLoading || insights.length > 0) ? <Card padded={false}><View style={clearStyles.panelTitle}><Text style={clearStyles.panelTitleText}>Insights da IA</Text><TouchableOpacity accessibilityRole="button" accessibilityLabel="Atualizar insights da IA" onPress={() => { setInsightsLoading(true); buscarInsights(true).then(result => setInsights(result.insights)).catch(() => {}).finally(() => setInsightsLoading(false)); }} style={clearStyles.refresh}><Ionicons name="refresh" size={18} color={theme.gold} /></TouchableOpacity></View>{insightsLoading && insights.length === 0 ? <View style={clearStyles.loadingRow}><ActivityIndicator size="small" color={theme.gold} /><Text style={clearStyles.rowDescription}>Analisando dados da empresa...</Text></View> : insights.map((insight, index) => <TouchableOpacity key={index} accessibilityRole="button" accessibilityLabel={'Abrir insight: ' + insight.title} onPress={() => insight.action_route && router.push(insight.action_route as never)} disabled={!insight.action_route} style={[clearStyles.listRow, clearStyles.divider]}><View style={[clearStyles.insightDot, { backgroundColor: insight.severity === 'high' ? theme.danger : insight.severity === 'medium' ? theme.gold : theme.info }]} /><View style={clearStyles.rowCopy}><Text style={clearStyles.rowTitle}>{insight.title}</Text><Text numberOfLines={2} style={clearStyles.rowDescription}>{insight.description}</Text></View>{insight.action_route ? <Ionicons name="chevron-forward" size={16} color={theme.textMuted} /> : null}</TouchableOpacity>)}</Card> : null}
+      <Section action={<Button accessibilityLabel="Abrir equipe" label="Ver equipe" onPress={() => router.navigate('/(tabs)/colaboradores')} variant="ghost" />} title="Equipe">
+        <Card padded={false} style={styles.listCard}>
+          {employees.length === 0 ? <EmptyState description="Adicione a primeira pessoa à sua equipe." icon="people-outline" title="Nenhum colaborador cadastrado" /> : employees.slice(0, 4).map((employee) => (
+            <ListRow
+              accessibilityLabel={`Abrir perfil de ${employee.name}`}
+              description={employee.role_title}
+              key={employee.id}
+              leading={<Avatar name={employee.name} />}
+              onPress={() => router.navigate(`/colaborador/${employee.id}` as never)}
+              title={employee.name}
+              trailing={<StatusPill label={employeeStatusLabel(employee.status)} status={employeeStatusTone(employee.status)} />}
+            />
+          ))}
+        </Card>
+      </Section>
 
-      <Card padded={false}>
-        <PanelTitle title="Próximos eventos" onPress={() => router.push('/(tabs)/agenda')} />
-        {events.length === 0 ? <EmptyState icon="calendar-outline" title="Nenhum evento próximo" description="Sua agenda está livre nos próximos dias." /> : events.slice(0, 4).map(event => <View key={event.id} style={[clearStyles.listRow, clearStyles.divider]}><View style={[clearStyles.eventBar, { backgroundColor: event.color }]} /><View style={clearStyles.rowCopy}><Text style={clearStyles.rowTitle}>{event.title}</Text><Text style={clearStyles.rowDescription}>{event.date === today ? 'Hoje' : formatDateDisplay(event.date)}{event.start_time ? ' · ' + event.start_time : ''}</Text></View></View>)}
-      </Card>
+      {canSeeInsights && (insightsLoading || insights.length > 0) ? (
+        <Section
+          action={
+            <View style={styles.insightActions}>
+              <Button accessibilityLabel={insightsExpanded ? 'Ocultar insights da IA' : 'Mostrar insights da IA'} label={insightsExpanded ? 'Ocultar' : 'Mostrar'} onPress={() => setInsightsExpanded((expanded) => !expanded)} variant="ghost" />
+              <Button accessibilityLabel="Atualizar insights da IA" icon="refresh" onPress={() => {
+                setInsightsLoading(true);
+                buscarInsights(true).then((result) => setInsights(result.insights)).catch(() => {}).finally(() => setInsightsLoading(false));
+              }} variant="ghost" />
+            </View>
+          }
+          title="Insights"
+        >
+          <Card padded={false} style={styles.listCard}>
+            <Animated.View pointerEvents={insightsVisible ? 'auto' : 'none'} style={[styles.insightContent, insightContentStyle]}>
+              {insightsLoading && insights.length === 0 ? (
+                <View style={styles.insightLoading}><Skeleton /><Skeleton /></View>
+              ) : insights.map((insight, index) => (
+                <ListRow
+                  accessibilityLabel={`Abrir insight: ${insight.title}`}
+                  description={insight.description}
+                  key={`${insight.title}-${index}`}
+                  leading={<View style={[styles.insightMarker, { backgroundColor: insightColor(insight.severity) }]} />}
+                  onPress={insight.action_route ? () => router.navigate(insight.action_route as never) : undefined}
+                  title={insight.title}
+                  trailing={insight.action_route ? <Ionicons color={cores.texto.discreto} name="chevron-forward" size={tamanho.iconePequeno} /> : undefined}
+                />
+              ))}
+            </Animated.View>
+          </Card>
+        </Section>
+      ) : null}
 
-      <Card padded={false}>
-        <PanelTitle title="Equipe" onPress={() => router.push('/(tabs)/colaboradores')} />
-        {employees.length === 0 ? <EmptyState icon="people-outline" title="Nenhum colaborador cadastrado" description="Adicione a primeira pessoa à sua equipe." /> : employees.slice(0, 4).map(employee => <TouchableOpacity key={employee.id} accessibilityRole="button" accessibilityLabel={'Abrir perfil de ' + employee.name} onPress={() => router.push(('/colaborador/' + employee.id) as never)} style={[clearStyles.listRow, clearStyles.divider]}><View style={clearStyles.avatar}><Text style={clearStyles.avatarText}>{employee.name.split(' ').map(name => name[0]).slice(0, 2).join('')}</Text></View><View style={clearStyles.rowCopy}><Text style={clearStyles.rowTitle}>{employee.name}</Text><Text style={clearStyles.rowDescription}>{employee.role_title}</Text></View><Badge label={employee.status.charAt(0).toUpperCase() + employee.status.slice(1)} tone={employee.status === 'ativo' ? 'success' : employee.status === 'ferias' ? 'info' : 'muted'} /></TouchableOpacity>)}
-      </Card>
-
-      {notices.length > 0 ? <Card padded={false}><PanelTitle title="Avisos recentes" onPress={() => router.push('/(tabs)/avisos')} />{notices.slice(0, 3).map(notice => <TouchableOpacity key={notice.id} accessibilityRole="button" accessibilityLabel={'Abrir aviso: ' + notice.title} onPress={() => router.push('/(tabs)/avisos')} style={[clearStyles.listRow, clearStyles.divider]}><View style={clearStyles.rowCopy}><Text style={clearStyles.rowTitle}>{notice.title}</Text><Text numberOfLines={1} style={clearStyles.rowDescription}>{notice.body}</Text></View><Ionicons name="chevron-forward" size={16} color={theme.textMuted} /></TouchableOpacity>)}</Card> : null}
+      {upcomingBirthdays.length > 0 || notices.length > 0 ? (
+        <Section title="Contexto da equipe">
+          {upcomingBirthdays.length > 0 ? (
+            <Card padded={false} style={styles.listCard}>
+              {upcomingBirthdays.slice(0, 4).map((employee) => (
+                <ListRow description={employee.birthdayLabel} key={employee.id} leading={<View style={styles.birthdayIcon}><Ionicons color={cores.accent.douradoProfundo} name="gift-outline" size={tamanho.iconePequeno} /></View>} title={employee.name} />
+              ))}
+            </Card>
+          ) : null}
+          {notices.length > 0 ? (
+            <Card padded={false} style={styles.listCard}>
+              {notices.slice(0, 3).map((notice) => (
+                <ListRow accessibilityLabel={`Abrir aviso: ${notice.title}`} description={notice.body} key={notice.id} onPress={() => router.navigate('/(tabs)/avisos')} title={notice.title} trailing={<Ionicons color={cores.texto.discreto} name="chevron-forward" size={tamanho.iconePequeno} />} />
+              ))}
+            </Card>
+          ) : null}
+        </Section>
+      ) : null}
     </ScrollView>
   );
 }
 
-const clearStyles = StyleSheet.create({
-  screen: { backgroundColor: theme.bg, flex: 1 },
-  content: { gap: 16, padding: 16 },
-  centered: { alignItems: 'center', backgroundColor: theme.bg, flex: 1, justifyContent: 'center' },
-  notification: { alignItems: 'center', backgroundColor: theme.card, borderColor: theme.border, borderRadius: 22, borderWidth: 1, height: 44, justifyContent: 'center', position: 'relative', width: 44 },
-  notificationBadge: { alignItems: 'center', backgroundColor: theme.danger, borderRadius: 9, justifyContent: 'center', minHeight: 18, minWidth: 18, paddingHorizontal: 3, position: 'absolute', right: -4, top: -4 },
-  notificationText: { color: theme.card, fontFamily: fonts.bold, fontSize: 10 },
-  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  actionButton: { flexGrow: 1, minWidth: 145 },
-  metrics: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  metric: { flexGrow: 1, minWidth: '45%' },
-  metricIcon: { alignItems: 'center', borderRadius: 8, height: 34, justifyContent: 'center', marginBottom: 12, width: 34 },
-  metricValue: { fontFamily: fonts.display, fontSize: 32, lineHeight: 34 },
-  metricLabel: { color: theme.textMuted, fontFamily: fonts.semibold, fontSize: 12, marginTop: 4 },
-  pending: { alignItems: 'center', backgroundColor: theme.goldPale, borderColor: theme.goldLight, borderRadius: 12, borderWidth: 1, flexDirection: 'row', gap: 12, padding: 14 },
-  pendingIcon: { alignItems: 'center', backgroundColor: theme.card, borderRadius: 18, height: 36, justifyContent: 'center', width: 36 },
-  pendingCopy: { flex: 1 },
-  pendingTitle: { color: theme.textPrimary, fontFamily: fonts.semibold, fontSize: 14 },
-  pendingDescription: { color: theme.textSecondary, fontFamily: fonts.body, fontSize: 12, marginTop: 2 },
-  panelTitle: { alignItems: 'center', borderBottomColor: theme.border, borderBottomWidth: 1, flexDirection: 'row', justifyContent: 'space-between', minHeight: 52, paddingHorizontal: 16 },
-  panelTitleText: { color: theme.textPrimary, fontFamily: fonts.display, fontSize: 22 },
-  panelLink: { alignItems: 'center', flexDirection: 'row', gap: 4, height: 44, justifyContent: 'center' },
-  panelLinkText: { color: theme.gold, fontFamily: fonts.semibold, fontSize: 12 },
-  listRow: { alignItems: 'center', flexDirection: 'row', gap: 12, minHeight: 62, paddingHorizontal: 16, paddingVertical: 10 },
-  divider: { borderBottomColor: theme.border, borderBottomWidth: 1 },
-  rowIcon: { alignItems: 'center', borderRadius: 8, height: 36, justifyContent: 'center', width: 36 },
-  rowCopy: { flex: 1 },
-  rowTitle: { color: theme.textPrimary, fontFamily: fonts.semibold, fontSize: 14 },
-  rowDescription: { color: theme.textMuted, fontFamily: fonts.body, fontSize: 12, lineHeight: 17, marginTop: 2 },
-  birthday: { backgroundColor: theme.goldPale },
-  birthdayTitle: { color: theme.textPrimary, fontFamily: fonts.display, fontSize: 23, marginBottom: 8 },
-  birthdayLine: { color: theme.textSecondary, fontFamily: fonts.body, fontSize: 13, lineHeight: 21 },
-  birthdayDay: { color: theme.gold, fontFamily: fonts.bold },
-  refresh: { alignItems: 'center', height: 44, justifyContent: 'center', width: 44 },
-  loadingRow: { alignItems: 'center', flexDirection: 'row', gap: 10, padding: 16 },
-  insightDot: { borderRadius: 5, height: 10, width: 10 },
-  eventBar: { borderRadius: 2, height: 36, width: 3 },
-  avatar: { alignItems: 'center', backgroundColor: theme.goldPale, borderRadius: 20, height: 40, justifyContent: 'center', width: 40 },
-  avatarText: { color: theme.gold, fontFamily: fonts.bold, fontSize: 13 },
+const styles = StyleSheet.create({
+  screen: { backgroundColor: cores.superficie.pagina, flex: 1 },
+  content: { gap: espaco.xxxl, padding: espaco.lg, paddingBottom: espaco.tela },
+  loadingContent: { gap: espaco.lg, padding: espaco.lg, paddingBottom: espaco.tela },
+  skeletonMetrics: { flexDirection: 'row', gap: espaco.md },
+  notificationAction: { position: 'relative' },
+  notificationBadge: { alignItems: 'center', backgroundColor: cores.status.erro.forte, borderRadius: raio.pill, height: espaco.lg, justifyContent: 'center', minWidth: espaco.lg, paddingHorizontal: espaco.micro, position: 'absolute', right: -espaco.xs, top: -espaco.xs },
+  notificationBadgeText: { ...tipografia.legenda, color: cores.texto.sobreEscuro },
+  attentionStack: { gap: espaco.sm },
+  attentionCard: { overflow: 'hidden' },
+  attentionUrgent: { backgroundColor: cores.status.erro.superficie, borderColor: cores.status.erro.borda },
+  attentionImportant: { backgroundColor: cores.status.pendente.superficie, borderColor: cores.status.pendente.borda },
+  attentionContent: { alignItems: 'center', flexDirection: 'row', gap: espaco.md, minHeight: tamanho.toqueMinimo + espaco.lg, padding: espaco.lg },
+  attentionIcon: { alignItems: 'center', borderRadius: raio.pill, height: tamanho.avatarMedio, justifyContent: 'center', width: tamanho.avatarMedio },
+  attentionIconUrgent: { backgroundColor: cores.superficie.elevada },
+  attentionIconImportant: { backgroundColor: cores.superficie.elevada },
+  attentionCopy: { flex: 1, gap: espaco.micro },
+  attentionTitle: { ...tipografia.corpoForte, color: cores.texto.primario },
+  attentionDescription: { ...tipografia.legenda, color: cores.texto.secundario },
+  metrics: { flexDirection: 'row', flexWrap: 'wrap', gap: espaco.md },
+  metricItem: { flexGrow: 1, flexBasis: espaco.tela * 2 },
+  listCard: { overflow: 'hidden' },
+  eventIcon: { alignItems: 'center', backgroundColor: cores.status.informacao.superficie, borderRadius: raio.controle, height: tamanho.avatarMedio, justifyContent: 'center', width: tamanho.avatarMedio },
+  birthdayIcon: { alignItems: 'center', backgroundColor: cores.accent.superficie, borderRadius: raio.controle, height: tamanho.avatarMedio, justifyContent: 'center', width: tamanho.avatarMedio },
+  insightActions: { alignItems: 'center', flexDirection: 'row', gap: espaco.micro },
+  insightContent: { overflow: 'hidden' },
+  insightLoading: { gap: espaco.sm, padding: espaco.lg },
+  insightMarker: { borderRadius: raio.pill, height: tamanho.indicador, width: tamanho.indicador },
 });
