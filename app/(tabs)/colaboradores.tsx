@@ -220,7 +220,7 @@ export default function ColaboradoresScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.screenHeader}>
-        <ScreenHeader eyebrow="Pessoas" title="Equipe" subtitle="Gerencie colaboradores, cargos e disponibilidade." />
+        <ScreenHeader title="Equipe" subtitle="Gerencie colaboradores, cargos e disponibilidade." />
       </View>
       {/* Barra de busca */}
       <View style={styles.searchRow}>
