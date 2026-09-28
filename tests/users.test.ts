@@ -72,7 +72,7 @@ describe('POST /api/users', () => {
       .mockResolvedValueOnce([])   // email check — não existe
       .mockResolvedValueOnce([{ id: 5, company_id: 10, name: 'Novo', email: 'novo@t.com', role: 'rh', created_at: new Date() }]);
     const { default: handler } = await import('../api/users/index');
-    const req = makeReq('POST', { name: 'Novo', email: 'novo@t.com', password: 'senha123', role: 'rh' });
+    const req = makeReq('POST', { name: 'Novo', email: 'novo@t.com', username: 'novo', password: 'senha123', role: 'rh' });
     const res = makeRes();
     await handler(req, res);
     expect(res.status).toHaveBeenCalledWith(201);
@@ -82,7 +82,7 @@ describe('POST /api/users', () => {
     mockAuthenticate.mockReturnValue(superAdminCtx);
     mockSql.mockResolvedValueOnce([{ id: 3 }]);
     const { default: handler } = await import('../api/users/index');
-    const req = makeReq('POST', { name: 'X', email: 'dup@t.com', password: 'senha123', role: 'rh' });
+    const req = makeReq('POST', { name: 'X', email: 'dup@t.com', username: 'x', password: 'senha123', role: 'rh' });
     const res = makeRes();
     await handler(req, res);
     expect(res.status).toHaveBeenCalledWith(409);
@@ -100,10 +100,58 @@ describe('POST /api/users', () => {
   it('test_create_user_falha_com_role_invalido — retorna 400', async () => {
     mockAuthenticate.mockReturnValue(superAdminCtx);
     const { default: handler } = await import('../api/users/index');
-    const req = makeReq('POST', { name: 'X', email: 'x@t.com', password: 'senha123', role: 'hacker' });
+    const req = makeReq('POST', { name: 'X', email: 'x@t.com', username: 'x', password: 'senha123', role: 'hacker' });
     const res = makeRes();
     await handler(req, res);
     expect(res.status).toHaveBeenCalledWith(400);
+  });
+
+  it('test_create_user_falha_sem_username — retorna 400 (regressao: users.username e NOT NULL UNIQUE no banco)', async () => {
+    mockAuthenticate.mockReturnValue(superAdminCtx);
+    const { default: handler } = await import('../api/users/index');
+    const req = makeReq('POST', { name: 'X', email: 'x@t.com', password: 'senha123', role: 'rh' });
+    const res = makeRes();
+    await handler(req, res);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(mockSql).not.toHaveBeenCalled();
+  });
+
+  it('test_create_user_grava_username_no_insert', async () => {
+    mockAuthenticate.mockReturnValue(superAdminCtx);
+    mockSql
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ id: 5, company_id: 10, name: 'Novo', email: 'novo@t.com', username: 'novo', role: 'rh', created_at: new Date() }]);
+    const { default: handler } = await import('../api/users/index');
+    const req = makeReq('POST', { name: 'Novo', email: 'Novo@T.com', username: ' Novo ', password: 'senha123', role: 'rh' });
+    const res = makeRes();
+    await handler(req, res);
+    const insertParams = mockSql.mock.calls[1]?.slice(1) ?? [];
+    expect(insertParams).toContain('novo'); // username normalizado (trim + minusculas)
+    expect(res.status).toHaveBeenCalledWith(201);
+  });
+
+  it('test_create_user_sem_email_usa_placeholder — TEMPORARIO: email nao obrigatorio ao criar (pedido do Carlo, 2026-09-28)', async () => {
+    mockAuthenticate.mockReturnValue(superAdminCtx);
+    mockSql
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ id: 6, company_id: 10, name: 'Ariele', email: 'ariele@sememail.local', username: 'ariele', role: 'rh', created_at: new Date() }]);
+    const { default: handler } = await import('../api/users/index');
+    const req = makeReq('POST', { name: 'Ariele', username: 'ariele', password: 'senha123', role: 'rh' });
+    const res = makeRes();
+    await handler(req, res);
+    const insertParams = mockSql.mock.calls[1]?.slice(1) ?? [];
+    expect(insertParams).toContain('ariele@sememail.local');
+    expect(res.status).toHaveBeenCalledWith(201);
+  });
+
+  it('test_create_user_email_invalido_quando_informado — retorna 422', async () => {
+    mockAuthenticate.mockReturnValue(superAdminCtx);
+    const { default: handler } = await import('../api/users/index');
+    const req = makeReq('POST', { name: 'X', email: 'nao-e-email', username: 'x', password: 'senha123', role: 'rh' });
+    const res = makeRes();
+    await handler(req, res);
+    expect(res.status).toHaveBeenCalledWith(422);
+    expect(mockSql).not.toHaveBeenCalled();
   });
 });
 

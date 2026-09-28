@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS users (
   company_id    integer NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
   name          text NOT NULL,
   email         text NOT NULL UNIQUE,
+  username      text NOT NULL UNIQUE,        -- usado no login (api/auth/login.ts)
   password_hash text NOT NULL,
   role          text NOT NULL DEFAULT 'colaborador'
                   CHECK (role IN ('super_admin', 'admin', 'rh', 'gestor', 'colaborador', 'financeiro', 'juridico', 'ti', 'adm')),

@@ -93,7 +93,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (req.method === 'GET') {
       const rows = await sql`
-        SELECT id, company_id, name, email, role, created_at
+        SELECT id, company_id, name, email, username, role, created_at
         FROM users WHERE id = ${id} AND company_id = ${ctx.company_id}
       `;
       if (!rows[0]) return err(res, 404, 'Usuário não encontrado');
@@ -135,7 +135,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           password_hash = COALESCE(${newHash},      password_hash),
           role          = COALESCE(${role ?? null},  role)
         WHERE id = ${id} AND company_id = ${ctx.company_id}
-        RETURNING id, company_id, name, email, role, created_at
+        RETURNING id, company_id, name, email, username, role, created_at
       `;
       if (!rows[0]) return err(res, 404, 'Usuário não encontrado');
       return res.json(rows[0]);
@@ -158,7 +158,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const [countRow, rows] = await Promise.all([
       sql`SELECT COUNT(*)::int AS total FROM users WHERE company_id = ${ctx.company_id}`,
       sql`
-        SELECT id, company_id, name, email, role, created_at
+        SELECT id, company_id, name, email, username, role, created_at
         FROM users
         WHERE company_id = ${ctx.company_id}
         ORDER BY name
@@ -171,10 +171,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   if (req.method === 'POST') {
-    const { name, email, password, role = 'rh' } = req.body ?? {};
+    const { name, email, username, password, role = 'rh' } = req.body ?? {};
 
-    if (!name || !email || !password) {
-      return err(res, 400, 'name, email e password são obrigatórios');
+    if (!name || !username || !password) {
+      return err(res, 400, 'name, username e password são obrigatórios');
     }
     if (!(VALID_ROLES as readonly string[]).includes(role)) {
       return err(res, 400, `Cargo inválido. Use: ${VALID_ROLES.join(', ')}`);
@@ -183,17 +183,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return err(res, 400, 'Senha deve ter no mínimo 6 caracteres');
     }
 
-    const normalizedEmail = String(email).toLowerCase().trim();
+    // users.username é NOT NULL UNIQUE no banco (usado no login); sem normalizar e
+    // checar aqui, a violação de constraint vira 500 em vez de um erro claro.
+    const normalizedUsername = String(username).trim().toLowerCase();
+    if (!normalizedUsername) return err(res, 400, 'Nome de usuário não pode ser vazio');
 
-    const existing = await sql`SELECT id FROM users WHERE email = ${normalizedEmail}`;
-    if (existing[0]) return err(res, 409, 'Email já está em uso');
+    // TEMPORÁRIO (pedido do Carlo, 2026-09-28): email da conta ainda não é
+    // obrigatório no formulário. users.email também é NOT NULL UNIQUE no banco,
+    // então sem email informado geramos um placeholder a partir do username —
+    // reversível, não muda o schema. Revisar quando o fluxo de email for definido.
+    const emailInput = email ? String(email).trim() : '';
+    const normalizedEmail = emailInput ? emailInput.toLowerCase() : `${normalizedUsername}@sememail.local`;
+    if (emailInput && !isValidEmail(normalizedEmail)) return err(res, 422, 'Email inválido');
+
+    const existing = await sql`SELECT id FROM users WHERE email = ${normalizedEmail} OR username = ${normalizedUsername}`;
+    if (existing[0]) return err(res, 409, 'Email ou nome de usuário já está em uso');
 
     const hash = await bcrypt.hash(String(password), 10);
 
     const rows = await sql`
-      INSERT INTO users (company_id, name, email, password_hash, role)
-      VALUES (${ctx.company_id}, ${String(name).trim()}, ${normalizedEmail}, ${hash}, ${role})
-      RETURNING id, company_id, name, email, role, created_at
+      INSERT INTO users (company_id, name, email, username, password_hash, role)
+      VALUES (${ctx.company_id}, ${String(name).trim()}, ${normalizedEmail}, ${normalizedUsername}, ${hash}, ${role})
+      RETURNING id, company_id, name, email, username, role, created_at
     `;
     return res.status(201).json(rows[0]);
   }
