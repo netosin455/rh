@@ -74,6 +74,9 @@ export default function AdminScreen() {
   );
 
   const load = useCallback(async () => {
+    // Sem ser super_admin, a tela só mostra "Acesso restrito" (abaixo); buscar a
+    // lista de contas aqui seria uma chamada que sempre falha (403) à toa.
+    if (user?.role !== 'super_admin') { setLoading(false); return; }
     setLoadError('');
     try {
       setUsers(await getUsers());
@@ -84,7 +87,7 @@ export default function AdminScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [user?.role]);
 
   useEffect(() => { load(); }, [load]);
   const onRefresh = useCallback(() => { setRefreshing(true); load(); }, [load]);
