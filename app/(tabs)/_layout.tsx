@@ -1,33 +1,228 @@
-// ============================================================
-// app/(tabs)/_layout.tsx — SuperRH
-// ============================================================
-import { Tabs } from 'expo-router';
-import { Platform, TouchableOpacity, View, Text, StyleSheet, useWindowDimensions } from 'react-native';
-
 import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from '../../contextos/Autenticacao';
-import { theme } from '../../estilo/cores';
-import { fonts } from '../../estilo/tipografia';
-import { useEffect, useState } from 'react';
+import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
+import { Tabs, usePathname, useRouter } from 'expo-router';
+import { useEffect, useMemo, useState } from 'react';
+import { LayoutChangeEvent, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import { BrandMark } from '../../componentes/BrandMark';
+import { Button } from '../../componentes/Button';
 import { countPendentes } from '../../conexoes/ausencias';
+import { useAuth } from '../../contextos/Autenticacao';
+import { cores } from '../../estilo/cores';
+import { borda, espaco, raio, tamanho } from '../../estilo/espaco';
+import { useMotion } from '../../estilo/movimento';
+import { tipografia } from '../../estilo/tipografia';
 import { confirmAction } from '../../helpers/confirm';
 
-// roles: null = visível para todos | string[] = visível apenas para esses roles
-const TABS = [
-  { name: 'index',         title: 'Dashboard',  icon: 'grid',             roles: null },
-  { name: 'colaboradores', title: 'Equipe',      icon: 'people',           roles: null },
-  { name: 'analytics',     title: 'Analytics',  icon: 'bar-chart',        roles: ['rh', 'admin', 'super_admin', 'adm'] },
-  { name: 'agenda',        title: 'Agenda',      icon: 'calendar',         roles: null },
-  { name: 'ferias',        title: 'Férias',      icon: 'umbrella',         roles: null },
-  { name: 'avisos',        title: 'Avisos',      icon: 'megaphone',        roles: null },
-  { name: 'reconhecimentos', title: 'Kudos',     icon: 'trophy',           roles: null },
-  { name: 'ia',            title: 'Assistente',  icon: 'sparkles',         roles: null },
-  { name: 'admin',         title: 'Admin',       icon: 'shield-checkmark', roles: ['super_admin'] },
-  { name: 'mais',          title: 'Mais',        icon: 'ellipsis-horizontal-circle', roles: null },
-] as const;
+type TabName = 'index' | 'colaboradores' | 'ferias' | 'agenda' | 'avisos' | 'reconhecimentos' | 'analytics' | 'ia' | 'admin' | 'mais';
+
+export type ShellNavigationItem = {
+  key: string;
+  title: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  href: string;
+  tabName?: Exclude<TabName, 'mais'>;
+  roles: readonly string[] | null;
+};
+
+type ShellNavigationGroup = {
+  title: string;
+  items: readonly ShellNavigationItem[];
+};
+
+export const SHELL_GROUPS: readonly ShellNavigationGroup[] = [
+  {
+    title: 'Visão geral',
+    items: [{ key: 'dashboard', title: 'Dashboard', icon: 'grid', href: '/(tabs)', tabName: 'index', roles: null }],
+  },
+  {
+    title: 'Pessoas',
+    items: [
+      { key: 'equipe', title: 'Equipe', icon: 'people', href: '/(tabs)/colaboradores', tabName: 'colaboradores', roles: null },
+      { key: 'onboarding', title: 'Onboarding', icon: 'rocket', href: '/onboarding', roles: null },
+    ],
+  },
+  {
+    title: 'Gestão',
+    items: [
+      { key: 'ferias', title: 'Férias', icon: 'umbrella', href: '/(tabs)/ferias', tabName: 'ferias', roles: null },
+      { key: 'agenda', title: 'Agenda', icon: 'calendar', href: '/(tabs)/agenda', tabName: 'agenda', roles: null },
+    ],
+  },
+  {
+    title: 'Comunicação',
+    items: [
+      { key: 'avisos', title: 'Avisos', icon: 'megaphone', href: '/(tabs)/avisos', tabName: 'avisos', roles: null },
+      { key: 'reconhecimentos', title: 'Kudos', icon: 'trophy', href: '/(tabs)/reconhecimentos', tabName: 'reconhecimentos', roles: null },
+      { key: 'pesquisas', title: 'Pesquisas', icon: 'stats-chart', href: '/pesquisas', roles: null },
+    ],
+  },
+  {
+    title: 'Inteligência',
+    items: [
+      { key: 'analytics', title: 'Analytics', icon: 'bar-chart', href: '/(tabs)/analytics', tabName: 'analytics', roles: ['rh', 'admin', 'super_admin', 'adm'] },
+      { key: 'ia', title: 'Assistente', icon: 'sparkles', href: '/(tabs)/ia', tabName: 'ia', roles: null },
+    ],
+  },
+  {
+    title: 'Administração',
+    items: [{ key: 'admin', title: 'Admin', icon: 'shield-checkmark', href: '/(tabs)/admin', tabName: 'admin', roles: ['super_admin'] }],
+  },
+];
+
+export const MOBILE_PRIMARY_KEYS = new Set(['dashboard', 'equipe', 'ferias', 'agenda']);
 
 const CAN_APPROVE = ['super_admin', 'admin', 'rh', 'adm', 'gestor'];
-const MOBILE_TABS = new Set(['index', 'colaboradores', 'agenda', 'ferias', 'mais']);
+const MOBILE_TAB_NAMES = new Set<TabName>(['index', 'colaboradores', 'ferias', 'agenda', 'mais']);
+
+type TabDefinition = {
+  name: TabName;
+  title: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  roles: readonly string[] | null;
+};
+
+function isTabItem(item: ShellNavigationItem): item is ShellNavigationItem & { tabName: Exclude<TabName, 'mais'> } {
+  return item.tabName !== undefined;
+}
+
+const TABS: readonly TabDefinition[] = [
+  ...SHELL_GROUPS.flatMap((group) => group.items.filter(isTabItem).map((item) => ({
+    name: item.tabName,
+    title: item.title,
+    icon: item.icon,
+    roles: item.roles,
+  }))),
+  { name: 'mais', title: 'Mais', icon: 'ellipsis-horizontal-circle', roles: null },
+];
+
+export function canAccessNavigation(roles: readonly string[] | null, role: string | undefined) {
+  return roles === null || roles.includes(role ?? '');
+}
+
+function tabTitle(name: string) {
+  return TABS.find((tab) => tab.name === name)?.title ?? 'SuperRH';
+}
+
+type ItemLayout = { height: number; y: number };
+
+function SidebarItem({
+  active,
+  item,
+  onLayout,
+  onPress,
+  pendingCount = 0,
+}: {
+  active: boolean;
+  item: ShellNavigationItem;
+  onLayout: (event: LayoutChangeEvent) => void;
+  onPress: () => void;
+  pendingCount?: number;
+}) {
+  const [focused, setFocused] = useState(false);
+  const icon = (active ? item.icon : `${item.icon}-outline`) as keyof typeof Ionicons.glyphMap;
+
+  return (
+    <Pressable
+      accessibilityLabel={`Abrir ${item.title}${pendingCount > 0 ? `, ${pendingCount} pendências` : ''}`}
+      accessibilityRole="tab"
+      accessibilityState={{ selected: active }}
+      onBlur={() => setFocused(false)}
+      onFocus={() => setFocused(true)}
+      onLayout={onLayout}
+      onPress={onPress}
+      style={[styles.sidebarItem, active && styles.sidebarItemActive, focused && styles.sidebarItemFocused]}
+    >
+      <Ionicons color={active ? cores.sidebar.accent : cores.sidebar.textoInativo} name={icon} size={tamanho.iconeMedio} />
+      <Text style={[styles.sidebarLabel, active && styles.sidebarLabelActive]}>{item.title}</Text>
+      {pendingCount > 0 ? <View style={styles.sidebarPendingBadge}><Text style={styles.sidebarPendingBadgeText}>{pendingCount > 9 ? '9+' : pendingCount}</Text></View> : null}
+    </Pressable>
+  );
+}
+
+function WideSidebar({ state, pendentesCount }: BottomTabBarProps & { pendentesCount: number }) {
+  const motion = useMotion();
+  const pathname = usePathname();
+  const router = useRouter();
+  const { user } = useAuth();
+  const [layouts, setLayouts] = useState<Record<string, ItemLayout>>({});
+  const indicatorY = useSharedValue(0);
+  const indicatorHeight = useSharedValue(tamanho.toqueMinimo);
+  const indicatorOpacity = useSharedValue(0);
+  const role = user?.role;
+  const groups = useMemo(() => SHELL_GROUPS
+    .map((group) => ({ ...group, items: group.items.filter((item) => canAccessNavigation(item.roles, role)) }))
+    .filter((group) => group.items.length > 0), [role]);
+  const activeTab = state.routes[state.index]?.name;
+  const activeItem = groups.flatMap((group) => group.items).find((item) => (
+    item.tabName ? item.tabName === activeTab : pathname.startsWith(item.href)
+  ));
+  const indicatorLayout = activeItem ? layouts[activeItem.key] : undefined;
+
+  useEffect(() => {
+    if (!indicatorLayout) return;
+
+    if (motion.reduzMovimento) {
+      indicatorY.value = indicatorLayout.y;
+      indicatorHeight.value = indicatorLayout.height;
+      indicatorOpacity.value = withTiming(1, { duration: motion.fadeCurto, easing: motion.entrada });
+      return;
+    }
+
+    indicatorY.value = withTiming(indicatorLayout.y, { duration: motion.duracao('estrutural'), easing: motion.entrada });
+    indicatorHeight.value = withTiming(indicatorLayout.height, { duration: motion.duracao('estrutural'), easing: motion.entrada });
+    indicatorOpacity.value = withTiming(1, { duration: motion.duracao('fast'), easing: motion.entrada });
+  }, [indicatorHeight, indicatorLayout, indicatorOpacity, indicatorY, motion]);
+
+  const indicatorStyle = useAnimatedStyle(() => ({
+    height: indicatorHeight.value,
+    opacity: indicatorOpacity.value,
+    transform: [{ translateY: indicatorY.value }],
+  }));
+
+  return (
+    <View style={styles.sidebar}>
+      <View style={styles.brand}><BrandMark inverse /></View>
+      <ScrollView contentContainerStyle={styles.sidebarContent} showsVerticalScrollIndicator={false}>
+        <Animated.View pointerEvents="none" style={[styles.activeIndicator, indicatorStyle]} />
+        {groups.map((group) => (
+          <View key={group.title} style={styles.navGroup}>
+            <Text accessibilityRole="header" style={styles.groupLabel}>{group.title}</Text>
+            {group.items.map((item) => (
+              <SidebarItem
+                active={activeItem?.key === item.key}
+                item={item}
+                key={item.key}
+                onLayout={(event) => {
+                  const { height, y } = event.nativeEvent.layout;
+                  setLayouts((previous) => previous[item.key]?.y === y && previous[item.key]?.height === height
+                    ? previous
+                    : { ...previous, [item.key]: { height, y } });
+                }}
+                onPress={() => router.navigate(item.href as never)}
+                pendingCount={item.key === 'ferias' && CAN_APPROVE.includes(role ?? '') ? pendentesCount : 0}
+              />
+            ))}
+          </View>
+        ))}
+      </ScrollView>
+    </View>
+  );
+}
+
+function WideTopbar({ onLogout, title }: { onLogout: () => void; title: string }) {
+  const router = useRouter();
+
+  return (
+    <View style={styles.topbar}>
+      <Text accessibilityRole="header" style={styles.topbarTitle}>{title}</Text>
+      <View style={styles.topbarActions}>
+        <Button accessibilityLabel="Abrir notificações" icon="notifications-outline" onPress={() => router.navigate('/notificacoes' as never)} variant="ghost" />
+        <Button accessibilityLabel="Sair da conta" icon="log-out-outline" onPress={onLogout} variant="ghost" />
+      </View>
+    </View>
+  );
+}
 
 export default function TabLayout() {
   const { user, logout } = useAuth();
@@ -38,7 +233,6 @@ export default function TabLayout() {
   useEffect(() => {
     if (!CAN_APPROVE.includes(user?.role ?? '')) return;
     countPendentes().then(setPendentesCount).catch(() => {});
-    // Atualizar a cada 2 minutos enquanto o app está aberto
     const interval = setInterval(() => {
       countPendentes().then(setPendentesCount).catch(() => {});
     }, 120_000);
@@ -51,53 +245,46 @@ export default function TabLayout() {
 
   return (
     <Tabs
-      screenOptions={{
-        tabBarActiveTintColor: isWideWeb ? theme.tabSidebarActive : theme.goldDeep,
-        tabBarInactiveTintColor: isWideWeb ? theme.tabSidebarInactive : theme.tabMobileInactive,
-        tabBarPosition: isWideWeb ? 'left' : 'bottom',
-        tabBarStyle: isWideWeb ? styles.sidebar : styles.mobileTabs,
-        tabBarItemStyle: isWideWeb ? styles.sidebarItem : styles.mobileItem,
-        tabBarLabelStyle: isWideWeb ? styles.sidebarLabel : styles.mobileLabel,
-        headerStyle: styles.header,
-        headerTintColor: theme.textPrimary,
-        headerTitleStyle: {
-          fontFamily: fonts.display, color: theme.textPrimary,
-          fontSize: 24,
-        },
+      tabBar={isWideWeb ? (props) => <WideSidebar {...props} pendentesCount={pendentesCount} /> : undefined}
+      screenOptions={({ route }) => ({
+        header: isWideWeb ? () => <WideTopbar onLogout={handleLogout} title={tabTitle(route.name)} /> : undefined,
         headerShadowVisible: false,
-        headerLeft: () => null,
-        headerRight: () => (
-          <TouchableOpacity accessibilityRole="button" accessibilityLabel="Sair da conta" onPress={handleLogout} style={styles.logout}>
-            <Ionicons name="log-out-outline" size={20} color={theme.gold} />
-          </TouchableOpacity>
-        ),
-      }}
+        headerStyle: styles.mobileHeader,
+        headerTintColor: cores.texto.primario,
+        headerTitleStyle: { ...tipografia.titulo, color: cores.texto.primario },
+        headerRight: isWideWeb ? undefined : () => <Button accessibilityLabel="Sair da conta" icon="log-out-outline" onPress={handleLogout} style={styles.mobileHeaderButton} variant="ghost" />,
+        tabBarActiveTintColor: cores.texto.accentSobreClaro,
+        tabBarInactiveTintColor: cores.texto.discreto,
+        tabBarItemStyle: styles.mobileItem,
+        tabBarLabelStyle: styles.mobileLabel,
+        tabBarPosition: isWideWeb ? 'left' : 'bottom',
+        tabBarStyle: styles.mobileTabs,
+      })}
     >
-      {TABS.map(tab => (
+      {TABS.map((tab) => (
         <Tabs.Screen
           key={tab.name}
           name={tab.name}
           options={{
             title: tab.title,
-            href: (tab.roles && !tab.roles.includes(user?.role as any))
-              || (!isWideWeb && !MOBILE_TABS.has(tab.name))
+            href: !canAccessNavigation(tab.roles, user?.role)
+              || (!isWideWeb && !MOBILE_TAB_NAMES.has(tab.name))
               || (isWideWeb && tab.name === 'mais')
               ? null
               : undefined,
-            tabBarIcon: ({ color, focused }) => (
-              <View>
-                <Ionicons
-                  name={(focused ? tab.icon : `${tab.icon}-outline`) as any}
-                  size={22}
-                  color={color}
-                />
-                {tab.name === 'ferias' && pendentesCount > 0 && CAN_APPROVE.includes(user?.role ?? '') && (
-                  <View style={badgeStyles.badge}>
-                    <Text style={badgeStyles.text}>{pendentesCount > 9 ? '9+' : pendentesCount}</Text>
-                  </View>
-                )}
-              </View>
-            ),
+            tabBarIcon: ({ color, focused }) => {
+              const icon = (focused ? tab.icon : `${tab.icon}-outline`) as keyof typeof Ionicons.glyphMap;
+              return (
+                <View>
+                  <Ionicons color={color} name={icon} size={tamanho.iconeMedio} />
+                  {tab.name === 'ferias' && pendentesCount > 0 && CAN_APPROVE.includes(user?.role ?? '') ? (
+                    <View style={styles.pendingBadge}>
+                      <Text style={styles.pendingBadgeText}>{pendentesCount > 9 ? '9+' : pendentesCount}</Text>
+                    </View>
+                  ) : null}
+                </View>
+              );
+            },
           }}
         />
       ))}
@@ -105,24 +292,28 @@ export default function TabLayout() {
   );
 }
 
-const badgeStyles = StyleSheet.create({
-  badge: {
-    position: 'absolute', top: -4, right: -8,
-    minWidth: 15, height: 15, borderRadius: 8,
-    backgroundColor: theme.danger,
-    alignItems: 'center', justifyContent: 'center',
-    paddingHorizontal: 2,
-  },
-  text: { fontFamily: fonts.bold, fontSize: 10, color: theme.card },
-});
-
 const styles = StyleSheet.create({
-  header: { backgroundColor: theme.card, borderBottomColor: theme.border, borderBottomWidth: 1 },
-  logout: { alignItems: 'center', height: 44, justifyContent: 'center', marginRight: 12, width: 44 },
-  sidebar: { backgroundColor: theme.sidebar, borderRightColor: 'rgba(184,151,58,0.18)', borderRightWidth: 1, borderTopWidth: 0, paddingHorizontal: 10, paddingTop: 24, width: 232 },
-  sidebarItem: { borderRadius: 8, marginBottom: 4, minHeight: 46 },
-  sidebarLabel: { fontFamily: fonts.medium, fontSize: 12, marginTop: -2 },
-  mobileTabs: { backgroundColor: theme.card, borderTopColor: theme.border, borderTopWidth: 1, height: Platform.OS === 'ios' ? 82 : 66, paddingBottom: Platform.OS === 'ios' ? 20 : 8 },
-  mobileItem: { minHeight: 48 },
-  mobileLabel: { fontFamily: fonts.semibold, fontSize: 11, marginTop: 1 },
+  sidebar: { backgroundColor: cores.sidebar.superficie, borderRightColor: cores.accent.borda, borderRightWidth: borda.fina, width: espaco.tela * 4 },
+  brand: { borderBottomColor: cores.accent.borda, borderBottomWidth: borda.fina, minHeight: tamanho.toqueMinimo + espaco.xxl, justifyContent: 'center', paddingHorizontal: espaco.xl },
+  sidebarContent: { paddingBottom: espaco.xxl, paddingHorizontal: espaco.sm, paddingTop: espaco.lg, position: 'relative' },
+  activeIndicator: { backgroundColor: cores.sidebar.accent, borderRadius: raio.pill, left: espaco.xs, position: 'absolute', top: espaco.zero, width: tamanho.indicador },
+  navGroup: { gap: espaco.xs, marginBottom: espaco.xl },
+  groupLabel: { ...tipografia.rotulo, color: cores.sidebar.textoInativo, paddingHorizontal: espaco.md, textTransform: 'uppercase' },
+  sidebarItem: { alignItems: 'center', borderColor: cores.superficie.transparente, borderRadius: raio.controle, borderWidth: borda.fina, flexDirection: 'row', gap: espaco.md, minHeight: tamanho.toqueMinimo, paddingHorizontal: espaco.md },
+  sidebarItemActive: { backgroundColor: cores.accent.sutil },
+  sidebarItemFocused: { borderColor: cores.foco.anel, borderWidth: borda.foco },
+  sidebarLabel: { ...tipografia.corpoForte, color: cores.sidebar.textoInativo, flex: 1 },
+  sidebarLabelActive: { color: cores.sidebar.texto },
+  sidebarPendingBadge: { alignItems: 'center', backgroundColor: cores.status.erro.forte, borderRadius: raio.pill, height: espaco.lg, justifyContent: 'center', minWidth: espaco.lg, paddingHorizontal: espaco.micro },
+  sidebarPendingBadgeText: { ...tipografia.legenda, color: cores.texto.sobreEscuro },
+  topbar: { alignItems: 'center', backgroundColor: cores.superficie.elevada, borderBottomColor: cores.borda.sutil, borderBottomWidth: borda.fina, flexDirection: 'row', height: tamanho.toqueMinimo + espaco.xxl, justifyContent: 'space-between', paddingHorizontal: espaco.xxl },
+  topbarTitle: { ...tipografia.titulo, color: cores.texto.primario },
+  topbarActions: { alignItems: 'center', flexDirection: 'row', gap: espaco.sm },
+  mobileHeader: { backgroundColor: cores.superficie.elevada, borderBottomColor: cores.borda.sutil, borderBottomWidth: borda.fina },
+  mobileHeaderButton: { marginRight: espaco.sm },
+  mobileTabs: { backgroundColor: cores.superficie.elevada, borderTopColor: cores.borda.sutil, borderTopWidth: borda.fina, height: Platform.OS === 'ios' ? tamanho.toqueMinimo + espaco.xxxl : tamanho.toqueMinimo + espaco.xxl, paddingBottom: Platform.OS === 'ios' ? espaco.xl : espaco.sm },
+  mobileItem: { minHeight: tamanho.toqueMinimo },
+  mobileLabel: { ...tipografia.legenda, marginTop: espaco.micro },
+  pendingBadge: { alignItems: 'center', backgroundColor: cores.status.erro.forte, borderRadius: raio.pill, height: espaco.lg, justifyContent: 'center', minWidth: espaco.lg, paddingHorizontal: espaco.micro, position: 'absolute', right: -espaco.sm, top: -espaco.xs },
+  pendingBadgeText: { ...tipografia.legenda, color: cores.texto.sobreEscuro },
 });

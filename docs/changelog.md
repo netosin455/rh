@@ -1,5 +1,16 @@
 # Changelog — SuperRH
 
+## [2026-09-28] - V2-F3: shell e navegacao
+
+### Alterado
+- `app/(tabs)/_layout.tsx`: web largo passou a usar sidebar grafite agrupada, `BrandMark`, indicador ativo com motion estrutural sem bounce, topbar com titulo, notificacoes e sair.
+- As regras de `roles` continuam centralizadas no mapa de navegacao; Analytics permanece restrito a RH/admin/adm/super_admin, Admin a super_admin, e o contador de ferias pendentes aparece na barra mobile e na sidebar para quem pode aprovar.
+- `app/(tabs)/mais.tsx`: os destinos fora das quatro acoes primarias agora usam os mesmos grupos e filtros de perfil do desktop, incluindo Onboarding e Pesquisas.
+
+### Verificado
+- `npx expo export --platform web` concluido.
+- `npm test`: 44 testes aprovados em 11 arquivos.
+
 ## [2026-09-28] - V2-F1F2: sistema de design e motion
 
 ### Adicionado

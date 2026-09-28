@@ -1,58 +1,57 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { Card } from '../../componentes/Card';
+import { ListRow } from '../../componentes/ListRow';
 import { ScreenHeader } from '../../componentes/ScreenHeader';
+import { Section } from '../../componentes/Section';
 import { useAuth } from '../../contextos/Autenticacao';
-import { radius, theme } from '../../estilo/cores';
-import { fonts } from '../../estilo/tipografia';
-
-const LINKS = [
-  { title: 'Analytics', description: 'Indicadores e tendências', icon: 'bar-chart-outline', route: '/(tabs)/analytics', roles: ['rh', 'admin', 'super_admin', 'adm'] },
-  { title: 'Avisos', description: 'Comunicados da equipe', icon: 'megaphone-outline', route: '/(tabs)/avisos' },
-  { title: 'Kudos', description: 'Reconhecimentos', icon: 'trophy-outline', route: '/(tabs)/reconhecimentos' },
-  { title: 'Assistente', description: 'Apoio inteligente', icon: 'sparkles-outline', route: '/(tabs)/ia' },
-  { title: 'Administração', description: 'Configurações do sistema', icon: 'shield-checkmark-outline', route: '/(tabs)/admin', roles: ['super_admin'] },
-] as const;
+import { cores } from '../../estilo/cores';
+import { espaco, raio, tamanho } from '../../estilo/espaco';
+import { MOBILE_PRIMARY_KEYS, SHELL_GROUPS, canAccessNavigation } from './_layout';
 
 export default function MaisScreen() {
   const router = useRouter();
   const { user } = useAuth();
-  const links = LINKS.filter(link => !link.roles || link.roles.includes(user?.role as never));
+  const groups = SHELL_GROUPS
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => (
+        !MOBILE_PRIMARY_KEYS.has(item.key) && canAccessNavigation(item.roles, user?.role)
+      )),
+    }))
+    .filter((group) => group.items.length > 0);
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <ScreenHeader eyebrow="Navegação" title="Mais opções" subtitle="Acesse os módulos complementares do SuperRH." />
-      <Card style={styles.card} padded={false}>
-        {links.map((link, index) => (
-          <TouchableOpacity
-            key={link.route}
-            accessibilityRole="button"
-            accessibilityLabel={'Abrir ' + link.title}
-            onPress={() => router.push(link.route as never)}
-            style={[styles.link, index < links.length - 1 && styles.linkBorder]}
-          >
-            <View style={styles.icon}><Ionicons name={link.icon as never} size={20} color={theme.gold} /></View>
-            <View style={styles.copy}>
-              <Text style={styles.title}>{link.title}</Text>
-              <Text style={styles.description}>{link.description}</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={theme.textMuted} />
-          </TouchableOpacity>
-        ))}
-      </Card>
+    <ScrollView contentContainerStyle={styles.content} style={styles.screen}>
+      <ScreenHeader eyebrow="Navegação" title="Mais opções" subtitle="Módulos organizados por área de trabalho." />
+      {groups.map((group) => (
+        <Section key={group.title} title={group.title}>
+          <Card padded={false} style={styles.groupCard}>
+            {group.items.map((item) => (
+              <ListRow
+                accessibilityLabel={`Abrir ${item.title}`}
+                key={item.key}
+                leading={
+                  <View style={styles.icon}>
+                    <Ionicons color={cores.accent.douradoProfundo} name={item.icon} size={tamanho.iconeMedio} />
+                  </View>
+                }
+                onPress={() => router.navigate(item.href as never)}
+                title={item.title}
+                trailing={<Ionicons color={cores.texto.discreto} name="chevron-forward" size={tamanho.iconePequeno} />}
+              />
+            ))}
+          </Card>
+        </Section>
+      ))}
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { backgroundColor: theme.bg, flex: 1 },
-  content: { gap: 20, padding: 16 },
-  card: { overflow: 'hidden' },
-  link: { alignItems: 'center', flexDirection: 'row', gap: 12, minHeight: 68, paddingHorizontal: 14, paddingVertical: 12 },
-  linkBorder: { borderBottomColor: theme.border, borderBottomWidth: 1 },
-  icon: { alignItems: 'center', backgroundColor: theme.goldPale, borderRadius: radius.sm, height: 40, justifyContent: 'center', width: 40 },
-  copy: { flex: 1 },
-  title: { color: theme.textPrimary, fontFamily: fonts.semibold, fontSize: 15 },
-  description: { color: theme.textMuted, fontFamily: fonts.body, fontSize: 12, marginTop: 2 },
+  screen: { backgroundColor: cores.superficie.pagina, flex: 1 },
+  content: { gap: espaco.xxxl, padding: espaco.lg, paddingBottom: espaco.tela },
+  groupCard: { overflow: 'hidden' },
+  icon: { alignItems: 'center', backgroundColor: cores.accent.superficie, borderRadius: raio.controle, height: tamanho.avatarMedio, justifyContent: 'center', width: tamanho.avatarMedio },
 });
