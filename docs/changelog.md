@@ -1,5 +1,15 @@
 # Changelog — SuperRH
 
+## [2026-09-28] - V2-F6d: Equipe (achado tardio, feito por mim)
+
+### Corrigido
+- `app/(tabs)/colaboradores.tsx` (Equipe) nunca tinha sido atribuído a nenhum dos dois blocos da Fase 6 — erro meu na divisão do trabalho. Uma varredura completa por hex/rgba fora de `estilo/` encontrou a tela ainda com o visual antigo. Migrada agora: `Avatar`, `ListRow`, `StatusPill`, `Modal`, `Input`, `Button`, `EmptyState`, `Skeleton`; chip de filtro local (não existe componente de chip ainda) só com tokens. Lógica de busca, filtro, ações rápidas (falta/folga/crédito de horas) e cadastro preservada.
+
+### Verificado
+- `npx expo export --platform web`, `npm test` (48/48), sem hex/rgba fora de `estilo/`, sem eyebrow.
+
+Com esta entrega, a Fase 6 do redesign V2 está completa de verdade: Equipe, Férias, Agenda, Avisos, Kudos, Analytics, Admin, Pesquisas, Onboarding, Detalhe do colaborador e IA.
+
 ## [2026-09-28] - V2-F6c: Assistente de IA
 
 ### Alterado
