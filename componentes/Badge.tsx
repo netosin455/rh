@@ -1,22 +1,42 @@
-import { StyleSheet, Text, View } from 'react-native';
-import { radius, theme } from '../estilo/cores';
-import { fonts } from '../estilo/tipografia';
+import { useEffect } from 'react';
+import { StyleSheet } from 'react-native';
+import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import { theme } from '../estilo/cores';
+import { espaco, raio } from '../estilo/espaco';
+import { tipografia } from '../estilo/tipografia';
+import { useMotion } from '../estilo/movimento';
 
 type BadgeProps = { label: string; tone?: 'gold' | 'success' | 'danger' | 'info' | 'muted' };
 
 const tones = {
-  gold: { backgroundColor: theme.goldPale, color: theme.goldDeep },
-  success: { backgroundColor: theme.successBackground, color: theme.success },
-  danger: { backgroundColor: theme.dangerBackground, color: theme.danger },
-  info: { backgroundColor: theme.infoBackground, color: theme.info },
-  muted: { backgroundColor: theme.bg, color: theme.textMuted },
+  gold: { backgroundColor: theme.accent.superficie, color: theme.accent.douradoProfundo },
+  success: { backgroundColor: theme.status.sucesso.superficie, color: theme.status.sucesso.forte },
+  danger: { backgroundColor: theme.status.erro.superficie, color: theme.status.erro.forte },
+  info: { backgroundColor: theme.status.informacao.superficie, color: theme.status.informacao.forte },
+  muted: { backgroundColor: theme.superficie.sutil, color: theme.texto.discreto },
 } as const;
 
 export function Badge({ label, tone = 'muted' }: BadgeProps) {
-  return <View style={[styles.badge, { backgroundColor: tones[tone].backgroundColor }]}><Text style={[styles.text, { color: tones[tone].color }]}>{label}</Text></View>;
+  const motion = useMotion();
+  const backgroundColor = useSharedValue(tones[tone].backgroundColor);
+  const color = useSharedValue(tones[tone].color);
+
+  useEffect(() => {
+    backgroundColor.value = withTiming(tones[tone].backgroundColor, { duration: motion.duracao('fast'), easing: motion.entrada });
+    color.value = withTiming(tones[tone].color, { duration: motion.duracao('fast'), easing: motion.entrada });
+  }, [backgroundColor, color, motion, tone]);
+
+  const badgeStyle = useAnimatedStyle(() => ({ backgroundColor: backgroundColor.value }));
+  const textStyle = useAnimatedStyle(() => ({ color: color.value }));
+
+  return (
+    <Animated.View accessibilityRole="text" accessibilityLabel={label} style={[styles.badge, badgeStyle]}>
+      <Animated.Text style={[styles.text, textStyle]}>{label}</Animated.Text>
+    </Animated.View>
+  );
 }
 
 const styles = StyleSheet.create({
-  badge: { alignSelf: 'flex-start', borderRadius: radius.full, paddingHorizontal: 8, paddingVertical: 4 },
-  text: { fontFamily: fonts.bold, fontSize: 11, letterSpacing: 0.3 },
+  badge: { alignSelf: 'flex-start', borderRadius: raio.pill, paddingHorizontal: espaco.sm, paddingVertical: espaco.xs },
+  text: { ...tipografia.legenda },
 });

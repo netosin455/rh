@@ -1,5 +1,23 @@
 # Changelog — SuperRH
 
+## [2026-09-28] - V2-F1F2: sistema de design e motion
+
+### Adicionado
+- `estilo/espaco.ts`: escala espacial, raios de controle/cartao, elevacao minima de overlay, camadas e alvo de toque de 44 px.
+- `estilo/movimento.ts`: duracoes de 100/140/200/280 ms, curvas de entrada/saida e `useMotion()` integrado a `useReducedMotion()`.
+- Componentes base: `Drawer`/`Sheet`, `Skeleton`, `MetricCard`, `Section`, `ListRow`, `Avatar`, `StatusPill`, `ProgressBar` e `BrandMark`.
+
+### Alterado
+- `estilo/cores.ts` passou a expor grupos semanticos de superficie, texto, borda, accent, status, sidebar, foco e elevacao; os nomes antigos permanecem como compatibilidade de migracao.
+- `estilo/tipografia.ts` centraliza escala Inter para a UI e reserva Cormorant para a marca.
+- `Button`, `Input`, `Card`, `Badge`, `Modal`, `EmptyState`, `ScreenHeader` e Toast usam somente tokens, tem foco visivel/alvos de 44 px quando interativos e removem gradientes, halos e spring com bounce.
+- Motion funcional aplicado a press, foco, modal, drawer, toast, badge/status, skeleton e barra de progresso; reducao de movimento usa fade curto ou transicao sem deslocamento.
+
+### Verificado
+- `npx expo export --platform web` concluido.
+- `npm test`: 44 testes aprovados em 11 arquivos.
+- Busca em `componentes/` e `contextos/` sem hex/`rgba`, sem spring/bounce/loops, com verificacao de codificacao aprovada.
+
 ## [2026-09-25] — RH-002 Auditoria de lógica e RH-003 Email de feedback
 
 ### Corrigido

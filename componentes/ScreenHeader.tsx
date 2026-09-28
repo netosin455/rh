@@ -1,7 +1,8 @@
 import { ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { theme } from '../estilo/cores';
-import { fonts } from '../estilo/tipografia';
+import { espaco } from '../estilo/espaco';
+import { tipografia } from '../estilo/tipografia';
 
 type ScreenHeaderProps = { eyebrow?: string; title: string; subtitle?: string; action?: ReactNode };
 
@@ -19,10 +20,10 @@ export function ScreenHeader({ eyebrow, title, subtitle, action }: ScreenHeaderP
 }
 
 const styles = StyleSheet.create({
-  header: { alignItems: 'flex-start', flexDirection: 'row', gap: 16, justifyContent: 'space-between' },
+  header: { alignItems: 'flex-start', flexDirection: 'row', gap: espaco.lg, justifyContent: 'space-between' },
   copy: { flex: 1 },
-  eyebrow: { color: theme.goldDeep, fontFamily: fonts.bold, fontSize: 11, letterSpacing: 1.2, marginBottom: 3, textTransform: 'uppercase' },
-  title: { color: theme.textPrimary, fontFamily: fonts.display, fontSize: 30, lineHeight: 34 },
-  subtitle: { color: theme.textMuted, fontFamily: fonts.body, fontSize: 13, lineHeight: 19, marginTop: 4 },
+  eyebrow: { ...tipografia.rotulo, color: theme.accent.douradoProfundo, marginBottom: espaco.micro, textTransform: 'uppercase' },
+  title: { ...tipografia.display, color: theme.texto.primario },
+  subtitle: { ...tipografia.corpo, color: theme.texto.discreto, marginTop: espaco.xs },
   action: { flexShrink: 0 },
 });

@@ -1,9 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
-import { ReactNode } from 'react';
-import { ActivityIndicator, StyleProp, StyleSheet, Text, TouchableOpacity, ViewStyle } from 'react-native';
-import { radius, theme } from '../estilo/cores';
-import { fonts } from '../estilo/tipografia';
+import { ReactNode, useState } from 'react';
+import { ActivityIndicator, Pressable, StyleProp, StyleSheet, Text, ViewStyle } from 'react-native';
+import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import { theme } from '../estilo/cores';
+import { borda, espaco, opacidade, raio, tamanho } from '../estilo/espaco';
+import { tipografia } from '../estilo/tipografia';
+import { movimento, useMotion } from '../estilo/movimento';
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 type ButtonProps = {
   label?: string;
@@ -28,62 +32,65 @@ export function Button({
   style,
   children,
 }: ButtonProps) {
+  const motion = useMotion();
+  const pressed = useSharedValue(0);
+  const [focused, setFocused] = useState(false);
+  const unavailable = disabled || loading;
+  const pressDuration = motion.duracao('instant');
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: withTiming(pressed.value && !motion.reduzMovimento ? movimento.deslocamento.press : 1, {
+      duration: pressDuration,
+      easing: motion.entrada,
+    }) }],
+  }));
+
   const content = loading ? (
-    <ActivityIndicator color={variant === 'primary' ? theme.onGold : theme.gold} />
+    <ActivityIndicator color={variant === 'primary' ? theme.texto.sobreAccent : variant === 'danger' ? theme.status.erro.forte : theme.accent.douradoProfundo} />
   ) : (
     <>
-      {icon ? <Ionicons name={icon} size={18} color={variant === 'primary' ? theme.onGold : theme.gold} /> : null}
-      {label ? <Text style={[styles.label, variant === 'primary' ? styles.primaryLabel : styles.secondaryLabel]}>{label}</Text> : null}
+      {icon ? <Ionicons name={icon} size={tamanho.iconePequeno} color={variant === 'primary' ? theme.texto.sobreAccent : variant === 'danger' ? theme.status.erro.forte : theme.accent.douradoProfundo} /> : null}
+      {label ? <Text style={[styles.label, variant === 'primary' ? styles.primaryLabel : variant === 'danger' ? styles.dangerLabel : styles.secondaryLabel]}>{label}</Text> : null}
       {children}
     </>
   );
 
-  if (variant === 'primary') {
-    return (
-      <TouchableOpacity
-        accessibilityRole="button"
-        accessibilityLabel={accessibilityLabel ?? label}
-        disabled={disabled || loading}
-        onPress={onPress}
-        activeOpacity={0.86}
-        style={[styles.touch, style, (disabled || loading) && styles.disabled]}
-      >
-        <LinearGradient colors={[theme.gold, theme.goldLight]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.primary}>
-          {content}
-        </LinearGradient>
-      </TouchableOpacity>
-    );
-  }
-
   return (
-    <TouchableOpacity
+    <AnimatedPressable
       accessibilityRole="button"
-      accessibilityLabel={accessibilityLabel ?? label}
-      disabled={disabled || loading}
+      accessibilityLabel={accessibilityLabel ?? label ?? 'Botão'}
+      accessibilityState={{ busy: loading, disabled: unavailable }}
+      disabled={unavailable}
       onPress={onPress}
-      activeOpacity={0.78}
+      onPressIn={() => { pressed.value = 1; }}
+      onPressOut={() => { pressed.value = 0; }}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
       style={[
-        styles.touch,
-        styles.secondary,
+        styles.button,
+        variant === 'primary' ? styles.primary : styles.secondary,
         variant === 'ghost' && styles.ghost,
         variant === 'danger' && styles.danger,
         style,
-        (disabled || loading) && styles.disabled,
+        focused && styles.focus,
+        unavailable && styles.disabled,
+        animatedStyle,
       ]}
     >
       {content}
-    </TouchableOpacity>
+    </AnimatedPressable>
   );
 }
 
 const styles = StyleSheet.create({
-  touch: { minHeight: 44, borderRadius: radius.sm, overflow: 'hidden' },
-  primary: { minHeight: 44, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 },
-  secondary: { minHeight: 44, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8, backgroundColor: theme.card, borderWidth: 1, borderColor: theme.borderStrong },
-  ghost: { backgroundColor: 'transparent', borderColor: 'transparent' },
-  danger: { borderColor: theme.danger, backgroundColor: theme.dangerBackground },
-  disabled: { opacity: 0.55 },
-  label: { fontFamily: fonts.bold, fontSize: 14 },
-  primaryLabel: { color: theme.onGold },
-  secondaryLabel: { color: theme.textPrimary },
+  button: { alignItems: 'center', borderRadius: raio.controle, flexDirection: 'row', gap: espaco.sm, justifyContent: 'center', minHeight: tamanho.toqueMinimo, paddingHorizontal: espaco.lg },
+  primary: { backgroundColor: theme.accent.dourado },
+  secondary: { backgroundColor: theme.superficie.elevada, borderColor: theme.bordaSemantica.forte, borderWidth: borda.fina },
+  ghost: { backgroundColor: theme.superficie.transparente, borderColor: theme.superficie.transparente },
+  danger: { backgroundColor: theme.status.erro.superficie, borderColor: theme.status.erro.borda },
+  focus: { borderColor: theme.foco.anel, borderWidth: borda.foco },
+  disabled: { opacity: opacidade.desabilitado },
+  label: { ...tipografia.corpoForte },
+  primaryLabel: { color: theme.texto.sobreAccent },
+  secondaryLabel: { color: theme.texto.primario },
+  dangerLabel: { color: theme.status.erro.forte },
 });
