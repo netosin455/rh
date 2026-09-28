@@ -1,5 +1,16 @@
 # Changelog — SuperRH
 
+## [2026-09-28] — Bug real: Insights de IA do Dashboard sempre em erro (conta da ariele)
+
+### Corrigido
+- **Achado investigando "dashboard não mostra informações" na conta da ariele (role rh)**: o painel de Insights de IA do Dashboard (`GET /api/analytics?view=insights`) devolvia 500 pra ela sempre. Reproduzido contra produção com o token real dela. Causa raiz: a chave do Groq configurada em produção está inválida/expirada (`401 Invalid API Key` testando direto na API do Groq) — isso também derruba o assistente de IA (`POST /api/chat` → 502 "Assistente temporariamente indisponível"). **Preciso que o Carlo gere uma chave nova em console.groq.com e atualize `GROQ_API_KEY` nas env vars do projeto na Vercel** — não tenho como gerar/rotacionar essa chave.
+- De brinde, achei e corrigi 2 bugs reais de SQL nessa mesma função que estavam sendo engolidos silenciosamente (`.catch(() => [])`, por isso nunca geravam 500, só dados incompletos): coluna `pr.submitted_at` não existe em `pulse_responses` (é `responded_at`), e `pulse_surveys` não tem coluna `response_count` (não existe, tem que contar via subquery em `pulse_responses`). Corrigido e testado direto contra o banco de produção antes de subir.
+- Frontend (`app/(tabs)/index.tsx`) engolia esse erro em silêncio (`.catch(() => {})`), então a tela não crashava mas a seção de Insights ficava sempre vazia sem aviso — é o que a ariele via como "dashboard sem informação".
+
+### Verificado
+- Todas as outras chamadas do Dashboard pra conta da ariele (colaboradores, eventos, avisos, analytics geral, ausências) retornam 200 com dado real; o problema era isolado ao painel de Insights de IA.
+- tsc limpo, npm test (51/51).
+
 ## [2026-09-28] — Degradê no login, máscaras de telefone/CPF, e um bug real: CPF sumiu do cadastro
 
 ### Corrigido

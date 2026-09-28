@@ -43,12 +43,17 @@ async function handleInsights(companyId: number, forceRefresh: boolean, res: Ver
                )) AS absent_30d FROM employees WHERE company_id=${companyId}`.catch(() => []),
     sql`SELECT ROUND(AVG(score)::numeric,1) AS avg_score FROM pulse_responses pr
         JOIN pulse_surveys ps ON ps.id=pr.survey_id
-        WHERE ps.company_id=${companyId} AND pr.submitted_at >= NOW()-INTERVAL '30 days'`.catch(() => []),
+        WHERE ps.company_id=${companyId} AND pr.responded_at >= NOW()-INTERVAL '30 days'`.catch(() => []),
     sql`SELECT COUNT(*) FILTER (WHERE completed_at IS NULL) AS active_count,
                COUNT(*) FILTER (WHERE completed_at IS NULL AND started_at < NOW()-INTERVAL '14 days') AS overdue_count
         FROM onboarding_processes WHERE company_id=${companyId}`.catch(() => []),
-    sql`SELECT COUNT(*) AS total, ROUND(AVG(response_count)::numeric,0) AS avg_responses
-        FROM pulse_surveys WHERE company_id=${companyId} AND (expires_at IS NULL OR expires_at > NOW())`.catch(() => []),
+    // pulse_surveys não tem coluna response_count: conta via subquery em pulse_responses.
+    sql`SELECT COUNT(*) AS total, ROUND(AVG(resp_count)::numeric,0) AS avg_responses
+        FROM (
+          SELECT ps.id, (SELECT COUNT(*) FROM pulse_responses pr WHERE pr.survey_id = ps.id) AS resp_count
+          FROM pulse_surveys ps
+          WHERE ps.company_id = ${companyId} AND (ps.expires_at IS NULL OR ps.expires_at > NOW())
+        ) sub`.catch(() => []),
   ]);
 
   const active  = Number((absRow[0] as any)?.active_total ?? 0);
