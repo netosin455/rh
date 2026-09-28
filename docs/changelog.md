@@ -11,6 +11,97 @@
 
 Verificado: tsc, npm test (49/49), expo export --platform web.
 
+## [2026-09-28] - V2 polish: login com profundidade, sino duplicado, bug de eventos
+
+Resposta ao feedback do Carlo de que o login/dashboard não tinham comparação com o gerador de recibos. Auditei contra print real (não só estrutura) e corrigi 3 problemas concretos:
+
+1. **Login sem profundidade**: `BrandMark` ganhou variante `size="grande"` (só o login usa); halo dourado único atrás do cartão via `boxShadow` real (blur de verdade, web); sombra de profundidade no cartão.
+2. **Sino de notificação duplicado**: existia um na topbar do shell (sem contador) e outro no Dashboard (com contador). Unificado no shell, único dono, web largo e celular.
+3. **Bug crítico achado testando logado contra produção**: `GET /api/events?upcoming=true` sempre dava 500 (mascarado de erro de CORS no navegador). `events.date` é `text`, comparado sem cast contra `::date`. Corrigido e já em produção (`main`, 12:29) — pré-existente, não introduzido pelo V2.
+
+Verificado: tsc, npm test (49/49), expo export --platform web, e visualmente contra produção logado (Dashboard real: 43 colaboradores, eventos corretos, um só sino).
+
+## [2026-09-28] - V2-F6d: Equipe (achado tardio, feito por mim)
+
+### Corrigido
+- `app/(tabs)/colaboradores.tsx` (Equipe) nunca tinha sido atribuído a nenhum dos dois blocos da Fase 6 — erro meu na divisão do trabalho. Uma varredura completa por hex/rgba fora de `estilo/` encontrou a tela ainda com o visual antigo. Migrada agora: `Avatar`, `ListRow`, `StatusPill`, `Modal`, `Input`, `Button`, `EmptyState`, `Skeleton`; chip de filtro local (não existe componente de chip ainda) só com tokens. Lógica de busca, filtro, ações rápidas (falta/folga/crédito de horas) e cadastro preservada.
+
+### Verificado
+- `npx expo export --platform web`, `npm test` (48/48), sem hex/rgba fora de `estilo/`, sem eyebrow.
+
+Com esta entrega, a Fase 6 do redesign V2 está completa de verdade: Equipe, Férias, Agenda, Avisos, Kudos, Analytics, Admin, Pesquisas, Onboarding, Detalhe do colaborador e IA.
+
+## [2026-09-28] - V2-F6c: Assistente de IA
+
+### Alterado
+- `app/(tabs)/ia.tsx` migrou mensagens, sugestões e compositor para `ScreenHeader`, `Card`, `Avatar`, `Button`, `Input` e `Skeleton`, usando somente tokens de estilo compartilhados.
+- O estado de processamento recebe fade curto com `useMotion()` e o cabeçalho não apresenta mais o estado estático “Online”; o histórico, o envio e a chamada ao chat foram preservados.
+
+### Verificado
+- `npx expo export --platform web` concluído.
+
+## [2026-09-28] - V2-F6a: Férias, Agenda, Avisos, Reconhecimentos e Analytics
+
+### Alterado
+- As cinco telas passaram a compor a interface com tokens semânticos e componentes compartilhados (`ScreenHeader`, `Section`, `Card`, `Button`, `Input`, `Modal`, `ListRow`, `MetricCard`, `EmptyState`, `Skeleton`, `StatusPill`, `ProgressBar` e `Avatar` conforme o contexto).
+- Férias preserva aprovações, edição, exclusão, saldos e PDF; Agenda preserva calendário, aniversários, criação e ICS; Avisos preserva expansão, fixação e exclusão; Reconhecimentos preserva o fluxo em duas etapas e exclusão autorizada; Analytics preserva métricas, riscos, casos urgentes e atalhos.
+- Foram removidos `FadeInDown`, cartões locais duplicados, FABs e estilos com cores legadas dessas telas; a interação recebe feedback pelos componentes de motion e os controles mantêm rótulos acessíveis e foco web.
+
+### Verificado
+- Busca sem hex/rgba, `theme`, `eyebrow`, componentes legados e caracteres corrompidos nos cinco arquivos.
+- `npm test`: 48 testes aprovados em 11 arquivos após cada migração.
+- `npx expo export --platform web` executado após cada tela; as exportações concluídas geraram as 30 rotas web (com o aviso ambiental já conhecido de `EXPO_PUBLIC_API_URL` ausente).
+
+## [2026-09-28] - V2-F5: Dashboard
+
+### Alterado
+- `app/(tabs)/index.tsx` reorganizado para saudacao e data, atencao prioritaria, metricas, agenda, equipe e insights secundarios recolhiveis.
+- Alertas de alta severidade, pendencias de ferias e faltas agora recebem enfase semantica; metricas usam `MetricCard`, listas usam `ListRow`, e os carregamentos usam `Skeleton`.
+- Guard de sessao, consultas existentes, roles de insights/aprovacao e contador de notificacoes foram preservados.
+
+### Removido
+- `LegacyDashboardScreen`, seus estilos, imports e helpers de renderizacao nao usados.
+
+### Verificado
+- `npx expo export --platform web` concluido.
+- `npm test`: 44 testes aprovados em 11 arquivos.
+
+## [2026-09-28] - V2-F3: shell e navegacao
+
+### Alterado
+- `app/(tabs)/_layout.tsx`: web largo passou a usar sidebar grafite agrupada, `BrandMark`, indicador ativo com motion estrutural sem bounce, topbar com titulo, notificacoes e sair.
+- As regras de `roles` continuam centralizadas no mapa de navegacao; Analytics permanece restrito a RH/admin/adm/super_admin, Admin a super_admin, e o contador de ferias pendentes aparece na barra mobile e na sidebar para quem pode aprovar.
+- `app/(tabs)/mais.tsx`: os destinos fora das quatro acoes primarias agora usam os mesmos grupos e filtros de perfil do desktop, incluindo Onboarding e Pesquisas.
+
+### Verificado
+- `npx expo export --platform web` concluido.
+- `npm test`: 44 testes aprovados em 11 arquivos.
+
+## [2026-09-28] - V2-F4: Login V2
+
+### Alterado
+
+- `app/login.tsx`: login redesenhado como um cartão central em fundo grafite liso, usando somente `BrandMark`, `Input` e `Button` compartilhados e os tokens do sistema.
+- Removidos o gradiente, halos, `Field` local e valores de cor locais; foco dos campos, erro inline, confirmação breve de sucesso e entrada curta respeitando redução de movimento ficaram padronizados.
+
+## [2026-09-28] - V2-F1F2: sistema de design e motion
+
+### Adicionado
+- `estilo/espaco.ts`: escala espacial, raios de controle/cartao, elevacao minima de overlay, camadas e alvo de toque de 44 px.
+- `estilo/movimento.ts`: duracoes de 100/140/200/280 ms, curvas de entrada/saida e `useMotion()` integrado a `useReducedMotion()`.
+- Componentes base: `Drawer`/`Sheet`, `Skeleton`, `MetricCard`, `Section`, `ListRow`, `Avatar`, `StatusPill`, `ProgressBar` e `BrandMark`.
+
+### Alterado
+- `estilo/cores.ts` passou a expor grupos semanticos de superficie, texto, borda, accent, status, sidebar, foco e elevacao; os nomes antigos permanecem como compatibilidade de migracao.
+- `estilo/tipografia.ts` centraliza escala Inter para a UI e reserva Cormorant para a marca.
+- `Button`, `Input`, `Card`, `Badge`, `Modal`, `EmptyState`, `ScreenHeader` e Toast usam somente tokens, tem foco visivel/alvos de 44 px quando interativos e removem gradientes, halos e spring com bounce.
+- Motion funcional aplicado a press, foco, modal, drawer, toast, badge/status, skeleton e barra de progresso; reducao de movimento usa fade curto ou transicao sem deslocamento.
+
+### Verificado
+- `npx expo export --platform web` concluido.
+- `npm test`: 44 testes aprovados em 11 arquivos.
+- Busca em `componentes/` e `contextos/` sem hex/`rgba`, sem spring/bounce/loops, com verificacao de codificacao aprovada.
+
 ## [2026-09-28] — Bug crítico: criar conta de usuário sempre quebrava (500)
 
 ### Corrigido
@@ -246,3 +337,15 @@ Verificado: tsc, npm test (49/49), expo export --platform web.
 
 ### Removido
 - Módulo de processos jurídicos (fora do escopo de RH)
+
+## [2026-09-28] — Redesign V2, telas de gestão
+
+### Alterado
+- `app/(tabs)/admin.tsx` — administração migrada para componentes e tokens V2, com estados de lista, criação/edição, exclusão e bloqueio de `super_admin` preservados.
+- `app/pesquisas/index.tsx` e `app/pesquisas/[id].tsx` — criação, listagem e resultados migrados para métricas, listas, modal e barras de progresso compartilhadas.
+- `app/onboarding/index.tsx` e `app/onboarding/[id].tsx` — processos e checklist migrados, preservando filtros, prazos, marcação de etapas e encerramento confirmado.
+- `app/colaborador/[id].tsx` — perfil, edição por papel, ausências, holerites e início de onboarding migrados para os componentes V2.
+
+### Qualidade
+- As telas migradas usam tokens sem hex/rgba locais, estados de carregamento/vazio/erro, foco via componentes compartilhados e motion funcional.
+- Validação por tela: `npx expo export --platform web` e `npm test` (48 testes aprovados).

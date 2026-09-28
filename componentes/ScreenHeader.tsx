@@ -1,15 +1,17 @@
 import { ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { theme } from '../estilo/cores';
-import { fonts } from '../estilo/tipografia';
+import { espaco } from '../estilo/espaco';
+import { tipografia } from '../estilo/tipografia';
 
-type ScreenHeaderProps = { eyebrow?: string; title: string; subtitle?: string; action?: ReactNode };
+// Sem "eyebrow"/kicker acima do título de propósito: é um enfeite que nunca ajuda a
+// hierarquia — o título carrega o próprio peso. Contexto extra vai no subtítulo.
+type ScreenHeaderProps = { title: string; subtitle?: string; action?: ReactNode };
 
-export function ScreenHeader({ eyebrow, title, subtitle, action }: ScreenHeaderProps) {
+export function ScreenHeader({ title, subtitle, action }: ScreenHeaderProps) {
   return (
     <View style={styles.header}>
       <View style={styles.copy}>
-        {eyebrow ? <Text style={styles.eyebrow}>{eyebrow}</Text> : null}
         <Text style={styles.title}>{title}</Text>
         {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
       </View>
@@ -19,10 +21,9 @@ export function ScreenHeader({ eyebrow, title, subtitle, action }: ScreenHeaderP
 }
 
 const styles = StyleSheet.create({
-  header: { alignItems: 'flex-start', flexDirection: 'row', gap: 16, justifyContent: 'space-between' },
+  header: { alignItems: 'flex-start', flexDirection: 'row', gap: espaco.lg, justifyContent: 'space-between' },
   copy: { flex: 1 },
-  eyebrow: { color: theme.goldDeep, fontFamily: fonts.bold, fontSize: 11, letterSpacing: 1.2, marginBottom: 3, textTransform: 'uppercase' },
-  title: { color: theme.textPrimary, fontFamily: fonts.display, fontSize: 30, lineHeight: 34 },
-  subtitle: { color: theme.textMuted, fontFamily: fonts.body, fontSize: 13, lineHeight: 19, marginTop: 4 },
+  title: { ...tipografia.display, color: theme.texto.primario },
+  subtitle: { ...tipografia.corpo, color: theme.texto.discreto, marginTop: espaco.xs },
   action: { flexShrink: 0 },
 });

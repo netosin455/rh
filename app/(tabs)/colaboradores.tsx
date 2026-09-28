@@ -1,8 +1,7 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import {
-  View, Text, ScrollView, TextInput, TouchableOpacity,
-  StyleSheet, ActivityIndicator, RefreshControl, Modal,
-  KeyboardAvoidingView, Platform,
+  View, Text, ScrollView, TextInput, Pressable,
+  StyleSheet, RefreshControl, Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../contextos/Autenticacao';
@@ -10,23 +9,28 @@ import { Ionicons } from '@expo/vector-icons';
 import { getEmployees, createEmployee, updateEmployee } from '../../conexoes/colaboradores';
 import { createAbsence } from '../../conexoes/ausencias';
 import { Employee, EmployeeStatus, LegalArea, STATUS_LABELS, CreateEmployeeData } from '../../tipos/modelos';
-import { theme } from '../../estilo/cores';
+import { cores } from '../../estilo/cores';
+import { borda, espaco, raio, tamanho } from '../../estilo/espaco';
+import { tipografia } from '../../estilo/tipografia';
 import { brToIso, maskDate, todayBr, getTodayString } from '../../helpers/datas';
 import { exportEmployeesPDF } from '../../helpers/pdf';
 import { useToast } from '../../contextos/Toast';
+import { Avatar } from '../../componentes/Avatar';
+import { Button } from '../../componentes/Button';
 import { EmptyState } from '../../componentes/EmptyState';
+import { Input } from '../../componentes/Input';
+import { Modal } from '../../componentes/Modal';
 import { ScreenHeader } from '../../componentes/ScreenHeader';
+import { Skeleton } from '../../componentes/Skeleton';
+import { StatusPill } from '../../componentes/StatusPill';
 
-const STATUS_COLORS: Record<EmployeeStatus, string> = {
-  ativo:                theme.success,
-  ferias:               theme.info,
-  licenca:              theme.warning,
-  licenca_medica:       theme.warning,
-  licenca_maternidade:  theme.warning,
-  licenca_paternidade:  theme.warning,
-  afastado:             theme.warning,
-  desligado:            theme.textMuted,
-};
+// Mesmo mapeamento de tom usado no Dashboard: estado real comunicado por cor semantica.
+function employeeStatusTone(status: EmployeeStatus): 'success' | 'info' | 'pending' | 'muted' {
+  if (status === 'ativo') return 'success';
+  if (status === 'ferias' || status.startsWith('licenca')) return 'info';
+  if (status === 'afastado') return 'pending';
+  return 'muted';
+}
 
 const FILTERS: { key: EmployeeStatus | 'todos'; label: string }[] = [
   { key: 'todos',    label: 'Todos' },
@@ -75,6 +79,19 @@ const EMPTY_FORM = {
   vacation_days: 30,
   folga_hours:  0,
 };
+
+function Chip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ selected: active }}
+      onPress={onPress}
+      style={[styles.chip, active && styles.chipActive]}
+    >
+      <Text style={[styles.chipText, active && styles.chipTextActive]}>{label}</Text>
+    </Pressable>
+  );
+}
 
 export default function ColaboradoresScreen() {
   const router = useRouter();
@@ -211,396 +228,253 @@ export default function ColaboradoresScreen() {
 
   if (loading) {
     return (
-      <View style={styles.centered}>
-        <ActivityIndicator color={theme.gold} size="large" />
+      <View style={styles.container}>
+        <View style={styles.loadingContent}>
+          <Skeleton height={espaco.tela} />
+          <Skeleton height={tamanho.toqueMinimo} />
+          <Skeleton height={espaco.tela * 3} />
+        </View>
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
-      <View style={styles.screenHeader}>
-        <ScreenHeader eyebrow="Pessoas" title="Equipe" subtitle="Gerencie colaboradores, cargos e disponibilidade." />
-      </View>
-      {/* Barra de busca */}
-      <View style={styles.searchRow}>
-        <Ionicons name="search-outline" size={16} color={theme.textMuted} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Buscar por nome ou cargo..."
-          placeholderTextColor={theme.textMuted}
-          value={search}
-          onChangeText={setSearch}
-          autoCorrect={false}
+      <View style={styles.headerArea}>
+        <ScreenHeader
+          title="Equipe"
+          subtitle="Gerencie colaboradores, cargos e disponibilidade."
+          action={Platform.OS === 'web' && filtered.length > 0 ? (
+            <Button accessibilityLabel="Exportar equipe em PDF" icon="download-outline" label="PDF" onPress={() => exportEmployeesPDF(filtered)} variant="ghost" />
+          ) : undefined}
         />
-        {search.length > 0 && (
-          <TouchableOpacity accessibilityRole="button" accessibilityLabel="Limpar busca" onPress={() => setSearch('')}>
-            <Ionicons name="close-circle" size={16} color={theme.textMuted} />
-          </TouchableOpacity>
-        )}
+
+        <View style={styles.searchRow}>
+          <Ionicons color={cores.texto.discreto} name="search-outline" size={tamanho.iconePequeno} />
+          <TextInput
+            accessibilityLabel="Buscar colaborador por nome ou cargo"
+            autoCorrect={false}
+            onChangeText={setSearch}
+            placeholder="Buscar por nome ou cargo..."
+            placeholderTextColor={cores.texto.discreto}
+            style={styles.searchInput}
+            value={search}
+          />
+          {search.length > 0 && (
+            <Pressable accessibilityLabel="Limpar busca" accessibilityRole="button" onPress={() => setSearch('')}>
+              <Ionicons color={cores.texto.discreto} name="close-circle" size={tamanho.iconePequeno} />
+            </Pressable>
+          )}
+        </View>
+
+        <ScrollView contentContainerStyle={styles.filterContent} horizontal showsHorizontalScrollIndicator={false}>
+          {FILTERS.map(f => (
+            <Chip active={filter === f.key} key={f.key} label={f.label} onPress={() => setFilter(f.key)} />
+          ))}
+        </ScrollView>
+
+        <Text style={styles.countLabel}>{filtered.length} colaborador{filtered.length !== 1 ? 'es' : ''}</Text>
       </View>
 
-      {/* Filtros */}
       <ScrollView
-        horizontal showsHorizontalScrollIndicator={false}
-        style={styles.filterRow} contentContainerStyle={styles.filterContent}
-      >
-        {FILTERS.map(f => (
-          <TouchableOpacity
-            key={f.key}
-            style={[styles.filterChip, filter === f.key && styles.filterChipActive]}
-            onPress={() => setFilter(f.key)}
-          >
-            <Text style={[styles.filterText, filter === f.key && styles.filterTextActive]}>
-              {f.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-
-      {/* Contagem + export */}
-      <View style={styles.countRow}>
-        <Text style={styles.countLabel}>
-          {filtered.length} colaborador{filtered.length !== 1 ? 'es' : ''}
-        </Text>
-        {Platform.OS === 'web' && filtered.length > 0 && (
-          <TouchableOpacity
-            style={styles.exportBtn}
-            onPress={() => exportEmployeesPDF(filtered)}
-            activeOpacity={0.75}
-          >
-            <Ionicons name="download-outline" size={13} color={theme.gold} />
-            <Text style={styles.exportBtnText}>PDF</Text>
-          </TouchableOpacity>
-        )}
-      </View>
-
-      {/* Lista */}
-      <ScrollView
+        refreshControl={<RefreshControl onRefresh={onRefresh} refreshing={refreshing} tintColor={cores.accent.dourado} />}
         style={styles.list}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.gold} />}
       >
         {filtered.length === 0 ? (
           <EmptyState
+            description={search ? 'Tente outro termo de busca.' : 'Nenhum resultado para este filtro.'}
             icon="people-outline"
             title="Nenhum colaborador"
-            description={search ? 'Tente outro termo de busca.' : 'Nenhum resultado para este filtro.'}
           />
         ) : (
           filtered.map(emp => (
-            <View key={emp.id}>
-              <TouchableOpacity
-                style={styles.empRow}
+            // Sem ListRow aqui de propósito: as ações rápidas do trailing são botões
+            // próprios, e ListRow com onPress embrulha tudo (incluindo o trailing) num
+            // <button>, o que aninhava botão dentro de botão (HTML inválido, quebra o
+            // clique e confunde leitor de tela). Só a área de navegação é pressionável.
+            <View key={emp.id} style={styles.row}>
+              <Pressable
+                accessibilityLabel={`Abrir perfil de ${emp.name}`}
+                accessibilityRole="button"
                 onPress={() => router.push(`/colaborador/${emp.id}` as any)}
-                activeOpacity={0.75}
+                style={styles.rowPress}
               >
-                <View style={styles.avatar}>
-                  <Text style={styles.initials}>
-                    {emp.name.split(' ').map(n => n[0]).slice(0, 2).join('')}
+                <Avatar name={emp.name} />
+                <View style={styles.rowCopy}>
+                  <Text style={styles.rowTitle}>{emp.name}</Text>
+                  <Text numberOfLines={2} style={styles.rowDescription}>
+                    {emp.oab_number ? `${emp.role_title} · OAB ${emp.oab_number}` : emp.role_title}
                   </Text>
                 </View>
-                <View style={styles.empInfo}>
-                  <Text style={styles.empName}>{emp.name}</Text>
-                  <Text style={styles.empRole}>{emp.role_title}</Text>
-                  {emp.oab_number && (
-                    <Text style={styles.empOab}>OAB {emp.oab_number}</Text>
-                  )}
-                </View>
-                <View style={styles.empRight}>
-                  <View style={[styles.statusPill, { backgroundColor: `${STATUS_COLORS[emp.status]}20` }]}>
-                    <Text style={[styles.statusText, { color: STATUS_COLORS[emp.status] }]}>
-                      {STATUS_LABELS[emp.status]}
-                    </Text>
+              </Pressable>
+              <View style={styles.trailing}>
+                <StatusPill label={STATUS_LABELS[emp.status]} status={employeeStatusTone(emp.status)} />
+                {canManageEmployees && (
+                  <View style={styles.quickActionsRow}>
+                    <Pressable
+                      accessibilityLabel={`Registrar falta hoje para ${emp.name}`}
+                      accessibilityRole="button"
+                      hitSlop={espaco.xs}
+                      onPress={() => openQuickModal(emp, 'falta')}
+                      style={styles.quickActionBtn}
+                    >
+                      <Ionicons color={cores.status.erro.forte} name="close-circle-outline" size={tamanho.iconePequeno} />
+                    </Pressable>
+                    <Pressable
+                      accessibilityLabel={`Registrar folga hoje para ${emp.name}`}
+                      accessibilityRole="button"
+                      hitSlop={espaco.xs}
+                      onPress={() => openQuickModal(emp, 'folga')}
+                      style={styles.quickActionBtn}
+                    >
+                      <Ionicons color={cores.accent.douradoProfundo} name="time-outline" size={tamanho.iconePequeno} />
+                    </Pressable>
+                    <Pressable
+                      accessibilityLabel={`Creditar horas no banco de ${emp.name}`}
+                      accessibilityRole="button"
+                      hitSlop={espaco.xs}
+                      onPress={() => openQuickModal(emp, 'credito')}
+                      style={styles.quickActionBtn}
+                    >
+                      <Ionicons color={cores.status.sucesso.forte} name="add-circle-outline" size={tamanho.iconePequeno} />
+                    </Pressable>
                   </View>
-                  {canManageEmployees && (
-                    <View style={styles.quickActionsRow}>
-                      <TouchableOpacity
-                        style={styles.quickActionBtn}
-                        onPress={() => openQuickModal(emp, 'falta')}
-                        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                      >
-                        <Ionicons name="close-circle-outline" size={15} color={theme.danger} />
-                        <Text style={styles.quickActionText}>Falta</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={styles.quickActionBtn}
-                        onPress={() => openQuickModal(emp, 'folga')}
-                        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                      >
-                        <Ionicons name="time-outline" size={15} color={theme.gold} />
-                        <Text style={styles.quickActionText}>Folga</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={styles.quickActionBtn}
-                        onPress={() => openQuickModal(emp, 'credito')}
-                        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                      >
-                        <Ionicons name="add-circle-outline" size={15} color={theme.success} />
-                        <Text style={styles.quickActionText}>+Horas</Text>
-                      </TouchableOpacity>
-                    </View>
-                  )}
-                </View>
-              </TouchableOpacity>
+                )}
+              </View>
             </View>
           ))
         )}
-        <View style={{ height: 80 }} />
+        <View style={{ height: espaco.tela }} />
       </ScrollView>
 
-      {/* FAB */}
       {canManageEmployees && (
-        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Adicionar colaborador" style={styles.fab} onPress={openModal} activeOpacity={0.85}>
-          <Ionicons name="add" size={26} color="#000" />
-        </TouchableOpacity>
+        <Pressable accessibilityLabel="Adicionar colaborador" accessibilityRole="button" onPress={openModal} style={styles.fab}>
+          <Ionicons color={cores.texto.sobreAccent} name="add" size={tamanho.iconeGrande} />
+        </Pressable>
       )}
 
-      {/* Modal de cadastro */}
-      <Modal visible={showModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowModal(false)}>
-        <KeyboardAvoidingView style={styles.modal} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-          <View style={styles.modalHeader}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.modalTitle}>Novo Colaborador</Text>
-              <Text style={styles.modalSubtitle}>Preencha os dados do colaborador</Text>
-            </View>
-            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fechar cadastro de colaborador" onPress={() => setShowModal(false)} style={styles.modalClose}>
-              <Ionicons name="close" size={20} color={theme.textMuted} />
-            </TouchableOpacity>
+      <Modal
+        footer={
+          <View style={styles.modalFooter}>
+            <Button accessibilityLabel="Cancelar cadastro" label="Cancelar" onPress={() => setShowModal(false)} style={{ flex: 1 }} variant="secondary" />
+            <Button accessibilityLabel="Salvar colaborador" label="Salvar" loading={saving} onPress={handleSave} style={{ flex: 2 }} />
+          </View>
+        }
+        onClose={() => setShowModal(false)}
+        subtitle="Preencha os dados do colaborador"
+        title="Novo colaborador"
+        visible={showModal}
+      >
+        <ScrollView keyboardShouldPersistTaps="handled" style={styles.modalBody}>
+          <Input accessibilityLabel="Nome completo" label="Nome *" onChangeText={v => setF('name', v)} placeholder="Nome completo" value={form.name} />
+          <Input containerStyle={styles.field} label="Cargo *" onChangeText={v => setF('role_title', v)} placeholder="Ex: Advogado Pleno, Estagiário" value={form.role_title} />
+          <Input containerStyle={styles.field} keyboardType="numeric" label="Data de admissão * (DD/MM/AAAA)" maxLength={10} onChangeText={v => setF('hire_date', maskDate(v))} placeholder="07/05/2024" value={form.hire_date} />
+
+          <Text style={styles.label}>Status</Text>
+          <View style={styles.chipGroup}>
+            {STATUS_OPTIONS.map(o => (
+              <Chip active={form.status === o.key} key={o.key} label={o.label} onPress={() => setF('status', o.key)} />
+            ))}
           </View>
 
-          <ScrollView style={styles.modalBody} keyboardShouldPersistTaps="handled">
-            <Text style={styles.label}>Nome *</Text>
-            <TextInput style={styles.input} placeholder="Nome completo" placeholderTextColor={theme.textMuted} value={form.name} onChangeText={v => setF('name', v)} />
+          <Text style={styles.label}>Área jurídica</Text>
+          <View style={styles.chipGroup}>
+            {LEGAL_AREAS.map(o => (
+              <Chip active={form.legal_area === o.key} key={o.key} label={o.label} onPress={() => setF('legal_area', form.legal_area === o.key ? undefined : o.key)} />
+            ))}
+          </View>
 
-            <Text style={styles.label}>Cargo *</Text>
-            <TextInput style={styles.input} placeholder="Ex: Advogado Pleno, Estagiário" placeholderTextColor={theme.textMuted} value={form.role_title} onChangeText={v => setF('role_title', v)} />
-
-            <Text style={styles.label}>Data de Admissão * (DD/MM/AAAA)</Text>
-            <TextInput style={styles.input} placeholder="07/05/2024" placeholderTextColor={theme.textMuted} value={form.hire_date} onChangeText={v => setF('hire_date', maskDate(v))} keyboardType="numeric" maxLength={10} />
-
-            <Text style={styles.label}>Status</Text>
-            <View style={styles.chipGroup}>
-              {STATUS_OPTIONS.map(o => (
-                <TouchableOpacity
-                  key={o.key}
-                  style={[styles.chip, form.status === o.key && styles.chipActive]}
-                  onPress={() => setF('status', o.key)}
-                >
-                  <Text style={[styles.chipText, form.status === o.key && styles.chipTextActive]}>{o.label}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <Text style={styles.label}>Área Jurídica</Text>
-            <View style={styles.chipGroup}>
-              {LEGAL_AREAS.map(o => (
-                <TouchableOpacity
-                  key={o.key}
-                  style={[styles.chip, form.legal_area === o.key && styles.chipActive]}
-                  onPress={() => setF('legal_area', form.legal_area === o.key ? undefined : o.key)}
-                >
-                  <Text style={[styles.chipText, form.legal_area === o.key && styles.chipTextActive]}>{o.label}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <Text style={styles.label}>Número OAB</Text>
-            <TextInput style={styles.input} placeholder="Ex: SP 123456" placeholderTextColor={theme.textMuted} value={form.oab_number} onChangeText={v => setF('oab_number', v)} />
-
-            <Text style={styles.label}>Telefone</Text>
-            <TextInput style={styles.input} placeholder="(11) 99999-9999" placeholderTextColor={theme.textMuted} value={form.phone} onChangeText={v => setF('phone', v)} keyboardType="phone-pad" />
-
-            <Text style={styles.label}>Email (para avisos, ex.: reconhecimentos)</Text>
-            <TextInput style={styles.input} placeholder="nome@empresa.com" placeholderTextColor={theme.textMuted} value={form.email} onChangeText={v => setF('email', v)} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} autoComplete="email" accessibilityLabel="Email do colaborador" />
-
-            <Text style={styles.label}>CPF</Text>
-            <TextInput style={styles.input} placeholder="000.000.000-00" placeholderTextColor={theme.textMuted} value={form.cpf} onChangeText={v => setF('cpf', v)} />
-
-            <Text style={styles.label}>Data de Nascimento (DD/MM/AAAA)</Text>
-            <TextInput style={styles.input} placeholder="07/05/1990" placeholderTextColor={theme.textMuted} value={form.birth_date} onChangeText={v => setF('birth_date', maskDate(v))} keyboardType="numeric" maxLength={10} />
-
-            <View style={{ height: 20 }} />
-          </ScrollView>
+          <Input containerStyle={styles.field} label="Número OAB" onChangeText={v => setF('oab_number', v)} placeholder="Ex: SP 123456" value={form.oab_number} />
+          <Input containerStyle={styles.field} keyboardType="phone-pad" label="Telefone" onChangeText={v => setF('phone', v)} placeholder="(11) 99999-9999" value={form.phone} />
+          <Input accessibilityLabel="Email do colaborador" autoCapitalize="none" autoComplete="email" autoCorrect={false} containerStyle={styles.field} keyboardType="email-address" label="Email (para avisos, ex.: reconhecimentos)" onChangeText={v => setF('email', v)} placeholder="nome@empresa.com" value={form.email} />
+          <Input containerStyle={styles.field} keyboardType="numeric" label="Data de nascimento (DD/MM/AAAA)" maxLength={10} onChangeText={v => setF('birth_date', maskDate(v))} placeholder="07/05/1990" value={form.birth_date} />
 
           {formError ? (
             <View style={styles.errorBox}>
-              <Ionicons name="alert-circle-outline" size={15} color={theme.danger} />
+              <Ionicons color={cores.status.erro.forte} name="alert-circle-outline" size={tamanho.iconePequeno} />
               <Text style={styles.errorText}>{formError}</Text>
             </View>
           ) : null}
-
-          <View style={styles.modalFooter}>
-            <TouchableOpacity style={styles.btnCancel} onPress={() => setShowModal(false)}>
-              <Text style={styles.btnCancelText}>Cancelar</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.btnSave} onPress={handleSave} disabled={saving}>
-              {saving
-                ? <ActivityIndicator size="small" color="#000" />
-                : <Text style={styles.btnSaveText}>Salvar</Text>
-              }
-            </TouchableOpacity>
-          </View>
-        </KeyboardAvoidingView>
+          <View style={{ height: espaco.lg }} />
+        </ScrollView>
       </Modal>
 
-      {/* Modal rápido: falta, folga ou crédito de horas */}
-      <Modal visible={!!quickModal} animationType="fade" transparent onRequestClose={() => setQuickModal(null)}>
-        <View style={styles.quickModalOverlay}>
-          <View style={styles.quickModalBox}>
-            <Text style={styles.quickModalTitle}>
-              {quickModal?.type === 'falta' ? 'Registrar falta hoje'
-                : quickModal?.type === 'folga' ? 'Registrar folga hoje'
-                : 'Creditar horas no banco'}
-            </Text>
-            <Text style={styles.quickModalSubtitle}>{quickModal?.emp.name}</Text>
-            <Text style={styles.label}>Horas {quickModal?.type === 'falta' ? '(opcional — em branco conta o dia inteiro)' : ''}</Text>
-            <TextInput
-              style={styles.input}
-              placeholder={
-                quickModal?.type === 'falta' ? 'Ex: 3 (estagiário de 6h que faltou meio turno)'
-                  : quickModal?.type === 'credito' ? 'Ex: 2 (hora extra feita hoje)'
-                  : 'Ex: 4'
-              }
-              placeholderTextColor={theme.textMuted}
-              value={quickHoursInput}
-              onChangeText={setQuickHoursInput}
-              keyboardType="decimal-pad"
-              autoFocus
-            />
-            <View style={styles.quickModalFooter}>
-              <TouchableOpacity style={styles.btnCancel} onPress={() => setQuickModal(null)}>
-                <Text style={styles.btnCancelText}>Cancelar</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.btnSave} onPress={handleConfirmQuick} disabled={quickSaving}>
-                {quickSaving
-                  ? <ActivityIndicator size="small" color="#000" />
-                  : <Text style={styles.btnSaveText}>Confirmar</Text>
-                }
-              </TouchableOpacity>
-            </View>
+      <Modal
+        footer={
+          <View style={styles.modalFooter}>
+            <Button accessibilityLabel="Cancelar" label="Cancelar" onPress={() => setQuickModal(null)} style={{ flex: 1 }} variant="secondary" />
+            <Button accessibilityLabel="Confirmar" label="Confirmar" loading={quickSaving} onPress={handleConfirmQuick} style={{ flex: 2 }} />
           </View>
-        </View>
+        }
+        onClose={() => setQuickModal(null)}
+        subtitle={quickModal?.emp.name}
+        title={
+          quickModal?.type === 'falta' ? 'Registrar falta hoje'
+            : quickModal?.type === 'folga' ? 'Registrar folga hoje'
+            : 'Creditar horas no banco'
+        }
+        visible={!!quickModal}
+      >
+        <Input
+          accessibilityLabel="Quantidade de horas"
+          autoFocus
+          keyboardType="decimal-pad"
+          label={`Horas ${quickModal?.type === 'falta' ? '(opcional — em branco conta o dia inteiro)' : ''}`}
+          onChangeText={setQuickHoursInput}
+          placeholder={
+            quickModal?.type === 'falta' ? 'Ex: 3 (estagiário de 6h que faltou meio turno)'
+              : quickModal?.type === 'credito' ? 'Ex: 2 (hora extra feita hoje)'
+              : 'Ex: 4'
+          }
+          value={quickHoursInput}
+        />
       </Modal>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: theme.bg },
-  centered:  { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.bg },
+  container: { backgroundColor: cores.superficie.pagina, flex: 1 },
+  loadingContent: { gap: espaco.lg, padding: espaco.lg },
+
+  headerArea: { backgroundColor: cores.superficie.elevada, borderBottomColor: cores.borda.sutil, borderBottomWidth: borda.fina, gap: espaco.md, padding: espaco.lg },
 
   searchRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    backgroundColor: theme.surface, borderBottomWidth: 1,
-    borderBottomColor: theme.border, paddingHorizontal: 14, paddingVertical: 11,
+    alignItems: 'center', backgroundColor: cores.superficie.pagina, borderColor: cores.borda.sutil, borderRadius: raio.controle, borderWidth: borda.fina,
+    flexDirection: 'row', gap: espaco.sm, paddingHorizontal: espaco.md, minHeight: tamanho.toqueMinimo,
   },
-  searchInput: { flex: 1, fontSize: 14, color: theme.text },
+  searchInput: { ...tipografia.corpo, color: cores.texto.primario, flex: 1 },
 
-  filterRow:     { maxHeight: 48, borderBottomWidth: 1, borderBottomColor: theme.border },
-  filterContent: { paddingHorizontal: 12, paddingVertical: 8, gap: 8, flexDirection: 'row' },
-  filterChip: {
-    paddingHorizontal: 14, paddingVertical: 5,
-    borderRadius: 20, borderWidth: 1, borderColor: theme.border,
-    backgroundColor: theme.surface,
-  },
-  filterChipActive: { backgroundColor: theme.goldDim, borderColor: theme.border2 },
-  filterText:       { fontSize: 12, color: theme.textMuted, fontWeight: '500' },
-  filterTextActive: { color: theme.gold },
+  filterContent: { gap: espaco.sm, flexDirection: 'row' },
+  chip: { backgroundColor: cores.superficie.pagina, borderColor: cores.borda.sutil, borderRadius: raio.pill, borderWidth: borda.fina, paddingHorizontal: espaco.md, paddingVertical: espaco.xs },
+  chipActive: { backgroundColor: cores.accent.sutil, borderColor: cores.accent.borda },
+  chipText: { ...tipografia.legenda, color: cores.texto.discreto },
+  chipTextActive: { color: cores.accent.douradoProfundo },
 
-  countRow:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: theme.border },
-  countLabel: { fontSize: 11, color: theme.gold, fontWeight: '600' },
-  exportBtn:  { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: theme.goldDim, borderWidth: 1, borderColor: theme.border2, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 },
-  exportBtnText: { fontSize: 10, color: theme.gold, fontWeight: '700' },
+  countLabel: { ...tipografia.legenda, color: cores.texto.discreto },
+
   list: { flex: 1 },
-
-  empty: { alignItems: 'center', paddingTop: 64, gap: 8 },
-  emptyTitle: { fontSize: 15, fontWeight: '600', color: theme.textLight },
-  emptyText:  { fontSize: 13, color: theme.textMuted },
-
-  empRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    padding: 14, borderBottomWidth: 1, borderBottomColor: theme.border,
-    backgroundColor: theme.bg,
-  },
-  avatar: {
-    width: 44, height: 44, borderRadius: 22,
-    backgroundColor: theme.goldDim, borderWidth: 1, borderColor: theme.border2,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  initials:  { fontSize: 14, fontWeight: '800', color: theme.gold },
-  empInfo:   { flex: 1 },
-  empName:   { fontSize: 14, fontWeight: '700', color: theme.white },
-  empRole:   { fontSize: 12, color: theme.textMuted, marginTop: 1 },
-  empOab:    { fontSize: 10, color: theme.gold, marginTop: 2 },
-  empRight:  { alignItems: 'flex-end', gap: 6 },
-  statusPill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 5 },
-  statusText: { fontSize: 10, fontWeight: '700', letterSpacing: 0.3 },
-
-  quickActionsRow: { flexDirection: 'row', gap: 8 },
-  quickActionBtn:  { flexDirection: 'row', alignItems: 'center', gap: 3, paddingVertical: 3, paddingHorizontal: 6, borderRadius: 6, borderWidth: 1, borderColor: theme.border },
-  quickActionText: { fontSize: 10, color: theme.textMuted, fontWeight: '600' },
-
-  quickModalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 24 },
-  quickModalBox: { width: '100%', maxWidth: 360, backgroundColor: theme.surface, borderRadius: 14, borderWidth: 1, borderColor: theme.border, padding: 20 },
-  quickModalTitle: { fontSize: 16, fontWeight: '700', color: theme.white },
-  quickModalSubtitle: { fontSize: 13, color: theme.textMuted, marginTop: 2, marginBottom: 8 },
-  quickModalFooter: { flexDirection: 'row', gap: 10, marginTop: 16 },
+  row: { alignItems: 'center', borderBottomColor: cores.borda.sutil, borderBottomWidth: borda.fina, flexDirection: 'row', gap: espaco.md, minHeight: tamanho.toqueMinimo, paddingHorizontal: espaco.lg, paddingVertical: espaco.md },
+  rowPress: { alignItems: 'center', flex: 1, flexDirection: 'row', gap: espaco.md },
+  rowCopy: { flex: 1, gap: espaco.micro },
+  rowTitle: { ...tipografia.corpoForte, color: cores.texto.primario },
+  rowDescription: { ...tipografia.legenda, color: cores.texto.discreto },
+  trailing: { alignItems: 'flex-end', gap: espaco.xs },
+  quickActionsRow: { flexDirection: 'row', gap: espaco.xs },
+  quickActionBtn: { alignItems: 'center', height: tamanho.toqueMinimo, justifyContent: 'center', width: tamanho.toqueMinimo },
 
   fab: {
-    position: 'absolute', bottom: 24, right: 20,
-    width: 54, height: 54, borderRadius: 27,
-    backgroundColor: theme.gold,
-    alignItems: 'center', justifyContent: 'center',
-    shadowColor: theme.gold, shadowOpacity: 0.5, shadowRadius: 14, shadowOffset: { width: 0, height: 4 },
-    elevation: 8,
+    alignItems: 'center', backgroundColor: cores.accent.dourado, borderRadius: raio.pill, bottom: espaco.xl,
+    height: tamanho.avatarGrande, justifyContent: 'center', position: 'absolute', right: espaco.lg, width: tamanho.avatarGrande,
   },
 
-  modal:       { flex: 1, backgroundColor: theme.bg },
-  modalHeader: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start',
-    paddingHorizontal: 20, paddingVertical: 16,
-    borderBottomWidth: 1, borderBottomColor: theme.border,
-    backgroundColor: theme.surface,
-  },
-  modalTitle:    { fontSize: 17, fontWeight: '700', color: theme.white },
-  modalSubtitle: { fontSize: 12, color: theme.textMuted, marginTop: 2 },
-  modalClose:    { padding: 2 },
-  modalBody:     { flex: 1, paddingHorizontal: 20, paddingTop: 16 },
+  modalBody: { maxHeight: 480 },
+  field: { marginTop: espaco.md },
+  label: { ...tipografia.rotulo, color: cores.texto.discreto, marginBottom: espaco.xs, marginTop: espaco.md, textTransform: 'uppercase' },
+  chipGroup: { flexDirection: 'row', flexWrap: 'wrap', gap: espaco.sm },
 
-  label: {
-    fontSize: 11, color: theme.textMuted, fontWeight: '600',
-    letterSpacing: 0.5, marginBottom: 6, marginTop: 14, textTransform: 'uppercase',
-  },
-  input: {
-    backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.border,
-    borderRadius: 8, paddingHorizontal: 14, paddingVertical: 11,
-    fontSize: 14, color: theme.text,
-  },
-  chipGroup: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: {
-    paddingHorizontal: 12, paddingVertical: 6,
-    borderRadius: 20, borderWidth: 1, borderColor: theme.border,
-    backgroundColor: theme.surface,
-  },
-  chipActive:     { backgroundColor: theme.goldDim, borderColor: theme.border2 },
-  chipText:       { fontSize: 12, color: theme.textMuted, fontWeight: '500' },
-  chipTextActive: { color: theme.gold },
+  errorBox: { alignItems: 'center', backgroundColor: cores.status.erro.superficie, borderRadius: raio.controle, flexDirection: 'row', gap: espaco.sm, marginTop: espaco.md, padding: espaco.md },
+  errorText: { ...tipografia.legenda, color: cores.status.erro.forte, flex: 1 },
 
-  errorBox: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: 'rgba(224,82,82,0.08)', borderTopWidth: 1, borderTopColor: 'rgba(224,82,82,0.2)',
-    paddingHorizontal: 20, paddingVertical: 10,
-  },
-  errorText: { fontSize: 13, color: theme.danger, flex: 1 },
-
-  modalFooter: {
-    flexDirection: 'row', gap: 10,
-    paddingHorizontal: 20, paddingVertical: 16,
-    borderTopWidth: 1, borderTopColor: theme.border,
-    backgroundColor: theme.surface,
-  },
-  btnCancel:     { flex: 1, paddingVertical: 12, borderRadius: 8, borderWidth: 1, borderColor: theme.border, alignItems: 'center' },
-  btnCancelText: { fontSize: 14, color: theme.textMuted, fontWeight: '600' },
-  btnSave:       { flex: 2, paddingVertical: 12, borderRadius: 8, backgroundColor: theme.gold, alignItems: 'center' },
-  btnSaveText:   { fontSize: 14, fontWeight: '700', color: '#000' },
+  modalFooter: { flexDirection: 'row', gap: espaco.sm },
 });

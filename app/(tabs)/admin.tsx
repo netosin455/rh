@@ -1,35 +1,49 @@
 // ============================================================
-// app/(tabs)/admin.tsx — Gerenciamento de Usuários (super_admin)
+// app/(tabs)/admin.tsx — Administração de usuários (super_admin)
 // ============================================================
 
-import React, { useEffect, useState, useCallback } from 'react';
-import {
-  View, Text, ScrollView, TouchableOpacity, TextInput,
-  StyleSheet, ActivityIndicator, RefreshControl, Modal,
-  KeyboardAvoidingView, Platform,
-} from 'react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { KeyboardAvoidingView, Platform, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import Animated, { FadeIn } from 'react-native-reanimated';
 import { useAuth } from '../../contextos/Autenticacao';
 import { useToast } from '../../contextos/Toast';
-import { getUsers, createUser, updateUser, deleteUser, SystemUser } from '../../conexoes/usuarios';
-import { theme } from '../../estilo/cores';
+import { createUser, deleteUser, getUsers, SystemUser, updateUser } from '../../conexoes/usuarios';
+import { Avatar } from '../../componentes/Avatar';
+import { Badge } from '../../componentes/Badge';
+import { Button } from '../../componentes/Button';
+import { Card } from '../../componentes/Card';
+import { EmptyState } from '../../componentes/EmptyState';
+import { Input } from '../../componentes/Input';
+import { ListRow } from '../../componentes/ListRow';
+import { MetricCard } from '../../componentes/MetricCard';
+import { Modal } from '../../componentes/Modal';
+import { ScreenHeader } from '../../componentes/ScreenHeader';
+import { Section } from '../../componentes/Section';
+import { Skeleton } from '../../componentes/Skeleton';
+import { StatusPill } from '../../componentes/StatusPill';
+import { cores } from '../../estilo/cores';
+import { espaco } from '../../estilo/espaco';
+import { tipografia } from '../../estilo/tipografia';
+import { useMotion } from '../../estilo/movimento';
 import { confirmAction } from '../../helpers/confirm';
 
-const ROLES: { key: string; label: string; color: string }[] = [
-  { key: 'super_admin', label: 'Super Admin', color: theme.gold },
-  { key: 'admin',       label: 'Admin',       color: theme.danger },
-  { key: 'rh',          label: 'RH',          color: theme.info },
-  { key: 'gestor',      label: 'Gestor',       color: theme.success },
-  { key: 'juridico',    label: 'Jurídico',     color: '#5AA8C9' },
-  { key: 'ti',          label: 'TI',           color: '#9B72CF' },
-  { key: 'financeiro',  label: 'Financeiro',   color: '#E8955A' },
-  { key: 'adm',         label: 'Administrativo', color: theme.textLight },
-  { key: 'colaborador', label: 'Colaborador',  color: theme.textMuted },
+type BadgeTone = 'gold' | 'success' | 'danger' | 'info' | 'muted';
+
+const ROLES: { key: string; label: string; tone: BadgeTone }[] = [
+  { key: 'super_admin', label: 'Super Admin', tone: 'gold' },
+  { key: 'admin', label: 'Admin', tone: 'danger' },
+  { key: 'rh', label: 'RH', tone: 'info' },
+  { key: 'gestor', label: 'Gestor', tone: 'success' },
+  { key: 'juridico', label: 'Jurídico', tone: 'info' },
+  { key: 'ti', label: 'TI', tone: 'gold' },
+  { key: 'financeiro', label: 'Financeiro', tone: 'success' },
+  { key: 'adm', label: 'Administrativo', tone: 'muted' },
+  { key: 'colaborador', label: 'Colaborador', tone: 'muted' },
 ];
 
 function getRoleInfo(role: string) {
-  return ROLES.find(r => r.key === role) ?? { key: role, label: role, color: theme.textMuted };
+  return ROLES.find((item) => item.key === role) ?? { key: role, label: role, tone: 'muted' as const };
 }
 
 const EMPTY_FORM = { name: '', email: '', username: '', password: '', role: 'rh' };
@@ -39,10 +53,12 @@ type ModalMode = 'create' | 'edit';
 export default function AdminScreen() {
   const { user } = useAuth();
   const toast = useToast();
+  const motion = useMotion();
 
   const [users,      setUsers]      = useState<SystemUser[]>([]);
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadError,  setLoadError]  = useState('');
   const [showModal,  setShowModal]  = useState(false);
   const [modalMode,  setModalMode]  = useState<ModalMode>('create');
   const [editTarget, setEditTarget] = useState<SystemUser | null>(null);
@@ -50,23 +66,38 @@ export default function AdminScreen() {
   const [form,       setForm]       = useState(EMPTY_FORM);
   const [showPass,   setShowPass]   = useState(false);
   const [modalError, setModalError] = useState('');
+  const [latestCreatedId, setLatestCreatedId] = useState<number | string | null>(null);
+
+  const newUserEntering = useMemo(
+    () => FadeIn.duration(motion.duracao('normal')),
+    [motion],
+  );
 
   const load = useCallback(async () => {
+    // Sem ser super_admin, a tela só mostra "Acesso restrito" (abaixo); buscar a
+    // lista de contas aqui seria uma chamada que sempre falha (403) à toa.
+    if (user?.role !== 'super_admin') { setLoading(false); return; }
+    setLoadError('');
     try {
       setUsers(await getUsers());
-    } catch (e: any) {
-      console.error('[AdminScreen] Erro ao carregar usuários:', e.message);
+    } catch (error: any) {
+      console.error('[AdminScreen] Erro ao carregar usuários:', error.message);
+      setLoadError(error.message || 'Não foi possível carregar os usuários. Tente novamente.');
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [user?.role]);
 
   useEffect(() => { load(); }, [load]);
   const onRefresh = useCallback(() => { setRefreshing(true); load(); }, [load]);
 
   function setF(field: string, value: string) {
     setForm(f => ({ ...f, [field]: value }));
+  }
+
+  function closeModal() {
+    if (!saving) setShowModal(false);
   }
 
   function openCreate() {
@@ -107,6 +138,7 @@ export default function AdminScreen() {
           role:     form.role,
         });
         setUsers(prev => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
+        setLatestCreatedId(created.id);
       } else {
         const updated = await updateUser(editTarget!.id, {
           name:     form.name.trim(),
@@ -143,176 +175,181 @@ export default function AdminScreen() {
   if (user?.role !== 'super_admin') {
     return (
       <View style={styles.centered}>
-        <Ionicons name="lock-closed" size={40} color={theme.textMuted} />
-        <Text style={{ color: theme.textMuted, marginTop: 12, fontSize: 14 }}>Acesso restrito</Text>
-      </View>
-    );
-  }
-
-  if (loading) {
-    return (
-      <View style={styles.centered}>
-        <ActivityIndicator color={theme.gold} size="large" />
+        <EmptyState
+          icon="lock-closed-outline"
+          title="Acesso restrito"
+          description="Somente super administradores podem gerenciar as contas do sistema."
+        />
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
-      <View style={styles.banner}>
-        <Ionicons name="shield-checkmark" size={16} color={theme.gold} />
-        <Text style={styles.bannerText}>{users.length} usuário{users.length !== 1 ? 's' : ''} cadastrado{users.length !== 1 ? 's' : ''}</Text>
-      </View>
-
       <ScrollView
-        style={styles.list}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.gold} />}
+        contentContainerStyle={styles.content}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={cores.accent.dourado} />}
       >
-        {users.map((u, i) => {
-          const roleInfo = getRoleInfo(u.role);
-          const isMe = u.id === user?.id;
-          return (
-            <Animated.View key={u.id} entering={FadeInDown.delay(i * 40).duration(300)}>
-              <TouchableOpacity style={styles.userRow} onPress={() => openEdit(u)} activeOpacity={0.75}>
-                <View style={[styles.avatar, { borderColor: `${roleInfo.color}40` }]}>
-                  <Text style={[styles.avatarText, { color: roleInfo.color }]}>
-                    {u.name.split(' ').map(n => n[0]).slice(0, 2).join('')}
-                  </Text>
-                </View>
+        <ScreenHeader
+          title="Administração"
+          subtitle="Gerencie contas e níveis de acesso do sistema."
+          action={<Button icon="person-add-outline" label="Nova conta" onPress={openCreate} />}
+        />
 
-                <View style={styles.userInfo}>
-                  <View style={styles.userNameRow}>
-                    <Text style={styles.userName}>{u.name}</Text>
-                    {isMe && <Text style={styles.meTag}>você</Text>}
-                  </View>
-                  <Text style={styles.userEmail}>{u.email}</Text>
-                  <View style={[styles.rolePill, { backgroundColor: `${roleInfo.color}18` }]}>
-                    <Text style={[styles.roleText, { color: roleInfo.color }]}>{roleInfo.label}</Text>
-                  </View>
-                </View>
+        <MetricCard
+          label="Contas cadastradas"
+          value={loading ? '—' : users.length}
+          detail="Usuários com acesso ao SuperRH"
+          indicator={<StatusPill label="Acesso" status="ativo" />}
+        />
 
-                <View style={styles.userActions}>
-                  <TouchableOpacity onPress={() => openEdit(u)} style={styles.actionBtn}>
-                    <Ionicons name="pencil-outline" size={16} color={theme.gold} />
-                  </TouchableOpacity>
-                  {!isMe && (
-                    <TouchableOpacity onPress={() => handleDelete(u)} style={styles.actionBtn}>
-                      <Ionicons name="trash-outline" size={16} color={theme.danger} />
-                    </TouchableOpacity>
-                  )}
-                </View>
-              </TouchableOpacity>
-            </Animated.View>
-          );
-        })}
-        <View style={{ height: 80 }} />
+        <Section title="Usuários" description="Selecione uma conta para editar seus dados ou permissões.">
+          {loading ? (
+            <Card style={styles.listCard} padded={false}>
+              <Skeleton style={styles.skeleton} accessibilityLabel="Carregando lista de usuários" />
+              <Skeleton style={styles.skeleton} accessibilityLabel="Carregando lista de usuários" />
+              <Skeleton style={styles.skeleton} accessibilityLabel="Carregando lista de usuários" />
+            </Card>
+          ) : loadError ? (
+            <EmptyState
+              icon="alert-circle-outline"
+              title="Não foi possível carregar os usuários"
+              description={loadError}
+              action={<Button label="Tentar novamente" icon="refresh-outline" onPress={load} />}
+            />
+          ) : users.length === 0 ? (
+            <EmptyState
+              icon="people-outline"
+              title="Nenhuma conta cadastrada"
+              description="Crie a primeira conta para conceder acesso ao sistema."
+              action={<Button label="Criar conta" icon="person-add-outline" onPress={openCreate} />}
+            />
+          ) : (
+            <Card style={styles.listCard} padded={false}>
+              {users.map((item) => {
+                const roleInfo = getRoleInfo(item.role);
+                const isCurrentUser = item.id === user?.id;
+                return (
+                  <Animated.View entering={item.id === latestCreatedId ? newUserEntering : undefined} key={item.id}>
+                    <ListRow
+                      accessibilityLabel={`Editar ${item.name}`}
+                      title={item.name}
+                      description={item.email || item.username || 'Sem email informado'}
+                      leading={<Avatar name={item.name} />}
+                      trailing={(
+                        <View style={styles.rowActions}>
+                          <View style={styles.rowBadges}>
+                            {isCurrentUser ? <StatusPill label="Você" status="ativo" /> : null}
+                            <Badge label={roleInfo.label} tone={roleInfo.tone} />
+                          </View>
+                          <Button accessibilityLabel={`Editar ${item.name}`} icon="pencil-outline" onPress={() => openEdit(item)} variant="ghost" />
+                          {!isCurrentUser ? (
+                            <Button accessibilityLabel={`Excluir ${item.name}`} icon="trash-outline" onPress={() => handleDelete(item)} variant="danger" />
+                          ) : null}
+                        </View>
+                      )}
+                    />
+                  </Animated.View>
+                );
+              })}
+            </Card>
+          )}
+        </Section>
       </ScrollView>
 
-      <TouchableOpacity style={styles.fab} onPress={openCreate} activeOpacity={0.85}>
-        <Ionicons name="person-add" size={22} color="#000" />
-      </TouchableOpacity>
-
-      {/* Modal criar/editar */}
-      <Modal visible={showModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowModal(false)}>
-        <KeyboardAvoidingView style={styles.modal} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>
-              {modalMode === 'create' ? 'Novo Usuário' : 'Editar Usuário'}
-            </Text>
-            <TouchableOpacity onPress={() => setShowModal(false)}>
-              <Ionicons name="close" size={22} color={theme.textMuted} />
-            </TouchableOpacity>
+      <Modal
+        footer={(
+          <View style={styles.footerActions}>
+            <Button label="Cancelar" disabled={saving} onPress={closeModal} style={styles.footerButton} variant="secondary" />
+            <Button
+              label={modalMode === 'create' ? 'Criar conta' : 'Salvar alterações'}
+              loading={saving}
+              onPress={handleSave}
+              style={styles.footerButton}
+            />
           </View>
-
-          <ScrollView style={styles.modalBody} keyboardShouldPersistTaps="handled">
-            <Text style={styles.label}>Nome *</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Nome completo"
-              placeholderTextColor={theme.textMuted}
-              value={form.name}
-              onChangeText={v => setF('name', v)}
+        )}
+        onClose={closeModal}
+        subtitle={modalMode === 'create' ? 'Defina os dados e o nível de acesso.' : 'Atualize os dados ou as permissões desta conta.'}
+        title={modalMode === 'create' ? 'Nova conta' : 'Editar conta'}
+        visible={showModal}
+      >
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <ScrollView contentContainerStyle={styles.form} keyboardShouldPersistTaps="handled">
+            <Input
               autoCapitalize="words"
+              editable={!saving}
+              label="Nome *"
+              onChangeText={(value) => setF('name', value)}
+              placeholder="Nome completo"
+              value={form.name}
             />
-
-            <Text style={styles.label}>Email *</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="email@empresa.com"
-              placeholderTextColor={theme.textMuted}
-              value={form.email}
-              onChangeText={v => setF('email', v)}
-              keyboardType="email-address"
+            <Input
               autoCapitalize="none"
+              editable={!saving}
+              keyboardType="email-address"
+              label="Email *"
+              onChangeText={(value) => setF('email', value)}
+              placeholder="email@empresa.com"
+              value={form.email}
+            />
+            {modalMode === 'create' ? (
+              <Input
+                autoCapitalize="none"
+                autoCorrect={false}
+                editable={!saving}
+                label="Usuário *"
+                onChangeText={(value) => setF('username', value.toLowerCase().replace(/\s/g, ''))}
+                placeholder="Ex.: joao.silva"
+                value={form.username}
+              />
+            ) : null}
+            <Input
+              autoCapitalize="none"
+              editable={!saving}
+              label={modalMode === 'create' ? 'Senha *' : 'Nova senha'}
+              onChangeText={(value) => setF('password', value)}
+              placeholder={modalMode === 'create' ? 'Mínimo de 6 caracteres' : 'Deixe em branco para manter'}
+              rightAccessory={(
+                <Button
+                  accessibilityLabel={showPass ? 'Ocultar senha' : 'Mostrar senha'}
+                  disabled={saving}
+                  icon={showPass ? 'eye-off-outline' : 'eye-outline'}
+                  onPress={() => setShowPass((current) => !current)}
+                  variant="ghost"
+                />
+              )}
+              secureTextEntry={!showPass}
+              value={form.password}
             />
 
-            {modalMode === 'create' && (
-              <>
-                <Text style={styles.label}>Usuário * (usado no login)</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="ex: joao.silva"
-                  placeholderTextColor={theme.textMuted}
-                  value={form.username}
-                  onChangeText={v => setF('username', v.toLowerCase().replace(/\s/g, ''))}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                />
-              </>
-            )}
+            <Section title="Nível de acesso" description="Escolha as permissões que esta conta terá.">
+              <View style={styles.rolesGrid}>
+                {ROLES.map((role) => {
+                  const selected = form.role === role.key;
+                  return (
+                    <Button
+                      accessibilityLabel={`${selected ? 'Selecionado' : 'Selecionar'}: ${role.label}`}
+                      disabled={saving}
+                      icon={selected ? 'checkmark' : undefined}
+                      key={role.key}
+                      label={role.label}
+                      onPress={() => setF('role', role.key)}
+                      style={styles.roleButton}
+                      variant={selected ? 'primary' : 'secondary'}
+                    />
+                  );
+                })}
+              </View>
+            </Section>
 
-            <Text style={styles.label}>
-              {modalMode === 'create' ? 'Senha *' : 'Nova senha (deixe em branco para manter)'}
-            </Text>
-            <View style={styles.passwordRow}>
-              <TextInput
-                style={[styles.input, { flex: 1, marginBottom: 0 }]}
-                placeholder={modalMode === 'create' ? 'Mínimo 6 caracteres' : '••••••'}
-                placeholderTextColor={theme.textMuted}
-                value={form.password}
-                onChangeText={v => setF('password', v)}
-                secureTextEntry={!showPass}
-                autoCapitalize="none"
-              />
-              <TouchableOpacity style={styles.eyeBtn} onPress={() => setShowPass(v => !v)}>
-                <Ionicons name={showPass ? 'eye-off-outline' : 'eye-outline'} size={18} color={theme.textMuted} />
-              </TouchableOpacity>
-            </View>
-
-            <Text style={styles.label}>Cargo / Nível de acesso</Text>
-            <View style={styles.rolesGrid}>
-              {ROLES.map(r => (
-                <TouchableOpacity
-                  key={r.key}
-                  style={[styles.roleChip, form.role === r.key && { backgroundColor: `${r.color}20`, borderColor: `${r.color}60` }]}
-                  onPress={() => setF('role', r.key)}
-                >
-                  <View style={[styles.roleDot, { backgroundColor: r.color }]} />
-                  <Text style={[styles.roleChipText, form.role === r.key && { color: r.color }]}>{r.label}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <View style={{ height: 20 }} />
+            {modalError ? (
+              <View accessibilityRole="alert" style={styles.errorBox}>
+                <Ionicons color={cores.status.erro.forte} name="alert-circle-outline" size={20} />
+                <Text style={styles.errorText}>{modalError}</Text>
+              </View>
+            ) : null}
           </ScrollView>
-
-          {modalError ? (
-            <View style={styles.modalErrorBox}>
-              <Text style={styles.modalErrorText}>{modalError}</Text>
-            </View>
-          ) : null}
-
-          <View style={styles.modalFooter}>
-            <TouchableOpacity style={styles.btnCancel} onPress={() => setShowModal(false)}>
-              <Text style={styles.btnCancelText}>Cancelar</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.btnSave} onPress={handleSave} disabled={saving}>
-              {saving
-                ? <ActivityIndicator size="small" color="#000" />
-                : <Text style={styles.btnSaveText}>{modalMode === 'create' ? 'Criar conta' : 'Salvar'}</Text>
-              }
-            </TouchableOpacity>
-          </View>
         </KeyboardAvoidingView>
       </Modal>
     </View>
@@ -320,95 +357,26 @@ export default function AdminScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: theme.bg },
-  centered:  { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.bg },
-
-  banner: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    paddingHorizontal: 16, paddingVertical: 10,
-    backgroundColor: theme.goldGlow,
-    borderBottomWidth: 1, borderBottomColor: theme.border2,
+  container: { backgroundColor: cores.superficie.pagina, flex: 1 },
+  centered: { backgroundColor: cores.superficie.pagina, flex: 1, justifyContent: 'center' },
+  content: { gap: espaco.secao, padding: espaco.xl, paddingBottom: espaco.tela },
+  listCard: { overflow: 'hidden' },
+  skeleton: { marginHorizontal: espaco.md, marginVertical: espaco.sm },
+  rowActions: { alignItems: 'center', flexDirection: 'row', gap: espaco.xs },
+  rowBadges: { alignItems: 'flex-end', gap: espaco.xs },
+  footerActions: { flexDirection: 'row', gap: espaco.md },
+  footerButton: { flex: 1 },
+  form: { gap: espaco.lg, paddingBottom: espaco.xs },
+  rolesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: espaco.sm },
+  roleButton: { minWidth: espaco.tela },
+  errorBox: {
+    alignItems: 'center',
+    backgroundColor: cores.status.erro.superficie,
+    borderColor: cores.status.erro.borda,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: espaco.sm,
+    padding: espaco.md,
   },
-  bannerText: { fontSize: 12, color: theme.gold, fontWeight: '600' },
-
-  list: { flex: 1 },
-
-  userRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    padding: 14, borderBottomWidth: 1, borderBottomColor: theme.border,
-    backgroundColor: theme.bg,
-  },
-  avatar: {
-    width: 44, height: 44, borderRadius: 22,
-    backgroundColor: theme.surface, borderWidth: 1.5,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  avatarText:  { fontSize: 14, fontWeight: '700' },
-  userInfo:    { flex: 1, gap: 2 },
-  userNameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  userName:    { fontSize: 14, fontWeight: '600', color: theme.white },
-  meTag:       { fontSize: 10, color: theme.gold, fontWeight: '600', backgroundColor: theme.goldDim, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
-  userEmail:   { fontSize: 12, color: theme.textMuted },
-  rolePill:    { alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4, marginTop: 2 },
-  roleText:    { fontSize: 10, fontWeight: '600' },
-
-  userActions: { flexDirection: 'row', gap: 4 },
-  actionBtn:   { padding: 6 },
-
-  fab: {
-    position: 'absolute', bottom: 24, right: 20,
-    width: 52, height: 52, borderRadius: 26,
-    backgroundColor: theme.gold,
-    alignItems: 'center', justifyContent: 'center',
-    shadowColor: theme.gold, shadowOpacity: 0.5, shadowRadius: 12, shadowOffset: { width: 0, height: 4 },
-    elevation: 8,
-  },
-
-  modal:       { flex: 1, backgroundColor: theme.bg },
-  modalHeader: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingHorizontal: 20, paddingVertical: 16,
-    borderBottomWidth: 1, borderBottomColor: theme.border,
-    backgroundColor: theme.surface,
-  },
-  modalTitle: { fontSize: 17, fontWeight: '700', color: theme.white },
-  modalBody:  { flex: 1, paddingHorizontal: 20, paddingTop: 16 },
-
-  label: { fontSize: 11, color: theme.textMuted, fontWeight: '600', letterSpacing: 0.5, marginBottom: 6, marginTop: 16, textTransform: 'uppercase' },
-  input: {
-    backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.border,
-    borderRadius: 8, paddingHorizontal: 14, paddingVertical: 12,
-    fontSize: 14, color: theme.text, marginBottom: 2,
-  },
-  passwordRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  eyeBtn:      { padding: 10, backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.border, borderRadius: 8 },
-
-  rolesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  roleChip: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingHorizontal: 12, paddingVertical: 8,
-    borderRadius: 8, borderWidth: 1, borderColor: theme.border,
-    backgroundColor: theme.surface,
-  },
-  roleDot:      { width: 8, height: 8, borderRadius: 4 },
-  roleChipText: { fontSize: 12, color: theme.textMuted, fontWeight: '500' },
-
-  modalFooter: {
-    flexDirection: 'row', gap: 10,
-    paddingHorizontal: 20, paddingVertical: 16,
-    borderTopWidth: 1, borderTopColor: theme.border,
-    backgroundColor: theme.surface,
-  },
-  btnCancel:     { flex: 1, paddingVertical: 12, borderRadius: 8, borderWidth: 1, borderColor: theme.border, alignItems: 'center' },
-  btnCancelText: { fontSize: 14, color: theme.textMuted, fontWeight: '600' },
-  btnSave:       { flex: 2, paddingVertical: 12, borderRadius: 8, backgroundColor: theme.gold, alignItems: 'center' },
-  btnSaveText:   { fontSize: 14, fontWeight: '700', color: '#000' },
-
-  modalErrorBox: {
-    marginHorizontal: 20, marginBottom: 8,
-    backgroundColor: 'rgba(224,82,82,0.12)',
-    borderWidth: 1, borderColor: 'rgba(224,82,82,0.3)',
-    borderRadius: 8, padding: 10,
-  },
-  modalErrorText: { color: '#E05252', fontSize: 13 },
+  errorText: { ...tipografia.corpo, color: cores.status.erro.forte, flex: 1 },
 });
