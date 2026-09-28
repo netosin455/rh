@@ -1,5 +1,14 @@
 # Changelog — SuperRH
 
+## [2026-09-28] - V2-F6c: Assistente de IA
+
+### Alterado
+- `app/(tabs)/ia.tsx` migrou mensagens, sugestões e compositor para `ScreenHeader`, `Card`, `Avatar`, `Button`, `Input` e `Skeleton`, usando somente tokens de estilo compartilhados.
+- O estado de processamento recebe fade curto com `useMotion()` e o cabeçalho não apresenta mais o estado estático “Online”; o histórico, o envio e a chamada ao chat foram preservados.
+
+### Verificado
+- `npx expo export --platform web` concluído.
+
 ## [2026-09-28] - V2-F6a: Férias, Agenda, Avisos, Reconhecimentos e Analytics
 
 ### Alterado

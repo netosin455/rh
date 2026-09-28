@@ -2,18 +2,26 @@
 // app/(tabs)/ia.tsx — SuperRH Assistente IA (Groq)
 // ============================================================
 
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, FlatList,
-  StyleSheet, ActivityIndicator, KeyboardAvoidingView,
+  View, Text, FlatList,
+  StyleSheet, KeyboardAvoidingView,
   Platform, Keyboard,
 } from 'react-native';
-import Animated, { FadeInUp } from 'react-native-reanimated';
-import { Ionicons } from '@expo/vector-icons';
+import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { apiFetch } from '../../conexoes/http';
 import { ChatMessage } from '../../tipos/modelos';
 import { useAuth } from '../../contextos/Autenticacao';
-import { theme } from '../../estilo/cores';
+import { Avatar } from '../../componentes/Avatar';
+import { Button } from '../../componentes/Button';
+import { Card } from '../../componentes/Card';
+import { Input } from '../../componentes/Input';
+import { ScreenHeader } from '../../componentes/ScreenHeader';
+import { Skeleton } from '../../componentes/Skeleton';
+import { cores } from '../../estilo/cores';
+import { borda, espaco, raio, tamanho } from '../../estilo/espaco';
+import { tipografia } from '../../estilo/tipografia';
+import { useMotion } from '../../estilo/movimento';
 
 const SUGGESTIONS = [
   { label: 'Risco de saída',   text: 'Quais colaboradores têm maior risco de saída da empresa?' },
@@ -27,6 +35,7 @@ function nextId() { return String(++msgId); }
 
 export default function IAScreen() {
   const { user } = useAuth();
+  const motion = useMotion();
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: nextId(),
@@ -38,6 +47,16 @@ export default function IAScreen() {
   const [input,   setInput]   = useState('');
   const [loading, setLoading] = useState(false);
   const listRef = useRef<FlatList>(null);
+  const thinkingOpacity = useSharedValue(0);
+
+  useEffect(() => {
+    thinkingOpacity.value = withTiming(loading ? 1 : 0, {
+      duration: motion.duracao(loading ? 'normal' : 'fast'),
+      easing: loading ? motion.entrada : motion.saida,
+    });
+  }, [loading, motion, thinkingOpacity]);
+
+  const thinkingStyle = useAnimatedStyle(() => ({ opacity: thinkingOpacity.value }));
 
   const send = useCallback(async (text: string) => {
     const content = text.trim();
@@ -79,22 +98,20 @@ export default function IAScreen() {
   const renderItem = ({ item }: { item: ChatMessage }) => {
     const isUser = item.role === 'user';
     return (
-      <Animated.View
-        entering={FadeInUp.delay(50).duration(250)}
-        style={[styles.msgWrapper, isUser ? styles.msgWrapperUser : styles.msgWrapperAssistant]}
-      >
-        {!isUser && (
-          <View style={styles.avatar}>
-            <Ionicons name="sparkles" size={12} color={theme.gold} />
+      <View style={[styles.messageRow, isUser ? styles.messageRowUser : styles.messageRowAssistant]}>
+        {!isUser ? <Avatar name="Assistente SuperRH" size="small" accessibilityLabel="Assistente SuperRH" /> : null}
+        {isUser ? (
+          <View style={styles.userBubble}>
+            <Text style={styles.userText}>{item.content}</Text>
+            <Text style={styles.userTimestamp}>{formatTime(item.timestamp)}</Text>
           </View>
+        ) : (
+          <Card style={styles.assistantBubble}>
+            <Text style={styles.bubbleText}>{item.content}</Text>
+            <Text style={styles.timestamp}>{formatTime(item.timestamp)}</Text>
+          </Card>
         )}
-        <View style={[styles.bubble, isUser ? styles.bubbleUser : styles.bubbleAssistant]}>
-          <Text style={[styles.bubbleText, isUser && styles.bubbleTextUser]}>{item.content}</Text>
-          <Text style={[styles.timestamp, isUser && styles.timestampUser]}>
-            {formatTime(item.timestamp)}
-          </Text>
-        </View>
-      </Animated.View>
+      </View>
     );
   };
 
@@ -104,15 +121,7 @@ export default function IAScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 0}
     >
-      {/* Header modelo */}
-      <View style={styles.modelHeader}>
-        <View style={styles.modelDot} />
-        <Text style={styles.modelName}>Groq · Llama 3</Text>
-        <View style={styles.modelStatus}>
-          <View style={styles.statusDot} />
-          <Text style={styles.statusText}>Online</Text>
-        </View>
-      </View>
+      <View style={styles.header}><ScreenHeader title="Assistente" subtitle="Pergunte sobre pessoas, férias, agenda e rotinas de RH." /></View>
 
       {/* Lista de mensagens */}
       <FlatList
@@ -124,39 +133,27 @@ export default function IAScreen() {
         onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
         onLayout={() => listRef.current?.scrollToEnd({ animated: false })}
         ListFooterComponent={loading ? (
-          <View style={styles.typingRow}>
-            <View style={styles.avatar}>
-              <Ionicons name="sparkles" size={12} color={theme.gold} />
-            </View>
-            <View style={styles.typingBubble}>
-              <ActivityIndicator size="small" color={theme.gold} />
-              <Text style={styles.typingText}>Pensando...</Text>
-            </View>
-          </View>
+          <Animated.View style={[styles.thinkingRow, thinkingStyle]}>
+            <Avatar name="Assistente SuperRH" size="small" accessibilityLabel="Assistente SuperRH processando" />
+            <Card style={styles.thinkingBubble}><Skeleton width={tamanho.iconeGrande} height={tamanho.indicador} /><Text style={styles.thinkingText}>Processando sua solicitação…</Text></Card>
+          </Animated.View>
         ) : null}
       />
 
       {/* Sugestões — só quando há apenas 1 mensagem */}
       {messages.length === 1 && !loading && (
         <View style={styles.suggestions}>
-          <Text style={styles.suggestionsLabel}>SUGESTÕES</Text>
+          <Text style={styles.suggestionsLabel}>Sugestões</Text>
           <View style={styles.suggestionsGrid}>
-            {SUGGESTIONS.map(s => (
-              <TouchableOpacity key={s.text} style={styles.suggestionChip} onPress={() => send(s.text)}>
-                <Ionicons name="sparkles-outline" size={11} color={theme.gold} />
-                <Text style={styles.suggestionText}>{s.label}</Text>
-              </TouchableOpacity>
-            ))}
+            {SUGGESTIONS.map((suggestion) => <Button key={suggestion.text} label={suggestion.label} icon="sparkles-outline" variant="secondary" accessibilityLabel={`Perguntar: ${suggestion.label}`} onPress={() => send(suggestion.text)} />)}
           </View>
         </View>
       )}
 
-      {/* Input */}
       <View style={styles.inputRow}>
-        <TextInput
-          style={styles.input}
+        <Input
+          label="Mensagem"
           placeholder="Pergunte algo sobre a equipe..."
-          placeholderTextColor={theme.textMuted}
           value={input}
           onChangeText={setInput}
           multiline
@@ -164,99 +161,36 @@ export default function IAScreen() {
           onSubmitEditing={() => send(input)}
           returnKeyType="send"
           blurOnSubmit
+          containerStyle={styles.messageInput}
+          inputStyle={styles.input}
+          rightAccessory={<Button icon="arrow-up" accessibilityLabel="Enviar mensagem" onPress={() => send(input)} disabled={!input.trim() || loading} variant="primary" style={styles.sendButton} />}
         />
-        <TouchableOpacity
-          style={[styles.sendBtn, (!input.trim() || loading) && styles.sendBtnDisabled]}
-          onPress={() => send(input)}
-          disabled={!input.trim() || loading}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="arrow-up" size={16} color={!input.trim() || loading ? theme.textMuted : '#000'} />
-        </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: theme.bg },
-
-  modelHeader: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    paddingHorizontal: 16, paddingVertical: 10,
-    backgroundColor: theme.surface,
-    borderBottomWidth: 1, borderBottomColor: theme.border,
-  },
-  modelDot:  { width: 6, height: 6, borderRadius: 3, backgroundColor: theme.gold },
-  modelName: { fontSize: 12, color: theme.textLight, fontWeight: '600', flex: 1 },
-  modelStatus: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  statusDot:  { width: 6, height: 6, borderRadius: 3, backgroundColor: theme.success },
-  statusText: { fontSize: 11, color: theme.success },
-
-  listContent: { padding: 16, paddingBottom: 8 },
-
-  msgWrapper:          { flexDirection: 'row', marginBottom: 14, gap: 8 },
-  msgWrapperUser:      { justifyContent: 'flex-end' },
-  msgWrapperAssistant: { justifyContent: 'flex-start' },
-
-  avatar: {
-    width: 30, height: 30, borderRadius: 15,
-    backgroundColor: theme.goldDim, borderWidth: 1, borderColor: theme.border2,
-    alignItems: 'center', justifyContent: 'center',
-    alignSelf: 'flex-end',
-  },
-
-  bubble: { maxWidth: '80%', borderRadius: 16, padding: 12 },
-  bubbleAssistant: {
-    backgroundColor: theme.surface,
-    borderWidth: 1, borderColor: theme.border,
-    borderBottomLeftRadius: 4,
-  },
-  bubbleUser: {
-    backgroundColor: theme.gold,
-    borderBottomRightRadius: 4,
-  },
-  bubbleText:     { fontSize: 14, color: theme.text, lineHeight: 21 },
-  bubbleTextUser: { color: '#000' },
-  timestamp:      { fontSize: 10, color: theme.textMuted, marginTop: 5, textAlign: 'right' },
-  timestampUser:  { color: 'rgba(0,0,0,0.5)' },
-
-  typingRow: { flexDirection: 'row', gap: 8, marginBottom: 12, alignItems: 'flex-end' },
-  typingBubble: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.border,
-    borderRadius: 16, borderBottomLeftRadius: 4, padding: 12,
-  },
-  typingText: { fontSize: 12, color: theme.textMuted },
-
-  suggestions:      { paddingHorizontal: 14, paddingBottom: 8 },
-  suggestionsLabel: { fontSize: 9, color: theme.textMuted, marginBottom: 8, letterSpacing: 1.5, fontWeight: '700' },
-  suggestionsGrid:  { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  suggestionChip: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingHorizontal: 12, paddingVertical: 8,
-    backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.border2,
-    borderRadius: 20,
-  },
-  suggestionText: { fontSize: 12, color: theme.goldLight },
-
-  inputRow: {
-    flexDirection: 'row', alignItems: 'flex-end', gap: 10,
-    padding: 12, paddingBottom: Platform.OS === 'ios' ? 20 : 12,
-    backgroundColor: theme.surface,
-    borderTopWidth: 1, borderTopColor: theme.border,
-  },
-  input: {
-    flex: 1, backgroundColor: theme.surface2,
-    borderWidth: 1, borderColor: theme.border,
-    borderRadius: 22, paddingHorizontal: 16,
-    paddingVertical: 10, fontSize: 14, color: theme.text,
-    maxHeight: 100,
-  },
-  sendBtn: {
-    width: 38, height: 38, borderRadius: 19,
-    backgroundColor: theme.gold,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  sendBtnDisabled: { backgroundColor: theme.surface2 },
+  container: { backgroundColor: cores.superficie.pagina, flex: 1 },
+  header: { borderBottomColor: cores.borda.sutil, borderBottomWidth: borda.fina, padding: espaco.xl },
+  listContent: { gap: espaco.md, padding: espaco.xl, paddingBottom: espaco.md },
+  messageRow: { alignItems: 'flex-end', flexDirection: 'row', gap: espaco.sm },
+  messageRowUser: { justifyContent: 'flex-end' },
+  messageRowAssistant: { justifyContent: 'flex-start' },
+  assistantBubble: { maxWidth: '80%' },
+  userBubble: { backgroundColor: cores.accent.dourado, borderBottomRightRadius: espaco.xs, borderRadius: raio.cartao, maxWidth: '80%', padding: espaco.md },
+  bubbleText: { ...tipografia.corpo, color: cores.texto.primario },
+  userText: { ...tipografia.corpo, color: cores.texto.sobreAccent },
+  timestamp: { ...tipografia.legenda, color: cores.texto.discreto, marginTop: espaco.xs, textAlign: 'right' },
+  userTimestamp: { ...tipografia.legenda, color: cores.texto.sobreAccent, marginTop: espaco.xs, textAlign: 'right' },
+  thinkingRow: { alignItems: 'flex-end', flexDirection: 'row', gap: espaco.sm },
+  thinkingBubble: { alignItems: 'center', flexDirection: 'row', gap: espaco.sm },
+  thinkingText: { ...tipografia.legenda, color: cores.texto.discreto },
+  suggestions: { borderTopColor: cores.borda.sutil, borderTopWidth: borda.fina, gap: espaco.sm, paddingHorizontal: espaco.xl, paddingTop: espaco.md },
+  suggestionsLabel: { ...tipografia.legenda, color: cores.texto.discreto },
+  suggestionsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: espaco.sm },
+  inputRow: { backgroundColor: cores.superficie.elevada, borderTopColor: cores.borda.sutil, borderTopWidth: borda.fina, padding: espaco.md, paddingBottom: Platform.OS === 'ios' ? espaco.xl : espaco.md },
+  messageInput: { width: '100%' },
+  input: { maxHeight: tamanho.toqueMinimo * 2 },
+  sendButton: { marginRight: espaco.xs, minWidth: tamanho.toqueMinimo, paddingHorizontal: espaco.sm },
 });
