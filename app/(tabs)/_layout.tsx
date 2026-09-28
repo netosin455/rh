@@ -121,7 +121,22 @@ function SidebarItem({
   pendingCount?: number;
 }) {
   const [focused, setFocused] = useState(false);
+  const motion = useMotion();
+  const hoverOpacity = useSharedValue(0);
   const icon = (active ? item.icon : `${item.icon}-outline`) as keyof typeof Ionicons.glyphMap;
+  const hoverStyle = useAnimatedStyle(() => ({ opacity: hoverOpacity.value }));
+
+  useEffect(() => {
+    if (active) hoverOpacity.value = 0;
+  }, [active, hoverOpacity]);
+
+  function setHovering(hovered: boolean) {
+    if (active) return;
+    hoverOpacity.value = withTiming(hovered ? 1 : 0, {
+      duration: motion.reduzMovimento ? motion.fadeCurto : 120,
+      easing: hovered ? motion.entrada : motion.saida,
+    });
+  }
 
   return (
     <Pressable
@@ -130,10 +145,13 @@ function SidebarItem({
       accessibilityState={{ selected: active }}
       onBlur={() => setFocused(false)}
       onFocus={() => setFocused(true)}
+      onHoverIn={() => setHovering(true)}
+      onHoverOut={() => setHovering(false)}
       onLayout={onLayout}
       onPress={onPress}
       style={[styles.sidebarItem, active && styles.sidebarItemActive, focused && styles.sidebarItemFocused]}
     >
+      <Animated.View pointerEvents="none" style={[styles.sidebarItemHover, hoverStyle]} />
       <Ionicons color={active ? cores.sidebar.accent : cores.sidebar.textoInativo} name={icon} size={tamanho.iconeMedio} />
       <Text style={[styles.sidebarLabel, active && styles.sidebarLabelActive]}>{item.title}</Text>
       {pendingCount > 0 ? <View style={styles.sidebarPendingBadge}><Text style={styles.sidebarPendingBadgeText}>{pendingCount > 9 ? '9+' : pendingCount}</Text></View> : null}
@@ -336,8 +354,9 @@ const styles = StyleSheet.create({
   activeIndicator: { backgroundColor: cores.sidebar.accent, borderRadius: raio.pill, left: espaco.xs, position: 'absolute', top: espaco.zero, width: tamanho.indicador },
   navGroup: { gap: espaco.xs, marginBottom: espaco.xl },
   groupLabel: { ...tipografia.rotulo, color: cores.sidebar.textoInativo, paddingHorizontal: espaco.md, textTransform: 'uppercase' },
-  sidebarItem: { alignItems: 'center', borderColor: cores.superficie.transparente, borderRadius: raio.controle, borderWidth: borda.fina, flexDirection: 'row', gap: espaco.md, minHeight: tamanho.toqueMinimo, paddingHorizontal: espaco.md },
-  sidebarItemActive: { backgroundColor: cores.accent.sutil },
+  sidebarItem: { alignItems: 'center', borderColor: cores.superficie.transparente, borderRadius: raio.controle, borderWidth: borda.fina, flexDirection: 'row', gap: espaco.md, minHeight: tamanho.toqueMinimo, overflow: 'hidden', paddingHorizontal: espaco.md, position: 'relative' },
+  sidebarItemActive: { backgroundColor: cores.sidebar.itemAtivo },
+  sidebarItemHover: { ...StyleSheet.absoluteFillObject, backgroundColor: cores.sidebar.hover },
   sidebarItemFocused: { borderColor: cores.foco.anel, borderWidth: borda.foco },
   sidebarLabel: { ...tipografia.corpoForte, color: cores.sidebar.textoInativo, flex: 1 },
   sidebarLabelActive: { color: cores.sidebar.texto },

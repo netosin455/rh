@@ -12,13 +12,12 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useAuth } from '../contextos/Autenticacao';
 import { BrandMark } from '../componentes/BrandMark';
 import { Button } from '../componentes/Button';
 import { Input } from '../componentes/Input';
-import { theme } from '../estilo/cores';
+import { cores } from '../estilo/cores';
 import { borda, espaco, largura, raio, tamanho } from '../estilo/espaco';
 import { useMotion } from '../estilo/movimento';
 import { tipografia } from '../estilo/tipografia';
@@ -89,21 +88,16 @@ export default function LoginScreen() {
 
   return (
     <View style={styles.root}>
-      <LinearGradient
-        colors={[theme.sidebarSemantica.superficie, theme.sidebarSemantica.superficieProfunda]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={StyleSheet.absoluteFill}
-      />
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView
           contentContainerStyle={[styles.scroll, compact && styles.scrollCompact]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <View pointerEvents="none" style={styles.glow} />
+          <View pointerEvents="none" style={styles.backgroundDetail} />
           <Animated.View style={[styles.card, compact && styles.cardCompact, entranceStyle]}>
-            <BrandMark size="grande" />
+            <BrandMark />
+            <Text accessibilityRole="header" style={styles.title}>Bem-vindo de volta</Text>
 
             <View style={styles.form}>
               <Input
@@ -136,7 +130,7 @@ export default function LoginScreen() {
                     <Ionicons
                       name={showPass ? 'eye-off-outline' : 'eye-outline'}
                       size={tamanho.iconeMedio}
-                      color={theme.texto.discreto}
+                      color={cores.texto.discreto}
                     />
                   </Pressable>
                 }
@@ -145,13 +139,13 @@ export default function LoginScreen() {
 
             {error ? (
               <View accessibilityRole="alert" style={styles.errorFeedback}>
-                <Ionicons name="alert-circle-outline" size={tamanho.iconeMedio} color={theme.status.erro.forte} />
+                <Ionicons name="alert-circle-outline" size={tamanho.iconeMedio} color={cores.status.erro.forte} />
                 <Text style={styles.errorText}>{error}</Text>
               </View>
             ) : null}
             {success ? (
               <View accessibilityLiveRegion="polite" style={styles.successFeedback}>
-                <Ionicons name="checkmark-circle-outline" size={tamanho.iconeMedio} color={theme.status.sucesso.forte} />
+                <Ionicons name="checkmark-circle-outline" size={tamanho.iconeMedio} color={cores.status.sucesso.forte} />
                 <Text style={styles.successText}>{success}</Text>
               </View>
             ) : null}
@@ -182,33 +176,28 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { backgroundColor: theme.sidebarSemantica.superficie, flex: 1 },
+  root: { backgroundColor: cores.superficie.pagina, flex: 1 },
   flex: { flex: 1 },
   scroll: { alignItems: 'center', flexGrow: 1, justifyContent: 'center', padding: espaco.tela },
   scrollCompact: { padding: espaco.xxl },
-  // Único detalhe de marca da tela: um halo dourado atrás do cartão, um único momento com
-  // propósito (dar profundidade ao instante de entrada), não decoração espalhada. `boxShadow`
-  // (só web, é onde o app roda) dá o desfoque real — círculo sólido + shadow criava um anel duro.
-  glow: Platform.select({
-    web: { boxShadow: `0 0 220px 110px ${theme.accent.dourado}33`, height: 1, position: 'absolute', width: 1 } as any,
-    default: { backgroundColor: theme.accent.sutil, borderRadius: 999, height: 420, opacity: 0.6, position: 'absolute', width: 420 },
-  }),
+  backgroundDetail: { backgroundColor: cores.superficie.destaque, borderRadius: raio.pill, height: espaco.tela * 6, opacity: 0.42, position: 'absolute', right: -espaco.tela * 2, top: -espaco.tela * 2, width: espaco.tela * 6 },
   card: {
-    backgroundColor: theme.superficie.elevada,
-    borderColor: theme.bordaSemantica.sutil,
+    backgroundColor: cores.superficie.elevada,
+    borderColor: cores.borda.sutil,
     borderRadius: raio.cartao,
     borderWidth: borda.fina,
-    elevation: 16,
-    gap: espaco.xxxl,
+    elevation: 2,
+    gap: espaco.xxl,
     maxWidth: largura.leitura,
-    padding: espaco.gigante,
-    shadowColor: theme.elevacao.backdrop,
-    shadowOffset: { width: 0, height: 24 },
-    shadowOpacity: 1,
-    shadowRadius: 60,
+    padding: espaco.xxxl,
+    shadowColor: cores.elevacao.sombra,
+    shadowOffset: { width: 0, height: espaco.xs },
+    shadowOpacity: 0.12,
+    shadowRadius: espaco.md,
     width: largura.completa,
   },
-  cardCompact: { gap: espaco.xxl, padding: espaco.xxl },
+  cardCompact: { gap: espaco.xl, padding: espaco.xl },
+  title: { ...tipografia.titulo, color: cores.texto.primario, textAlign: 'left' },
   form: { gap: espaco.lg },
   passwordVisibility: {
     alignItems: 'center',
@@ -219,28 +208,28 @@ const styles = StyleSheet.create({
   submit: { width: largura.completa },
   errorFeedback: {
     alignItems: 'center',
-    backgroundColor: theme.status.erro.superficie,
-    borderColor: theme.status.erro.borda,
+    backgroundColor: cores.status.erro.superficie,
+    borderColor: cores.status.erro.borda,
     borderRadius: raio.controle,
     borderWidth: borda.fina,
     flexDirection: 'row',
     gap: espaco.sm,
     padding: espaco.md,
   },
-  errorText: { ...tipografia.legenda, color: theme.status.erro.forte, flex: 1 },
+  errorText: { ...tipografia.legenda, color: cores.status.erro.forte, flex: 1 },
   successFeedback: {
     alignItems: 'center',
-    backgroundColor: theme.status.sucesso.superficie,
-    borderColor: theme.status.sucesso.borda,
+    backgroundColor: cores.status.sucesso.superficie,
+    borderColor: cores.status.sucesso.borda,
     borderRadius: raio.controle,
     borderWidth: borda.fina,
     flexDirection: 'row',
     gap: espaco.sm,
     padding: espaco.md,
   },
-  successText: { ...tipografia.legenda, color: theme.status.sucesso.forte, flex: 1 },
+  successText: { ...tipografia.legenda, color: cores.status.sucesso.forte, flex: 1 },
   sso: { gap: espaco.lg },
   divider: { alignItems: 'center', flexDirection: 'row', gap: espaco.sm },
-  line: { backgroundColor: theme.bordaSemantica.sutil, flex: 1, height: borda.fina },
-  dividerText: { ...tipografia.legenda, color: theme.texto.discreto },
+  line: { backgroundColor: cores.borda.sutil, flex: 1, height: borda.fina },
+  dividerText: { ...tipografia.legenda, color: cores.texto.discreto },
 });

@@ -1,14 +1,14 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { RefreshControl, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { Avatar } from '../../componentes/Avatar';
 import { Button } from '../../componentes/Button';
 import { Card } from '../../componentes/Card';
 import { EmptyState } from '../../componentes/EmptyState';
 import { ListRow } from '../../componentes/ListRow';
-import { MetricCard } from '../../componentes/MetricCard';
+import { ProgressBar } from '../../componentes/ProgressBar';
 import { ScreenHeader } from '../../componentes/ScreenHeader';
 import { Section } from '../../componentes/Section';
 import { Skeleton } from '../../componentes/Skeleton';
@@ -59,31 +59,6 @@ function insightColor(severity: Insight['severity']) {
   return cores.status.informacao.forte;
 }
 
-function AttentionCard({ item, onPress }: { item: AttentionItem; onPress: () => void }) {
-  const urgent = item.level === 'urgent';
-
-  return (
-    <Card
-      accessibilityLabel={`${item.title}. ${item.description}`}
-      onPress={onPress}
-      padded={false}
-      style={[styles.attentionCard, urgent ? styles.attentionUrgent : styles.attentionImportant]}
-    >
-      <View style={styles.attentionContent}>
-        <View style={[styles.attentionIcon, urgent ? styles.attentionIconUrgent : styles.attentionIconImportant]}>
-          <Ionicons color={urgent ? cores.status.erro.forte : cores.status.pendente.forte} name={item.icon} size={tamanho.iconeMedio} />
-        </View>
-        <View style={styles.attentionCopy}>
-          <Text style={styles.attentionTitle}>{item.title}</Text>
-          <Text style={styles.attentionDescription}>{item.description}</Text>
-        </View>
-        <StatusPill label={urgent ? 'Urgente' : 'Importante'} status={urgent ? 'danger' : 'pending'} />
-        <Ionicons color={urgent ? cores.status.erro.forte : cores.status.pendente.forte} name="chevron-forward" size={tamanho.iconePequeno} />
-      </View>
-    </Card>
-  );
-}
-
 function DashboardLoading() {
   return (
     <ScrollView contentContainerStyle={styles.loadingContent} style={styles.screen}>
@@ -102,6 +77,8 @@ export default function DashboardScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const motion = useMotion();
+  const { width } = useWindowDimensions();
+  const compact = width <= 768;
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [events, setEvents] = useState<Event[]>([]);
   const [notices, setNotices] = useState<Notice[]>([]);
@@ -154,8 +131,7 @@ export default function DashboardScreen() {
   const today = getTodayString();
   const todayName = WEEKDAY_NAMES[new Date(`${today}T00:00:00`).getDay()];
   const activeEmployees = employees.filter((employee) => employee.status === 'ativo').length;
-  const employeesOnVacation = employees.filter((employee) => employee.status === 'ferias').length;
-  const onLeave = employees.filter((employee) => employee.status === 'licenca' || employee.status === 'afastado').length;
+  const availabilityPercentage = employees.length > 0 ? Math.round((activeEmployees / employees.length) * 100) : 0;
   const birthdayWindow = Array.from({ length: 7 }, (_, index) => {
     const date = new Date(`${today}T00:00:00`);
     date.setDate(date.getDate() + index);
@@ -204,6 +180,7 @@ export default function DashboardScreen() {
       route: `/${alert.route}`,
     })),
   ];
+  const reviewRoute = attentionItems[0]?.route ?? '/notificacoes';
   const insightsVisible = insightsExpanded || insightsLoading;
   const insightsProgress = useSharedValue(insightsVisible ? 1 : 0);
   const insightsHeight = Math.max(espaco.tela, insights.length * (tamanho.toqueMinimo + espaco.lg));
@@ -235,35 +212,58 @@ export default function DashboardScreen() {
         subtitle={`${todayName} · ${formatDateDisplay(today)}`}
       />
 
+      <View style={[styles.overviewRow, compact && styles.overviewRowCompact]}>
+        <Card style={styles.overviewCard}>
+          <View style={styles.overviewHeader}>
+            <Text style={styles.overviewTitle}>Equipe hoje</Text>
+            <StatusPill label={`${availabilityPercentage}% disponível`} status="ativo" />
+          </View>
+          <Text style={styles.overviewValue}>{employees.length}</Text>
+          <Text style={styles.overviewDescription}>{activeEmployees} pessoa{activeEmployees === 1 ? '' : 's'} disponível{activeEmployees === 1 ? '' : 'eis'} hoje</Text>
+          <ProgressBar accessibilityLabel={`${availabilityPercentage}% da equipe disponível hoje`} tone="success" value={availabilityPercentage} />
+        </Card>
+        <Card style={styles.overviewCard}>
+          <View style={styles.overviewHeader}>
+            <Text style={styles.overviewTitle}>Precisa de você</Text>
+            <StatusPill label={attentionItems.length > 0 ? 'Revisar' : 'Em dia'} status={attentionItems.length > 0 ? 'pendente' : 'ativo'} />
+          </View>
+          <Text style={styles.overviewValue}>{attentionItems.length}</Text>
+          <Text style={styles.overviewDescription}>pendência{attentionItems.length === 1 ? '' : 's'} para acompanhar</Text>
+          <Button label="Revisar" onPress={() => router.navigate(reviewRoute as never)} style={styles.reviewAction} variant="ghost" />
+        </Card>
+      </View>
+
       {attentionItems.length > 0 ? (
         <Section title="Precisa de atenção">
-          <View style={styles.attentionStack}>
-            {attentionItems.map((item) => <AttentionCard item={item} key={item.id} onPress={() => router.navigate(item.route as never)} />)}
-          </View>
+          <Card padded={false} style={styles.listCard}>
+            {attentionItems.map((item) => {
+              const urgent = item.level === 'urgent';
+              return <ListRow accessibilityLabel={`${item.title}. ${item.description}`} description={item.description} key={item.id} leading={<View style={[styles.attentionIndicator, urgent ? styles.attentionIndicatorUrgent : styles.attentionIndicatorImportant]}><Ionicons color={urgent ? cores.status.erro.forte : cores.status.pendente.forte} name={item.icon} size={tamanho.iconePequeno} /></View>} onPress={() => router.navigate(item.route as never)} title={item.title} trailing={<Ionicons color={cores.texto.discreto} name="chevron-forward" size={tamanho.iconePequeno} />} />;
+            })}
+          </Card>
         </Section>
       ) : null}
 
-      <Section title="Métricas principais">
-        <View style={styles.metrics}>
-          <View style={styles.metricItem}><MetricCard indicator={<Ionicons color={cores.status.sucesso.forte} name="people-outline" size={tamanho.iconeMedio} />} label="Ativos" value={activeEmployees} /></View>
-          <View style={styles.metricItem}><MetricCard indicator={<Ionicons color={cores.status.informacao.forte} name="umbrella-outline" size={tamanho.iconeMedio} />} label="Em férias" value={employeesOnVacation} /></View>
-          <View style={styles.metricItem}><MetricCard indicator={<Ionicons color={faltaCount > 0 ? cores.status.erro.forte : cores.accent.douradoProfundo} name="close-circle-outline" size={tamanho.iconeMedio} />} label="Faltas no mês" value={faltaCount} /></View>
-          <View style={styles.metricItem}><MetricCard indicator={<Ionicons color={onLeave > 0 ? cores.status.pendente.forte : cores.status.informacao.forte} name="medical-outline" size={tamanho.iconeMedio} />} label="Em licença" value={onLeave} /></View>
+      <View style={[styles.dualColumns, compact && styles.dualColumnsCompact]}>
+        <View style={styles.dualColumn}>
+          <Section action={<Button accessibilityLabel="Abrir agenda" label="Ver agenda" onPress={() => router.navigate('/(tabs)/agenda')} variant="ghost" />} title="Próximos eventos">
+            <Card padded={false} style={styles.listCard}>
+              {events.length === 0 ? <EmptyState description="Sua agenda está livre nos próximos dias." icon="calendar-outline" title="Nenhum evento próximo" /> : events.slice(0, 4).map((event) => (
+                <ListRow description={`${event.date === today ? 'Hoje' : formatDateDisplay(event.date)}${event.start_time ? ` · ${event.start_time}` : ''}`} key={event.id} leading={<View style={styles.eventIcon}><Ionicons color={cores.status.informacao.forte} name="calendar-outline" size={tamanho.iconePequeno} /></View>} title={event.title} />
+              ))}
+            </Card>
+          </Section>
         </View>
-      </Section>
-
-      <Section action={<Button accessibilityLabel="Abrir agenda" label="Ver agenda" onPress={() => router.navigate('/(tabs)/agenda')} variant="ghost" />} title="Próximos eventos">
-        <Card padded={false} style={styles.listCard}>
-          {events.length === 0 ? <EmptyState description="Sua agenda está livre nos próximos dias." icon="calendar-outline" title="Nenhum evento próximo" /> : events.slice(0, 4).map((event) => (
-            <ListRow
-              description={`${event.date === today ? 'Hoje' : formatDateDisplay(event.date)}${event.start_time ? ` · ${event.start_time}` : ''}`}
-              key={event.id}
-              leading={<View style={styles.eventIcon}><Ionicons color={cores.status.informacao.forte} name="calendar-outline" size={tamanho.iconePequeno} /></View>}
-              title={event.title}
-            />
-          ))}
-        </Card>
-      </Section>
+        <View style={styles.dualColumn}>
+          <Section title="Aniversários">
+            <Card padded={false} style={styles.listCard}>
+              {upcomingBirthdays.length === 0 ? <EmptyState description="Não há aniversários nos próximos sete dias." icon="gift-outline" title="Sem aniversários próximos" /> : upcomingBirthdays.slice(0, 4).map((employee) => (
+                <ListRow description={employee.birthdayLabel} key={employee.id} leading={<Avatar name={employee.name} />} title={employee.name} />
+              ))}
+            </Card>
+          </Section>
+        </View>
+      </View>
 
       <Section action={<Button accessibilityLabel="Abrir equipe" label="Ver equipe" onPress={() => router.navigate('/(tabs)/colaboradores')} variant="ghost" />} title="Equipe">
         <Card padded={false} style={styles.listCard}>
@@ -314,22 +314,13 @@ export default function DashboardScreen() {
         </Section>
       ) : null}
 
-      {upcomingBirthdays.length > 0 || notices.length > 0 ? (
+      {notices.length > 0 ? (
         <Section title="Contexto da equipe">
-          {upcomingBirthdays.length > 0 ? (
-            <Card padded={false} style={styles.listCard}>
-              {upcomingBirthdays.slice(0, 4).map((employee) => (
-                <ListRow description={employee.birthdayLabel} key={employee.id} leading={<View style={styles.birthdayIcon}><Ionicons color={cores.accent.douradoProfundo} name="gift-outline" size={tamanho.iconePequeno} /></View>} title={employee.name} />
-              ))}
-            </Card>
-          ) : null}
-          {notices.length > 0 ? (
-            <Card padded={false} style={styles.listCard}>
-              {notices.slice(0, 3).map((notice) => (
-                <ListRow accessibilityLabel={`Abrir aviso: ${notice.title}`} description={notice.body} key={notice.id} onPress={() => router.navigate('/(tabs)/avisos')} title={notice.title} trailing={<Ionicons color={cores.texto.discreto} name="chevron-forward" size={tamanho.iconePequeno} />} />
-              ))}
-            </Card>
-          ) : null}
+          <Card padded={false} style={styles.listCard}>
+            {notices.slice(0, 3).map((notice) => (
+              <ListRow accessibilityLabel={`Abrir aviso: ${notice.title}`} description={notice.body} key={notice.id} onPress={() => router.navigate('/(tabs)/avisos')} title={notice.title} trailing={<Ionicons color={cores.texto.discreto} name="chevron-forward" size={tamanho.iconePequeno} />} />
+            ))}
+          </Card>
         </Section>
       ) : null}
     </ScrollView>
@@ -341,22 +332,22 @@ const styles = StyleSheet.create({
   content: { gap: espaco.xxxl, padding: espaco.lg, paddingBottom: espaco.tela },
   loadingContent: { gap: espaco.lg, padding: espaco.lg, paddingBottom: espaco.tela },
   skeletonMetrics: { flexDirection: 'row', gap: espaco.md },
-  attentionStack: { gap: espaco.sm },
-  attentionCard: { overflow: 'hidden' },
-  attentionUrgent: { backgroundColor: cores.status.erro.superficie, borderColor: cores.status.erro.borda },
-  attentionImportant: { backgroundColor: cores.status.pendente.superficie, borderColor: cores.status.pendente.borda },
-  attentionContent: { alignItems: 'center', flexDirection: 'row', gap: espaco.md, minHeight: tamanho.toqueMinimo + espaco.lg, padding: espaco.lg },
-  attentionIcon: { alignItems: 'center', borderRadius: raio.pill, height: tamanho.avatarMedio, justifyContent: 'center', width: tamanho.avatarMedio },
-  attentionIconUrgent: { backgroundColor: cores.superficie.elevada },
-  attentionIconImportant: { backgroundColor: cores.superficie.elevada },
-  attentionCopy: { flex: 1, gap: espaco.micro },
-  attentionTitle: { ...tipografia.corpoForte, color: cores.texto.primario },
-  attentionDescription: { ...tipografia.legenda, color: cores.texto.secundario },
-  metrics: { flexDirection: 'row', flexWrap: 'wrap', gap: espaco.md },
-  metricItem: { flexGrow: 1, flexBasis: espaco.tela * 2 },
+  overviewRow: { flexDirection: 'row', gap: espaco.md },
+  overviewRowCompact: { flexDirection: 'column' },
+  overviewCard: { flex: 1, gap: espaco.md },
+  overviewHeader: { alignItems: 'center', flexDirection: 'row', gap: espaco.sm, justifyContent: 'space-between' },
+  overviewTitle: { ...tipografia.corpoForte, color: cores.texto.primario },
+  overviewValue: { ...tipografia.titulo, color: cores.texto.primario },
+  overviewDescription: { ...tipografia.legenda, color: cores.texto.discreto },
+  reviewAction: { alignSelf: 'flex-start', marginLeft: -espaco.lg },
+  attentionIndicator: { alignItems: 'center', borderRadius: raio.pill, height: tamanho.avatarPequeno, justifyContent: 'center', width: tamanho.avatarPequeno },
+  attentionIndicatorUrgent: { backgroundColor: cores.status.erro.superficie },
+  attentionIndicatorImportant: { backgroundColor: cores.status.pendente.superficie },
+  dualColumns: { flexDirection: 'row', gap: espaco.xl },
+  dualColumnsCompact: { flexDirection: 'column' },
+  dualColumn: { flex: 1 },
   listCard: { overflow: 'hidden' },
   eventIcon: { alignItems: 'center', backgroundColor: cores.status.informacao.superficie, borderRadius: raio.controle, height: tamanho.avatarMedio, justifyContent: 'center', width: tamanho.avatarMedio },
-  birthdayIcon: { alignItems: 'center', backgroundColor: cores.accent.superficie, borderRadius: raio.controle, height: tamanho.avatarMedio, justifyContent: 'center', width: tamanho.avatarMedio },
   insightActions: { alignItems: 'center', flexDirection: 'row', gap: espaco.micro },
   insightContent: { overflow: 'hidden' },
   insightLoading: { gap: espaco.sm, padding: espaco.lg },

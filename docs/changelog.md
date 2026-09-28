@@ -1,5 +1,56 @@
 # Changelog — SuperRH
 
+## [2026-09-28] — V3: nova identidade visual (índigo/grafite claro), SOMENTE visual
+
+Redesign completo da pele do SuperRH, aprovado pelo Carlo depois de rejeitar a direção "Modern Law"
+(bege+dourado+Cormorant+sidebar preta). Nova referência: SaaS moderno (Linear/Notion/Rippling), sem copiar
+nenhum literalmente. Escopo travado desde o pedido: **somente visual** — nenhuma linha de lógica de negócio,
+API, banco, auth ou RBAC foi tocada. Protótipo isolado (Artifact, dados fake) validado com o Carlo antes de
+qualquer código real ser alterado.
+
+### Tokens (estilo/cores.ts, estilo/movimento.ts)
+- Paleta inteira trocada: fundo `#F7F8FA`, sidebar grafite `#171A21` (+ hover `#20232A` e item-ativo
+  `#272B35`, tokens novos), accent principal índigo `#4F5BD5`, status success/warning/error/info recalibrados
+  pros tons exatos que o Carlo passou. Chaves antigas "dourado*" mantidas por compatibilidade (evita reescrever
+  todo consumidor), só o valor virou índigo — dourado de verdade sobrou só como traço fino da marca.
+- Corrigido de tabela um bug de contraste que a troca ia introduzir silenciosamente: `texto.sobreAccent` era
+  escuro (certo pro dourado antigo), ficaria ilegível em cima de botão primário índigo. Agora branco.
+- `estrutural` do motion: 280ms → 260ms (valor exato pedido).
+- Os 2 arquivos que ainda não usam o sistema de tokens (`notificacoes.tsx`, `responder/[id].tsx`) foram
+  religados pra puxar de `cores.*` em vez de duplicar hex, então herdam a paleta nova automaticamente.
+
+### Telas (Codex, dois agentes em paralelo, revisão minha em tudo antes do commit)
+- **Login**: removido gradiente escuro, halo dourado e sombra gigante. Fundo claro, 1 detalhe gráfico bem
+  sutil no canto, cartão simples com sombra leve, título "Bem-vindo de volta", marca em tamanho padrão (não
+  gigante). Entrada opacity+translateY em 200ms, botão com scale 0.98 no press — comportamento já existia,
+  só a pele mudou.
+- **Sidebar** (`_layout.tsx`): item ativo agora usa fundo sólido `cores.sidebar.itemAtivo` (era um tint
+  translúcido dourado). Hover novo nas linhas da sidebar larga (web), animado, ~120ms. Estrutura de navegação
+  intocada.
+- **Férias**: badge de status ganhou um componente próprio (`AbsenceStatusBadge`) que anima a transição de
+  cor quando o status muda (pendente→aprovado/recusado), ~140ms. Lógica de aprovar/reprovar/criar/editar
+  100% preservada.
+- **Kudos**: ao publicar um reconhecimento com sucesso, aparece um feedback curto (troféu + texto) com
+  fade+scale de 220ms que desaparece depois de ~400ms, respeitando `prefers-reduced-motion`. Sem confete, sem
+  bounce.
+- **Dashboard**: recomposição completa, saiu do "pilha de cards iguais". Agora: resumo (equipe hoje + precisa
+  de você) lado a lado com barra de progresso, "Precisa de atenção" como lista compacta (não card por item),
+  próximos eventos + aniversários lado a lado, equipe no rodapé. Toda a lógica de carregamento/cálculo
+  (`load()`, `attentionItems`, insights) intocada.
+- **Equipe**: lista compacta de pessoas com hover na linha (`cores.superficie.sutil`). Busca, filtro, CRUD,
+  FAB e ações rápidas 100% preservados.
+- **Achado e corrigido na minha revisão antes do commit**: o Dashboard novo usava `flexDirection: 'row'`
+  fixo nas duas fileiras lado a lado, sem breakpoint — ia espremer os cards numa fatia ilegível no celular.
+  Adicionado `compact` (`width <= 768`) que empilha em coluna no mobile, mesmo padrão já usado no login.
+
+### Verificado
+- `tsc --noEmit` limpo, `npm test` 51/51, `expo export --platform web` sem erro.
+- Scan manual: zero hex/rgba hardcoded fora de `estilo/`, zero corrupção de encoding (`Ã`), zero padrão
+  "eyebrow" banido nos 6 arquivos alterados.
+- Nota operacional: os dois Codex estavam sendo recrutados em worktrees obsoletos (`rh-visual`,
+  `rh-backend`, branches de um redesign anterior já mergeado há muito tempo) — redirecionados pra
+  `C:\Users\carlo\rh` (main) antes de qualquer edição real, senão o trabalho ia sair da base errada.
+
 ## [2026-09-28] — Bug real: Insights de IA do Dashboard sempre em erro (conta da ariele)
 
 ### Corrigido

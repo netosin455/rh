@@ -112,6 +112,7 @@ export default function ColaboradoresScreen() {
   const [quickModal, setQuickModal] = useState<{ emp: Employee; type: 'falta' | 'folga' | 'credito' } | null>(null);
   const [quickHoursInput, setQuickHoursInput] = useState('');
   const [quickSaving, setQuickSaving] = useState(false);
+  const [hoveredEmployeeId, setHoveredEmployeeId] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -293,10 +294,12 @@ export default function ColaboradoresScreen() {
             // próprios, e ListRow com onPress embrulha tudo (incluindo o trailing) num
             // <button>, o que aninhava botão dentro de botão (HTML inválido, quebra o
             // clique e confunde leitor de tela). Só a área de navegação é pressionável.
-            <View key={emp.id} style={styles.row}>
+            <View key={emp.id} style={[styles.row, hoveredEmployeeId === emp.id && styles.rowHover]}>
               <Pressable
                 accessibilityLabel={`Abrir perfil de ${emp.name}`}
                 accessibilityRole="button"
+                onHoverIn={() => setHoveredEmployeeId(emp.id)}
+                onHoverOut={() => setHoveredEmployeeId(null)}
                 onPress={() => router.push(`/colaborador/${emp.id}` as any)}
                 style={styles.rowPress}
               >
@@ -457,6 +460,7 @@ const styles = StyleSheet.create({
 
   list: { flex: 1 },
   row: { alignItems: 'center', borderBottomColor: cores.borda.sutil, borderBottomWidth: borda.fina, flexDirection: 'row', gap: espaco.md, minHeight: tamanho.toqueMinimo, paddingHorizontal: espaco.lg, paddingVertical: espaco.md },
+  rowHover: { backgroundColor: cores.superficie.sutil },
   rowPress: { alignItems: 'center', flex: 1, flexDirection: 'row', gap: espaco.md },
   rowCopy: { flex: 1, gap: espaco.micro },
   rowTitle: { ...tipografia.corpoForte, color: cores.texto.primario },

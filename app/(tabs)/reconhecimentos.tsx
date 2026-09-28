@@ -2,8 +2,9 @@
 // app/(tabs)/reconhecimentos.tsx — Mural de Reconhecimento
 // ============================================================
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { KeyboardAvoidingView, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useToast } from '../../contextos/Toast';
 import { Ionicons } from '@expo/vector-icons';
 import { getRecognitions, createRecognition, deleteRecognition } from '../../conexoes/reconhecimentos';
@@ -25,6 +26,7 @@ import { ScreenHeader } from '../../componentes/ScreenHeader';
 import { Section } from '../../componentes/Section';
 import { Skeleton } from '../../componentes/Skeleton';
 import { borda, espaco, largura, raio, tamanho } from '../../estilo/espaco';
+import { useMotion } from '../../estilo/movimento';
 import { tipografia } from '../../estilo/tipografia';
 
 const CATEGORIES = Object.entries(RECOGNITION_CATEGORIES) as [RecognitionCategory, { label: string; icon: string; color: string }][];
@@ -43,6 +45,7 @@ function timeAgo(iso: string) {
 export default function RecognitionsScreen() {
   const { user } = useAuth();
   const toast = useToast();
+  const motion = useMotion();
   const [items,      setItems]      = useState<Recognition[]>([]);
   const [total,      setTotal]      = useState(0);
   const [loading,    setLoading]    = useState(true);
@@ -57,6 +60,44 @@ export default function RecognitionsScreen() {
   const [message,     setMessage]     = useState('');
   const [saving,      setSaving]      = useState(false);
   const [step,        setStep]        = useState<'pick' | 'write'>('pick');
+  const [publishFeedbackVisible, setPublishFeedbackVisible] = useState(false);
+  const publishFeedbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const publishFeedbackOpacity = useSharedValue(0);
+  const publishFeedbackScale = useSharedValue(motion.reduzMovimento ? 1 : 0.98);
+
+  useEffect(() => () => {
+    if (publishFeedbackTimer.current) clearTimeout(publishFeedbackTimer.current);
+  }, []);
+
+  function showPublishFeedback() {
+    if (publishFeedbackTimer.current) clearTimeout(publishFeedbackTimer.current);
+    setPublishFeedbackVisible(true);
+
+    if (motion.reduzMovimento) {
+      publishFeedbackOpacity.value = 1;
+      publishFeedbackScale.value = 1;
+    } else {
+      publishFeedbackOpacity.value = 0;
+      publishFeedbackScale.value = 0.98;
+      publishFeedbackOpacity.value = withTiming(1, { duration: 220, easing: motion.entrada });
+      publishFeedbackScale.value = withTiming(1, { duration: 220, easing: motion.entrada });
+    }
+
+    publishFeedbackTimer.current = setTimeout(() => {
+      if (motion.reduzMovimento) {
+        setPublishFeedbackVisible(false);
+        return;
+      }
+
+      publishFeedbackOpacity.value = withTiming(0, { duration: motion.duracao('fast'), easing: motion.saida });
+      publishFeedbackTimer.current = setTimeout(() => setPublishFeedbackVisible(false), motion.duracao('fast'));
+    }, 400);
+  }
+
+  const publishFeedbackStyle = useAnimatedStyle(() => ({
+    opacity: publishFeedbackOpacity.value,
+    transform: [{ scale: publishFeedbackScale.value }],
+  }));
 
   const load = useCallback(async () => {
     try {
@@ -92,6 +133,7 @@ export default function RecognitionsScreen() {
     try {
       await createRecognition({ to_employee_id: selectedEmp.id, message: message.trim(), category });
       setModalOpen(false);
+      showPublishFeedback();
       toast.success('Reconhecimento publicado! 🏆');
       load();
     } catch (e: any) {
@@ -126,6 +168,14 @@ export default function RecognitionsScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={cores.accent.dourado} />}
       >
         <ScreenHeader title="Reconhecimentos" subtitle="Celebre contribuições que fortalecem a equipe." action={<Button label="Dar kudos" icon="add" onPress={openModal} />} />
+        {publishFeedbackVisible ? (
+          <Animated.View accessibilityLiveRegion="polite" accessibilityRole="alert" style={publishFeedbackStyle}>
+            <Card style={styles.publishFeedback}>
+              <Ionicons color={cores.accent.dourado} name="trophy" size={tamanho.iconeMedio} />
+              <Text style={styles.publishFeedbackText}>Reconhecimento publicado</Text>
+            </Card>
+          </Animated.View>
+        ) : null}
         <MetricCard label="Reconhecimentos" value={total} detail="Registrados no mural" />
 
         {items.length === 0 ? (
@@ -160,6 +210,8 @@ const styles = StyleSheet.create({
   loadingContent: { gap: espaco.lg, padding: espaco.xl },
   recognitionList: { gap: espaco.sm },
   recognitionTrailing: { alignItems: 'flex-end', flexDirection: 'row', gap: espaco.xs },
+  publishFeedback: { alignItems: 'center', backgroundColor: cores.accent.superficie, borderColor: cores.accent.borda, flexDirection: 'row', gap: espaco.sm },
+  publishFeedbackText: { ...tipografia.corpoForte, color: cores.texto.accentSobreClaro },
   message: { ...tipografia.corpo, color: cores.texto.secundario, fontStyle: 'italic', marginHorizontal: espaco.md, marginBottom: espaco.md },
   recognitionActions: { alignItems: 'flex-end', borderTopColor: cores.borda.sutil, borderTopWidth: borda.fina, padding: espaco.md },
   modalScroll: { maxHeight: largura.leitura },
