@@ -34,6 +34,8 @@ export const cores = {
   },
   sidebar: {
     superficie: '#252525',
+    // Segundo tom do degradê do fundo grafite (login): mesma família, mais profundo.
+    superficieProfunda: '#161616',
     texto: '#FFFFFF',
     textoInativo: 'rgba(255,255,255,0.72)',
     accent: '#D4AF5A',

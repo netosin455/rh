@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useAuth } from '../contextos/Autenticacao';
 import { BrandMark } from '../componentes/BrandMark';
@@ -88,6 +89,12 @@ export default function LoginScreen() {
 
   return (
     <View style={styles.root}>
+      <LinearGradient
+        colors={[theme.sidebarSemantica.superficie, theme.sidebarSemantica.superficieProfunda]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={StyleSheet.absoluteFill}
+      />
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView
           contentContainerStyle={[styles.scroll, compact && styles.scrollCompact]}
@@ -183,8 +190,8 @@ const styles = StyleSheet.create({
   // propósito (dar profundidade ao instante de entrada), não decoração espalhada. `boxShadow`
   // (só web, é onde o app roda) dá o desfoque real — círculo sólido + shadow criava um anel duro.
   glow: Platform.select({
-    web: { boxShadow: `0 0 200px 80px ${theme.accent.dourado}22`, height: 1, position: 'absolute', width: 1 } as any,
-    default: { backgroundColor: theme.accent.sutil, borderRadius: 999, height: 420, opacity: 0.5, position: 'absolute', width: 420 },
+    web: { boxShadow: `0 0 220px 110px ${theme.accent.dourado}33`, height: 1, position: 'absolute', width: 1 } as any,
+    default: { backgroundColor: theme.accent.sutil, borderRadius: 999, height: 420, opacity: 0.6, position: 'absolute', width: 420 },
   }),
   card: {
     backgroundColor: theme.superficie.elevada,

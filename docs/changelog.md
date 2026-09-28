@@ -1,5 +1,19 @@
 # Changelog — SuperRH
 
+## [2026-09-28] — Degradê no login, máscaras de telefone/CPF, e um bug real: CPF sumiu do cadastro
+
+### Corrigido
+- **Achado testando o pedido de máscaras**: o campo CPF (estado e envio já existiam) tinha sumido do formulário de "Novo colaborador" na migração da Equipe pro design system mais cedo hoje — regressão minha, não fui completo na hora de reescrever. Campo de volta, agora com máscara.
+- **Investiguei um suposto bug de "cartão do login não centraliza no celular"**: era falso positivo da minha ferramenta de teste (o `--window-size` do Chrome headless não estava respeitando a largura pedida). Testado com emulação de dispositivo de verdade (protocolo do Chrome): o login centraliza certinho em 390px. Nenhuma mudança de código necessária; documentado aqui pra não repetir o susto.
+
+### Adicionado
+- `helpers/validacoes.ts`: `maskCPF` e `maskPhone`, mesmo padrão do `maskDate` já existente. Aplicadas nos 3 campos que faltavam (telefone e CPF na Equipe e no Detalhe do colaborador).
+- Login: fundo passa de cor sólida pra degradê grafite (`expo-linear-gradient`, dois tons da família `sidebar`), e o halo dourado atrás do cartão ficou mais visível (era quase imperceptível).
+
+### Verificado
+- Confirmado que `prefers-reduced-motion` não está sendo detectado incorretamente (motion do app funciona, é só discreto por escolha de design).
+- tsc, npm test (51/51), expo export --platform web.
+
 ## [2026-09-28] — Aviso na tela de Kudos quando o colaborador não tem email
 
 ### Adicionado

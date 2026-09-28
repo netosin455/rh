@@ -26,6 +26,7 @@ import { cores } from '../../estilo/cores';
 import { espaco } from '../../estilo/espaco';
 import { tipografia } from '../../estilo/tipografia';
 import { ymd, brToIso, isoToBr, maskDate } from '../../helpers/datas';
+import { maskCPF, maskPhone } from '../../helpers/validacoes';
 import { confirmAction } from '../../helpers/confirm';
 
 const STATUS_OPTIONS: { key: EmployeeStatus; label: string }[] = [{ key: 'ativo', label: 'Ativo' }, { key: 'afastado', label: 'Afastado' }, { key: 'desligado', label: 'Desligado' }];
@@ -93,9 +94,9 @@ export default function ColaboradorScreen() {
       <Section title="Status"><View style={styles.choices}>{STATUS_OPTIONS.map((item) => <Button key={item.key} label={item.label} onPress={() => set('status', item.key)} disabled={saving} style={styles.choice} variant={form.status === item.key ? 'primary' : 'secondary'} />)}</View></Section>
       <Section title="Área jurídica"><View style={styles.choices}>{LEGAL_AREAS.map((item) => <Button key={item.key} label={item.label} onPress={() => set('legal_area', form.legal_area === item.key ? undefined : item.key)} disabled={saving} style={styles.choice} variant={form.legal_area === item.key ? 'primary' : 'secondary'} />)}</View></Section>
       <Input editable={!saving} label="Número OAB" value={form.oab_number} onChangeText={(value) => set('oab_number', value)} placeholder="SP 123456" />
-      <Input editable={!saving} keyboardType="phone-pad" label="Telefone" value={form.phone} onChangeText={(value) => set('phone', value)} placeholder="(11) 99999-9999" />
+      <Input editable={!saving} keyboardType="phone-pad" label="Telefone" value={form.phone} onChangeText={(value) => set('phone', maskPhone(value))} placeholder="(11) 99999-9999" />
       <Input autoCapitalize="none" autoCorrect={false} editable={!saving} keyboardType="email-address" label="Email" value={form.email} onChangeText={(value) => set('email', value)} placeholder="nome@empresa.com" />
-      <Input editable={!saving} label="CPF" value={form.cpf} onChangeText={(value) => set('cpf', value)} placeholder="000.000.000-00" />
+      <Input editable={!saving} keyboardType="numeric" label="CPF" value={form.cpf} onChangeText={(value) => set('cpf', maskCPF(value))} placeholder="000.000.000-00" />
       <Input editable={!saving} keyboardType="numeric" label="Admissão (DD/MM/AAAA)" maxLength={10} value={form.hire_date} onChangeText={(value) => set('hire_date', maskDate(value))} />
       <Input editable={!saving} keyboardType="numeric" label="Nascimento (DD/MM/AAAA)" maxLength={10} value={form.birth_date} onChangeText={(value) => set('birth_date', maskDate(value))} />
       <Input editable={!saving} keyboardType="number-pad" label="Dias de férias disponíveis" value={String(form.vacation_days ?? '')} onChangeText={(value) => set('vacation_days', parseInt(value) || 0)} />

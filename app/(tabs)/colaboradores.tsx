@@ -13,6 +13,7 @@ import { cores } from '../../estilo/cores';
 import { borda, espaco, raio, tamanho } from '../../estilo/espaco';
 import { tipografia } from '../../estilo/tipografia';
 import { brToIso, maskDate, todayBr, getTodayString } from '../../helpers/datas';
+import { maskCPF, maskPhone } from '../../helpers/validacoes';
 import { exportEmployeesPDF } from '../../helpers/pdf';
 import { useToast } from '../../contextos/Toast';
 import { Avatar } from '../../componentes/Avatar';
@@ -385,9 +386,10 @@ export default function ColaboradoresScreen() {
           </View>
 
           <Input containerStyle={styles.field} label="Número OAB" onChangeText={v => setF('oab_number', v)} placeholder="Ex: SP 123456" value={form.oab_number} />
-          <Input containerStyle={styles.field} keyboardType="phone-pad" label="Telefone" onChangeText={v => setF('phone', v)} placeholder="(11) 99999-9999" value={form.phone} />
+          <Input containerStyle={styles.field} keyboardType="phone-pad" label="Telefone" onChangeText={v => setF('phone', maskPhone(v))} placeholder="(11) 99999-9999" value={form.phone} />
           <Input accessibilityLabel="Email do colaborador" autoCapitalize="none" autoComplete="email" autoCorrect={false} containerStyle={styles.field} keyboardType="email-address" label="Email (para avisos, ex.: reconhecimentos)" onChangeText={v => setF('email', v)} placeholder="nome@empresa.com" value={form.email} />
           <Input containerStyle={styles.field} keyboardType="numeric" label="Data de nascimento (DD/MM/AAAA)" maxLength={10} onChangeText={v => setF('birth_date', maskDate(v))} placeholder="07/05/1990" value={form.birth_date} />
+          <Input containerStyle={styles.field} keyboardType="numeric" label="CPF" onChangeText={v => setF('cpf', maskCPF(v))} placeholder="000.000.000-00" value={form.cpf} />
 
           {formError ? (
             <View style={styles.errorBox}>
