@@ -19,7 +19,6 @@ import { getNotices } from '../../conexoes/avisos';
 import { getEmployees } from '../../conexoes/colaboradores';
 import { getUpcomingEvents } from '../../conexoes/eventos';
 import { buscarInsights, Insight } from '../../conexoes/insights';
-import { buscarNotificacoes } from '../../conexoes/notificacoes';
 import { useAuth } from '../../contextos/Autenticacao';
 import { cores } from '../../estilo/cores';
 import { borda, espaco, raio, tamanho } from '../../estilo/espaco';
@@ -112,7 +111,6 @@ export default function DashboardScreen() {
   const [insights, setInsights] = useState<Insight[]>([]);
   const [insightsLoading, setInsightsLoading] = useState(false);
   const [insightsExpanded, setInsightsExpanded] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const canSeeInsights = INSIGHT_ROLES.includes(user?.role ?? '');
@@ -134,7 +132,6 @@ export default function DashboardScreen() {
       const currentMonth = getTodayString().slice(0, 7);
       countAbsences('falta', currentMonth).then(setFaltaCount).catch(() => {});
       if (APPROVER_ROLES.includes(user.role ?? '')) countPendentes().then(setPendentesCount).catch(() => {});
-      buscarNotificacoes().then((result) => setUnreadCount(result.unread)).catch(() => {});
       if (canSeeInsights) {
         setInsightsLoading(true);
         buscarInsights().then((result) => setInsights(result.insights)).catch(() => {}).finally(() => setInsightsLoading(false));
@@ -236,17 +233,6 @@ export default function DashboardScreen() {
       <ScreenHeader
         title={`Olá, ${user?.name?.split(' ')[0] || 'Usuário'}`}
         subtitle={`${todayName} · ${formatDateDisplay(today)}`}
-        action={
-          <View style={styles.notificationAction}>
-            <Button
-              accessibilityLabel={unreadCount > 0 ? `Abrir notificações, ${unreadCount} não lidas` : 'Abrir notificações'}
-              icon="notifications-outline"
-              onPress={() => router.navigate('/notificacoes' as never)}
-              variant="ghost"
-            />
-            {unreadCount > 0 ? <View style={styles.notificationBadge}><Text style={styles.notificationBadgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text></View> : null}
-          </View>
-        }
       />
 
       {attentionItems.length > 0 ? (
@@ -355,9 +341,6 @@ const styles = StyleSheet.create({
   content: { gap: espaco.xxxl, padding: espaco.lg, paddingBottom: espaco.tela },
   loadingContent: { gap: espaco.lg, padding: espaco.lg, paddingBottom: espaco.tela },
   skeletonMetrics: { flexDirection: 'row', gap: espaco.md },
-  notificationAction: { position: 'relative' },
-  notificationBadge: { alignItems: 'center', backgroundColor: cores.status.erro.forte, borderRadius: raio.pill, height: espaco.lg, justifyContent: 'center', minWidth: espaco.lg, paddingHorizontal: espaco.micro, position: 'absolute', right: -espaco.xs, top: -espaco.xs },
-  notificationBadgeText: { ...tipografia.legenda, color: cores.texto.sobreEscuro },
   attentionStack: { gap: espaco.sm },
   attentionCard: { overflow: 'hidden' },
   attentionUrgent: { backgroundColor: cores.status.erro.superficie, borderColor: cores.status.erro.borda },

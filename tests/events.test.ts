@@ -37,4 +37,16 @@ describe('GET /api/events?upcoming=true', () => {
     expect(String(mockSql.mock.calls[0][0])).toContain("America/Sao_Paulo");
     expect(res.json).toHaveBeenCalledWith([]);
   });
+
+  it('regressao: compara e.date com cast pra date (events.date e text no banco; sem o cast, o postgres real rejeita "text >= date" com 500)', async () => {
+    mockSql.mockResolvedValueOnce([]);
+    const { default: handler } = await import('../api/events/index');
+    const res = makeRes();
+
+    await handler({
+      method: 'GET', query: { upcoming: 'true' }, headers: { authorization: 'Bearer token' }, body: {},
+    } as any, res);
+
+    expect(String(mockSql.mock.calls[0][0])).toContain('e.date::date >=');
+  });
 });

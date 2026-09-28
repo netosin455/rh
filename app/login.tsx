@@ -94,8 +94,9 @@ export default function LoginScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
+          <View pointerEvents="none" style={styles.glow} />
           <Animated.View style={[styles.card, compact && styles.cardCompact, entranceStyle]}>
-            <BrandMark />
+            <BrandMark size="grande" />
 
             <View style={styles.form}>
               <Input
@@ -178,14 +179,26 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   scroll: { alignItems: 'center', flexGrow: 1, justifyContent: 'center', padding: espaco.tela },
   scrollCompact: { padding: espaco.xxl },
+  // Único detalhe de marca da tela: um halo dourado atrás do cartão, um único momento com
+  // propósito (dar profundidade ao instante de entrada), não decoração espalhada. `boxShadow`
+  // (só web, é onde o app roda) dá o desfoque real — círculo sólido + shadow criava um anel duro.
+  glow: Platform.select({
+    web: { boxShadow: `0 0 200px 80px ${theme.accent.dourado}22`, height: 1, position: 'absolute', width: 1 } as any,
+    default: { backgroundColor: theme.accent.sutil, borderRadius: 999, height: 420, opacity: 0.5, position: 'absolute', width: 420 },
+  }),
   card: {
     backgroundColor: theme.superficie.elevada,
     borderColor: theme.bordaSemantica.sutil,
     borderRadius: raio.cartao,
     borderWidth: borda.fina,
+    elevation: 16,
     gap: espaco.xxxl,
     maxWidth: largura.leitura,
     padding: espaco.gigante,
+    shadowColor: theme.elevacao.backdrop,
+    shadowOffset: { width: 0, height: 24 },
+    shadowOpacity: 1,
+    shadowRadius: 60,
     width: largura.completa,
   },
   cardCompact: { gap: espaco.xxl, padding: espaco.xxl },

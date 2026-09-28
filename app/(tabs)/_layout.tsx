@@ -7,6 +7,7 @@ import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-na
 import { BrandMark } from '../../componentes/BrandMark';
 import { Button } from '../../componentes/Button';
 import { countPendentes } from '../../conexoes/ausencias';
+import { buscarNotificacoes } from '../../conexoes/notificacoes';
 import { useAuth } from '../../contextos/Autenticacao';
 import { cores } from '../../estilo/cores';
 import { borda, espaco, raio, tamanho } from '../../estilo/espaco';
@@ -210,14 +211,35 @@ function WideSidebar({ state, pendentesCount }: BottomTabBarProps & { pendentesC
   );
 }
 
-function WideTopbar({ onLogout, title }: { onLogout: () => void; title: string }) {
+// Único ponto de acesso a notificações no shell (evita duplicar o sino em cada tela,
+// como acontecia antes no Dashboard). O contador vem do TabLayout, mesma cadência do
+// contador de férias pendentes.
+function NotificationsButton({ style, unreadCount }: { style?: object; unreadCount: number }) {
   const router = useRouter();
+  return (
+    <View style={styles.notificationsWrap}>
+      <Button
+        accessibilityLabel={unreadCount > 0 ? `Abrir notificações, ${unreadCount} não lidas` : 'Abrir notificações'}
+        icon="notifications-outline"
+        onPress={() => router.navigate('/notificacoes' as never)}
+        style={style}
+        variant="ghost"
+      />
+      {unreadCount > 0 ? (
+        <View style={styles.notificationsBadge}>
+          <Text style={styles.notificationsBadgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
+        </View>
+      ) : null}
+    </View>
+  );
+}
 
+function WideTopbar({ onLogout, title, unreadCount }: { onLogout: () => void; title: string; unreadCount: number }) {
   return (
     <View style={styles.topbar}>
       <Text accessibilityRole="header" style={styles.topbarTitle}>{title}</Text>
       <View style={styles.topbarActions}>
-        <Button accessibilityLabel="Abrir notificações" icon="notifications-outline" onPress={() => router.navigate('/notificacoes' as never)} variant="ghost" />
+        <NotificationsButton unreadCount={unreadCount} />
         <Button accessibilityLabel="Sair da conta" icon="log-out-outline" onPress={onLogout} variant="ghost" />
       </View>
     </View>
@@ -228,6 +250,7 @@ export default function TabLayout() {
   const { user, logout } = useAuth();
   const { width } = useWindowDimensions();
   const [pendentesCount, setPendentesCount] = useState(0);
+  const [unreadCount, setUnreadCount] = useState(0);
   const isWideWeb = Platform.OS === 'web' && width >= 960;
 
   useEffect(() => {
@@ -239,6 +262,15 @@ export default function TabLayout() {
     return () => clearInterval(interval);
   }, [user?.role]);
 
+  useEffect(() => {
+    if (!user) return;
+    buscarNotificacoes().then((result) => setUnreadCount(result.unread)).catch(() => {});
+    const interval = setInterval(() => {
+      buscarNotificacoes().then((result) => setUnreadCount(result.unread)).catch(() => {});
+    }, 120_000);
+    return () => clearInterval(interval);
+  }, [user]);
+
   function handleLogout() {
     confirmAction('Sair', 'Deseja sair da conta?', logout);
   }
@@ -247,12 +279,17 @@ export default function TabLayout() {
     <Tabs
       tabBar={isWideWeb ? (props) => <WideSidebar {...props} pendentesCount={pendentesCount} /> : undefined}
       screenOptions={({ route }) => ({
-        header: isWideWeb ? () => <WideTopbar onLogout={handleLogout} title={tabTitle(route.name)} /> : undefined,
+        header: isWideWeb ? () => <WideTopbar onLogout={handleLogout} title={tabTitle(route.name)} unreadCount={unreadCount} /> : undefined,
         headerShadowVisible: false,
         headerStyle: styles.mobileHeader,
         headerTintColor: cores.texto.primario,
         headerTitleStyle: { ...tipografia.titulo, color: cores.texto.primario },
-        headerRight: isWideWeb ? undefined : () => <Button accessibilityLabel="Sair da conta" icon="log-out-outline" onPress={handleLogout} style={styles.mobileHeaderButton} variant="ghost" />,
+        headerRight: isWideWeb ? undefined : () => (
+          <View style={styles.mobileHeaderActions}>
+            <NotificationsButton style={styles.mobileHeaderButton} unreadCount={unreadCount} />
+            <Button accessibilityLabel="Sair da conta" icon="log-out-outline" onPress={handleLogout} style={styles.mobileHeaderButton} variant="ghost" />
+          </View>
+        ),
         tabBarActiveTintColor: cores.texto.accentSobreClaro,
         tabBarInactiveTintColor: cores.texto.discreto,
         tabBarItemStyle: styles.mobileItem,
@@ -309,7 +346,11 @@ const styles = StyleSheet.create({
   topbar: { alignItems: 'center', backgroundColor: cores.superficie.elevada, borderBottomColor: cores.borda.sutil, borderBottomWidth: borda.fina, flexDirection: 'row', height: tamanho.toqueMinimo + espaco.xxl, justifyContent: 'space-between', paddingHorizontal: espaco.xxl },
   topbarTitle: { ...tipografia.titulo, color: cores.texto.primario },
   topbarActions: { alignItems: 'center', flexDirection: 'row', gap: espaco.sm },
+  notificationsWrap: { position: 'relative' },
+  notificationsBadge: { alignItems: 'center', backgroundColor: cores.status.erro.forte, borderRadius: raio.pill, height: espaco.lg, justifyContent: 'center', minWidth: espaco.lg, paddingHorizontal: espaco.micro, position: 'absolute', right: -espaco.xs, top: -espaco.xs },
+  notificationsBadgeText: { ...tipografia.legenda, color: cores.texto.sobreEscuro },
   mobileHeader: { backgroundColor: cores.superficie.elevada, borderBottomColor: cores.borda.sutil, borderBottomWidth: borda.fina },
+  mobileHeaderActions: { alignItems: 'center', flexDirection: 'row' },
   mobileHeaderButton: { marginRight: espaco.sm },
   mobileTabs: { backgroundColor: cores.superficie.elevada, borderTopColor: cores.borda.sutil, borderTopWidth: borda.fina, height: Platform.OS === 'ios' ? tamanho.toqueMinimo + espaco.xxxl : tamanho.toqueMinimo + espaco.xxl, paddingBottom: Platform.OS === 'ios' ? espaco.xl : espaco.sm },
   mobileItem: { minHeight: tamanho.toqueMinimo },
