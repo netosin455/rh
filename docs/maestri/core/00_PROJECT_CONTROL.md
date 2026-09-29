@@ -80,3 +80,14 @@ Um banco, várias empresas, isolamento por `company_id` em toda tabela de dados.
 | RH-006 | Cores legadas em `notificacoes.tsx` + changelog | BAIXO | feito e publicado, `97fe4a1` (2026-09-29) |
 | RH-007 | Formalizar o Maestri (regras, ADRs, gates) | BAIXO (docs) | feito, `e335e0c` (2026-09-29) |
 | RH-008 | Reorganizar o Maestri em pastas (core, agents, workflows...) | BAIXO (docs) | feito (2026-09-29) |
+
+## Tarefas pausadas e em fila
+
+Detalhes em `core/BACKLOG.md`; plano completo em `core/PLAN_FEEDBACK_SURVEYS_NAV.md`.
+
+| ID | Objetivo | Risco | Situação |
+|---|---|---|---|
+| RH-009 | Recomposição de Dashboard, Login, Sidebar e Equipe | BAIXO/MÉDIO (visual) | pausada; código no `git stash`; ficha em `core/01_ACTIVE_TASK.md` |
+| RH-NAV-001 | Sincronizar o item ativo da sidebar com a rota | BAIXO/MÉDIO | na fila |
+| RH-SURVEY-002 | Pesquisas com até 10 perguntas | ALTO | na fila (exige gate e migration aprovada) |
+| RH-FEEDBACK-003 | Módulo de Feedbacks com link, ciência e PDF | ALTO | na fila (exige gate e migration aprovada) |

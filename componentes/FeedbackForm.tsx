@@ -23,7 +23,9 @@ export function FeedbackForm({ value, onChange, disabled = false }: FeedbackForm
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [pickerOpen, setPickerOpen] = useState(false);
+  // A lista começa aberta após o carregamento: no formulário novo o RH já vê
+  // quem pode selecionar, mesmo antes de tocar no campo de busca.
+  const [pickerOpen, setPickerOpen] = useState(true);
   const [error, setError] = useState('');
   const selected = employees.find((employee) => employee.id === value.employee_id);
   const filtered = useMemo(() => {

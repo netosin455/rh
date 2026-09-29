@@ -38,7 +38,7 @@ Antes de editar, o Maestri responde: pedido, escopo, risco, partes afetadas, age
 
 | Pasta | Conteúdo |
 |---|---|
-| [`core/`](core/) | Estado e regras do projeto: `00_PROJECT_CONTROL`, `01_ACTIVE_TASK` (só a tarefa corrente), `02_ARCHITECTURE_RULES`, `03_DECISION_LOG` |
+| [`core/`](core/) | Estado e regras do projeto: `00_PROJECT_CONTROL`, `01_ACTIVE_TASK` (só a tarefa corrente), `02_ARCHITECTURE_RULES`, `03_DECISION_LOG`, `BACKLOG` (tarefas combinadas e ainda não iniciadas) e `PLAN_FEEDBACK_SURVEYS_NAV` (plano de Pesquisas, Feedbacks e sidebar) |
 | [`agents/`](agents/) | Um papel por arquivo: MAESTRI, TASK_CLASSIFIER, PLANNER, ARCHITECT, DOMAIN_RH, FRONTEND_MOBILE, BACKEND_API, DATABASE, SECURITY, PRIVACY_LGPD, AI_REVIEWER, PERFORMANCE, QA, FINAL_REVIEWER |
 | [`workflows/`](workflows/) | Rotas: LOW_RISK, MEDIUM_RISK, HIGH_RISK, UI_REDESIGN, MOTION, DATABASE_CHANGE, AI_CHANGE, RELEASE |
 | [`skills/`](skills/) | SKILLS_POLICY (regra geral e precedência), UI_SKILLS, MOTION_SKILLS |
