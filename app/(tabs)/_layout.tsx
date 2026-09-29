@@ -56,6 +56,7 @@ export const SHELL_GROUPS: readonly ShellNavigationGroup[] = [
       { key: 'avisos', title: 'Avisos', icon: 'megaphone', href: '/(tabs)/avisos', tabName: 'avisos', roles: null },
       { key: 'reconhecimentos', title: 'Kudos', icon: 'trophy', href: '/(tabs)/reconhecimentos', tabName: 'reconhecimentos', roles: null },
       { key: 'pesquisas', title: 'Pesquisas', icon: 'stats-chart', href: '/pesquisas', roles: null },
+      { key: 'feedbacks', title: 'Feedbacks', icon: 'chatbox-ellipses', href: '/feedbacks', roles: ['super_admin', 'admin', 'rh', 'adm'] },
     ],
   },
   {

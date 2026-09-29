@@ -1,5 +1,15 @@
 # Changelog — SuperRH
 
+## [2026-09-29] — Feedback individual com link privado e ciência
+
+### Adicionado
+- Fluxo completo de Feedback: rascunho por RH, publicação com token criptograficamente imprevisível, tela pública sem login, confirmação explícita de leitura, revogação e PDF real para download.
+- Tela de RH para criar, editar rascunhos, publicar, abrir, copiar o link, baixar o PDF e visualizar o horário da confirmação.
+- Migration `014_feedbacks.sql`, testes de RBAC/isolamento, revogação, confirmação e geração de PDF.
+
+### Operação pendente
+- A migration deve ser aplicada antes de publicar o código. Nenhum deploy ou dado de produção foi alterado nesta entrega.
+
 ## [2026-09-29] — Notificações: cores legadas trocadas pelos tokens do V3, e Maestri formalizado
 
 ### Corrigido (somente visual)

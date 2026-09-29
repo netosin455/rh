@@ -251,6 +251,40 @@ export interface SurveyResults {
 
 export type CreateSurveyData = Pick<PulseSurvey, 'title' | 'question' | 'type' | 'options' | 'target_dept' | 'expires_at'>;
 
+// ── Feedback individual ──────────────────────────────────────
+
+export type FeedbackStatus = 'draft' | 'published' | 'acknowledged' | 'revoked';
+
+export interface Feedback {
+  id: number;
+  company_id: number;
+  employee_id: number;
+  created_by: number;
+  title: string;
+  content: string;
+  public_token: string | null;
+  status: FeedbackStatus;
+  published_at: string | null;
+  acknowledged_at: string | null;
+  revoked_at: string | null;
+  created_at: string;
+  updated_at: string;
+  employee_name?: string;
+  created_by_name?: string | null;
+}
+
+export type CreateFeedbackData = Pick<Feedback, 'employee_id' | 'title' | 'content'>;
+
+export interface PublicFeedback {
+  title: string;
+  content: string;
+  employee_name: string;
+  company_name: string;
+  status: Extract<FeedbackStatus, 'published' | 'acknowledged'>;
+  published_at: string;
+  acknowledged_at: string | null;
+}
+
 // ── Analytics ───────────────────────────────────────────────
 
 export type TurnoverRisk = 'alto' | 'medio' | 'baixo';

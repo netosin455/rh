@@ -51,7 +51,7 @@ function AuthGuard() {
   useEffect(() => {
     if (loading) return;
     if (ssoHandled.current) return;
-    const isPublic = segments[0] === 'login' || segments[0] === 'responder' || segments.length === 0;
+    const isPublic = segments[0] === 'login' || segments[0] === 'responder' || segments[0] === 'feedback' || segments.length === 0;
     if (!user && !isPublic) {
       router.replace('/login');
     } else if (user && (segments[0] === 'login' || segments.length === 0)) {
@@ -67,6 +67,10 @@ function AuthGuard() {
       <Stack.Screen name="pesquisas/index" options={{ headerShown: false }} />
       <Stack.Screen name="pesquisas/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="responder/[id]" options={{ headerShown: false }} />
+      <Stack.Screen name="feedbacks/index" options={{ headerShown: false }} />
+      <Stack.Screen name="feedbacks/novo" options={{ headerShown: false }} />
+      <Stack.Screen name="feedbacks/[id]" options={{ headerShown: false }} />
+      <Stack.Screen name="feedback/[token]" options={{ headerShown: false }} />
       <Stack.Screen name="onboarding/index" options={{ headerShown: false }} />
       <Stack.Screen name="onboarding/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="notificacoes" options={{ headerShown: false }} />

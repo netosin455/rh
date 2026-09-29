@@ -35,6 +35,13 @@
     { "source": "/api/surveys/:id/respond", "destination": "/api/surveys/index?id=:id&respond=true" },
     { "source": "/api/surveys/:id",         "destination": "/api/surveys/index?id=:id" },
     { "source": "/api/surveys",             "destination": "/api/surveys/index" },
+    { "source": "/api/feedbacks/:id/publish", "destination": "/api/feedbacks/index?id=:id&action=publish" },
+    { "source": "/api/feedbacks/:id/revoke",  "destination": "/api/feedbacks/index?id=:id&action=revoke" },
+    { "source": "/api/feedbacks/:id",         "destination": "/api/feedbacks/index?id=:id" },
+    { "source": "/api/feedbacks",             "destination": "/api/feedbacks/index" },
+    { "source": "/api/feedback/public/:token/acknowledge", "destination": "/api/feedback/public?token=:token&action=acknowledge" },
+    { "source": "/api/feedback/public/:token/pdf",         "destination": "/api/feedback/public?token=:token&action=pdf" },
+    { "source": "/api/feedback/public/:token",             "destination": "/api/feedback/public?token=:token" },
     { "source": "/api/analytics",           "destination": "/api/analytics/index" },
     { "source": "/api/chat",               "destination": "/api/chat" },
     { "source": "/(.*)",                    "destination": "/index.html" }
