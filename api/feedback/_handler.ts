@@ -36,9 +36,11 @@ async function employeeBelongsToCompany(employeeId: number, companyId: number): 
 
 async function findManagedFeedback(id: number, companyId: number) {
   const rows = await sql`
-    SELECT f.*, e.name AS employee_name, u.name AS created_by_name
+    SELECT f.*, e.name AS employee_name, e.role_title AS employee_role_title,
+      d.name AS employee_department_name, u.name AS created_by_name, u.role AS created_by_role
     FROM feedbacks f
     JOIN employees e ON e.id = f.employee_id AND e.company_id = f.company_id
+    LEFT JOIN departments d ON d.id = e.department_id AND d.company_id = e.company_id
     LEFT JOIN users u ON u.id = f.created_by AND u.company_id = f.company_id
     WHERE f.id = ${id} AND f.company_id = ${companyId}
   `;
@@ -49,9 +51,11 @@ async function listFeedbacks(req: VercelRequest, res: VercelResponse, ctx: JWTPa
   const requestedStatus = req.query.status;
   if (requestedStatus && !['draft', 'published', 'acknowledged', 'revoked'].includes(String(requestedStatus))) return err(res, 400, 'status inválido');
   const rows = await sql`
-    SELECT f.*, e.name AS employee_name, u.name AS created_by_name
+    SELECT f.*, e.name AS employee_name, e.role_title AS employee_role_title,
+      d.name AS employee_department_name, u.name AS created_by_name, u.role AS created_by_role
     FROM feedbacks f
     JOIN employees e ON e.id = f.employee_id AND e.company_id = f.company_id
+    LEFT JOIN departments d ON d.id = e.department_id AND d.company_id = e.company_id
     LEFT JOIN users u ON u.id = f.created_by AND u.company_id = f.company_id
     WHERE f.company_id = ${ctx.company_id}
       AND (${requestedStatus ? String(requestedStatus) : null}::text IS NULL OR f.status = ${requestedStatus ? String(requestedStatus) : null})
@@ -145,6 +149,8 @@ function privateResponse(res: VercelResponse) {
 function publicResponse(row: PublicFeedbackRow) {
   return {
     title: row.title, content: row.content, employee_name: row.employee_name, company_name: row.company_name,
+    employee_role_title: row.employee_role_title, employee_department_name: row.employee_department_name,
+    created_by_name: row.created_by_name, created_by_role: row.created_by_role,
     status: row.status, published_at: row.published_at, acknowledged_at: row.acknowledged_at,
   };
 }

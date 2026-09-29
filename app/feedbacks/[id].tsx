@@ -1,20 +1,18 @@
 import * as Clipboard from 'expo-clipboard';
+import { Ionicons } from '@expo/vector-icons';
 import { useCallback, useEffect, useState } from 'react';
-import { Linking, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Linking, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Button } from '../../componentes/Button';
-import { Card } from '../../componentes/Card';
 import { EmptyState } from '../../componentes/EmptyState';
 import { FeedbackForm } from '../../componentes/FeedbackForm';
-import { ScreenHeader } from '../../componentes/ScreenHeader';
 import { Skeleton } from '../../componentes/Skeleton';
-import { StatusPill } from '../../componentes/StatusPill';
 import { feedbackPdfUrl, feedbackPublicUrl, getFeedback, publishFeedback, revokeFeedback, updateFeedback } from '../../conexoes/feedbacks';
 import { confirmAction } from '../../helpers/confirm';
 import { useToast } from '../../contextos/Toast';
 import type { CreateFeedbackData, Feedback } from '../../tipos/modelos';
 import { cores } from '../../estilo/cores';
-import { borda, espaco } from '../../estilo/espaco';
+import { borda, espaco, raio, tamanho } from '../../estilo/espaco';
 import { tipografia } from '../../estilo/tipografia';
 
 function idFromParam(value: string | string[] | undefined): number | null {
@@ -23,14 +21,18 @@ function idFromParam(value: string | string[] | undefined): number | null {
 }
 
 function dateTime(value: string | null): string {
-  return value ? new Intl.DateTimeFormat('pt-BR', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value)) : '—';
+  return value ? new Intl.DateTimeFormat('pt-BR', { dateStyle: 'long', timeStyle: 'short' }).format(new Date(value)) : '—';
 }
 
-function statusLabel(status: Feedback['status']) {
-  if (status === 'acknowledged') return { label: 'Leitura confirmada', tone: 'success' as const };
-  if (status === 'published') return { label: 'Aguardando leitura', tone: 'pending' as const };
-  if (status === 'revoked') return { label: 'Revogado', tone: 'muted' as const };
-  return { label: 'Rascunho', tone: 'muted' as const };
+function employeeMeta(feedback: Feedback): string {
+  return [feedback.employee_role_title, feedback.employee_department_name].filter(Boolean).join(' · ') || 'Colaborador';
+}
+
+function statusInfo(feedback: Feedback) {
+  if (feedback.status === 'acknowledged') return { label: 'Leitura confirmada', color: cores.status.sucesso.forte };
+  if (feedback.status === 'published') return { label: 'Aguardando leitura', color: cores.status.pendente.forte };
+  if (feedback.status === 'revoked') return { label: 'Acesso revogado', color: cores.status.erro.forte };
+  return { label: 'Rascunho', color: cores.texto.discreto };
 }
 
 export default function FeedbackDetailScreen() {
@@ -38,11 +40,14 @@ export default function FeedbackDetailScreen() {
   const id = idFromParam(rawId);
   const router = useRouter();
   const toast = useToast();
+  const { width } = useWindowDimensions();
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [form, setForm] = useState<CreateFeedbackData | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   const [error, setError] = useState('');
+  const narrow = width < 560;
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -61,7 +66,7 @@ export default function FeedbackDetailScreen() {
     setSaving(true);
     try {
       const updated = await updateFeedback(id, { ...form, title: form.title.trim(), content: form.content.trim() });
-      setFeedback(updated);
+      setFeedback((current) => current ? { ...current, ...updated } : updated);
       setForm({ employee_id: updated.employee_id, title: updated.title, content: updated.content });
       toast.success('Rascunho salvo.');
     } catch (reason: any) { toast.error(reason?.message ?? 'Não foi possível salvar o rascunho.'); } finally { setSaving(false); }
@@ -69,20 +74,27 @@ export default function FeedbackDetailScreen() {
 
   function publish() {
     if (!id) return;
-    confirmAction('Publicar feedback', 'Ao publicar, um link privado permanente será criado para o colaborador. Deseja continuar?', async () => {
+    confirmAction('Publicar feedback', 'Um link privado e permanente será criado para o colaborador. Depois será possível copiar o link, acompanhar a leitura, baixar o PDF e revogar o acesso.\n\nDeseja publicar?', async () => {
       setSaving(true);
-      try { setFeedback(await publishFeedback(id)); toast.success('Feedback publicado. Copie o link para compartilhar.'); }
-      catch (reason: any) { toast.error(reason?.message ?? 'Não foi possível publicar o feedback.'); }
+      try {
+        const published = await publishFeedback(id);
+        setFeedback((current) => current ? { ...current, ...published } : published);
+        toast.success('Feedback publicado. Copie o link para compartilhar.');
+      } catch (reason: any) { toast.error(reason?.message ?? 'Não foi possível publicar o feedback.'); }
       finally { setSaving(false); }
     });
   }
 
   function revoke() {
     if (!id) return;
-    confirmAction('Revogar link', 'O link deixará de funcionar imediatamente e não poderá ser reativado. Deseja revogar?', async () => {
+    confirmAction('Revogar acesso', 'O link deixará de funcionar imediatamente e não poderá ser reativado. Deseja revogar?', async () => {
       setSaving(true);
-      try { setFeedback(await revokeFeedback(id)); toast.success('Link revogado.'); }
-      catch (reason: any) { toast.error(reason?.message ?? 'Não foi possível revogar o link.'); }
+      try {
+        const revoked = await revokeFeedback(id);
+        setFeedback((current) => current ? { ...current, ...revoked } : revoked);
+        setMoreOpen(false);
+        toast.success('Acesso revogado.');
+      } catch (reason: any) { toast.error(reason?.message ?? 'Não foi possível revogar o link.'); }
       finally { setSaving(false); }
     });
   }
@@ -100,56 +112,84 @@ export default function FeedbackDetailScreen() {
   if (loading) return <View style={styles.loading}><Skeleton accessibilityLabel="Carregando feedback" style={styles.loadingSkeleton} /></View>;
   if (error || !feedback || !form) return <EmptyState icon="alert-circle-outline" title="Não foi possível abrir o feedback" description={error || 'Feedback não encontrado.'} action={<Button icon="refresh-outline" label="Tentar novamente" onPress={load} />} />;
 
-  const status = statusLabel(feedback.status);
   const activeToken = feedback.public_token && feedback.status !== 'revoked' ? feedback.public_token : null;
+  const status = statusInfo(feedback);
+  const isDraft = feedback.status === 'draft';
   return (
     <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-      <ScreenHeader title={feedback.status === 'draft' ? 'Revisar rascunho' : feedback.title} subtitle={feedback.employee_name ? `Para ${feedback.employee_name}` : 'Feedback individual'} />
-      <Card>
-        <View style={styles.statusRow}>
-          <StatusPill label={status.label} status={status.tone} />
-          {feedback.acknowledged_at ? <Text style={styles.confirmed}>Leitura confirmada em {dateTime(feedback.acknowledged_at)}</Text> : null}
-        </View>
-        {feedback.status === 'draft' ? <FeedbackForm disabled={saving} onChange={setForm} value={form} /> : <View style={styles.readOnly}><Text style={styles.readOnlyTitle}>{feedback.title}</Text><Text style={styles.readOnlyText}>{feedback.content}</Text><Text style={styles.meta}>Publicado em {dateTime(feedback.published_at)}</Text></View>}
-        {feedback.status === 'draft' ? (
-          <View style={styles.actions}>
-            <Button disabled={saving} label="Voltar" onPress={() => router.back()} style={styles.action} variant="secondary" />
-            <Button icon="save-outline" label="Salvar" loading={saving} onPress={saveDraft} style={styles.action} variant="secondary" />
-            <Button icon="send-outline" label="Publicar" loading={saving} onPress={publish} style={styles.action} />
-          </View>
-        ) : null}
-      </Card>
-      {activeToken ? (
-        <Card>
-          <Text style={styles.sectionTitle}>Link privado do colaborador</Text>
-          <Text selectable style={styles.link}>{feedbackPublicUrl(activeToken)}</Text>
-          <View style={styles.actions}>
-            <Button icon="eye-outline" label="Abrir link" onPress={() => openUrl(feedbackPublicUrl(activeToken))} style={styles.action} variant="secondary" />
-            <Button icon="copy-outline" label="Copiar link" onPress={() => copyLink(activeToken)} style={styles.action} variant="secondary" />
-            <Button icon="download-outline" label="Baixar PDF" onPress={() => openUrl(feedbackPdfUrl(activeToken))} style={styles.action} variant="secondary" />
-          </View>
-          <Button icon="ban-outline" label="Revogar link" loading={saving} onPress={revoke} style={styles.revoke} variant="danger" />
-        </Card>
-      ) : null}
-      {feedback.status === 'revoked' ? <Card><Text style={styles.revoked}>Este link foi revogado em {dateTime(feedback.revoked_at)} e não pode mais ser acessado.</Text></Card> : null}
+      <View style={styles.page}>
+        <Pressable accessibilityRole="link" onPress={() => router.replace('/feedbacks' as never)} style={styles.back}><Ionicons color={cores.texto.secundario} name="arrow-back" size={tamanho.iconePequeno} /><Text style={styles.backText}>Feedbacks</Text></Pressable>
+        {isDraft ? (
+          <>
+            <View style={styles.intro}><Text accessibilityRole="header" style={styles.heading}>Revisar rascunho</Text><Text style={styles.subtitle}>O colaborador só terá acesso após a publicação.</Text></View>
+            <View style={styles.formArea}><FeedbackForm disabled={saving} onChange={setForm} value={form} /></View>
+            <View style={[styles.draftActions, narrow && styles.draftActionsNarrow]}>
+              <Button disabled={saving} label="Salvar rascunho" loading={saving} onPress={saveDraft} style={narrow ? styles.fullAction : undefined} variant="secondary" />
+              <Button disabled={saving} icon="send-outline" label="Publicar feedback" loading={saving} onPress={publish} style={narrow ? styles.fullAction : undefined} />
+            </View>
+          </>
+        ) : (
+          <>
+            <View style={styles.titleRow}><View style={styles.titleCopy}><Text accessibilityRole="header" style={styles.heading}>{feedback.title}</Text><View style={styles.employeeBlock}><Text style={styles.employeeName}>{feedback.employee_name ?? 'Colaborador'}</Text><Text style={styles.employeeMeta}>{employeeMeta(feedback)}</Text></View></View><View style={styles.status}><View style={[styles.dot, { backgroundColor: status.color }]} /><Text style={[styles.statusText, { color: status.color }]}>{status.label}</Text></View></View>
+            {feedback.status === 'acknowledged' && feedback.acknowledged_at ? <View style={styles.acknowledged}><Ionicons color={cores.status.sucesso.forte} name="checkmark" size={tamanho.iconePequeno} /><View><Text style={styles.acknowledgedTitle}>Leitura confirmada</Text><Text style={styles.acknowledgedText}>{feedback.employee_name ?? 'O colaborador'} confirmou a leitura em {dateTime(feedback.acknowledged_at)}.</Text></View></View> : null}
+            {feedback.status === 'revoked' ? <View style={styles.revoked}><Text style={styles.revokedTitle}>Acesso revogado</Text><Text style={styles.revokedText}>Este link foi revogado em {dateTime(feedback.revoked_at)} e não pode mais ser acessado.</Text></View> : null}
+            <View style={styles.rule} />
+            <Text style={styles.body}>{feedback.content}</Text>
+            <View style={styles.rule} />
+            <View style={styles.author}><Text style={styles.authorName}>{feedback.created_by_name || 'Recursos Humanos'}</Text><Text style={styles.authorMeta}>Publicado em {dateTime(feedback.published_at)}</Text></View>
+            {activeToken ? <><View style={styles.sectionRule} /><Text style={styles.sectionLabel}>Link do colaborador</Text><Text selectable numberOfLines={1} style={styles.link}>{feedbackPublicUrl(activeToken)}</Text><View style={[styles.linkActions, narrow && styles.linkActionsNarrow]}><Button icon="copy-outline" label="Copiar link" onPress={() => copyLink(activeToken)} style={narrow ? styles.fullAction : undefined} variant="secondary" /><Button icon="eye-outline" label="Abrir como colaborador" onPress={() => openUrl(feedbackPublicUrl(activeToken))} style={narrow ? styles.fullAction : undefined} variant="ghost" /></View><View style={styles.documentRow}><View><Text style={styles.documentTitle}>Documento</Text><Text style={styles.documentHint}>Versão para download e arquivo.</Text></View><Button icon="download-outline" label="Baixar PDF" onPress={() => openUrl(feedbackPdfUrl(activeToken))} variant="secondary" /></View><View style={styles.moreWrap}><Pressable accessibilityRole="button" accessibilityState={{ expanded: moreOpen }} onPress={() => setMoreOpen((open) => !open)} style={styles.moreButton}><Ionicons color={cores.texto.secundario} name="ellipsis-horizontal" size={tamanho.iconeMedio} /><Text style={styles.moreText}>Mais ações</Text></Pressable>{moreOpen ? <View style={styles.moreMenu}><Pressable accessibilityRole="button" disabled={saving} onPress={revoke} style={styles.revokeAction}><Text style={styles.revokeActionText}>Revogar acesso</Text></Pressable></View> : null}</View></> : null}
+          </>
+        )}
+      </View>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  content: { gap: espaco.xl, padding: espaco.xl, paddingBottom: espaco.secao },
+  content: { flexGrow: 1, padding: espaco.xl, paddingBottom: espaco.secao },
+  page: { alignSelf: 'center', maxWidth: 760, width: '100%' },
   loading: { padding: espaco.xl },
   loadingSkeleton: { height: espaco.secao },
-  statusRow: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: espaco.md, marginBottom: espaco.lg },
-  confirmed: { ...tipografia.legenda, color: cores.status.sucesso.forte },
-  readOnly: { gap: espaco.md },
-  readOnlyTitle: { ...tipografia.subtitulo, color: cores.texto.primario },
-  readOnlyText: { ...tipografia.corpo, color: cores.texto.primario, lineHeight: espaco.lg },
-  meta: { ...tipografia.legenda, color: cores.texto.discreto },
-  actions: { borderTopColor: cores.borda.sutil, borderTopWidth: borda.fina, flexDirection: 'row', flexWrap: 'wrap', gap: espaco.sm, marginTop: espaco.xl, paddingTop: espaco.md },
-  action: { flexGrow: 1 },
-  sectionTitle: { ...tipografia.subtitulo, color: cores.texto.primario },
-  link: { ...tipografia.corpo, color: cores.texto.accent, marginTop: espaco.sm },
-  revoke: { alignSelf: 'flex-start', marginTop: espaco.lg },
-  revoked: { ...tipografia.corpo, color: cores.texto.discreto },
+  back: { alignItems: 'center', alignSelf: 'flex-start', flexDirection: 'row', gap: espaco.sm, minHeight: tamanho.toqueMinimo, marginBottom: espaco.xl },
+  backText: { ...tipografia.corpoForte, color: cores.texto.secundario },
+  intro: { marginBottom: espaco.xxxl },
+  heading: { ...tipografia.display, color: cores.texto.primario },
+  subtitle: { ...tipografia.corpo, color: cores.texto.discreto, marginTop: espaco.xs },
+  formArea: { borderBottomColor: cores.borda.sutil, borderBottomWidth: borda.fina, paddingBottom: espaco.xxxl },
+  draftActions: { flexDirection: 'row', gap: espaco.md, justifyContent: 'flex-end', marginTop: espaco.xl },
+  draftActionsNarrow: { flexDirection: 'column-reverse' },
+  fullAction: { width: '100%' },
+  titleRow: { alignItems: 'flex-start', flexDirection: 'row', gap: espaco.lg, justifyContent: 'space-between' },
+  titleCopy: { flex: 1 },
+  employeeBlock: { marginTop: espaco.lg },
+  employeeName: { ...tipografia.corpoForte, color: cores.texto.primario },
+  employeeMeta: { ...tipografia.corpo, color: cores.texto.discreto, marginTop: espaco.micro },
+  status: { alignItems: 'center', flexDirection: 'row', gap: espaco.sm, marginTop: espaco.sm },
+  dot: { borderRadius: raio.pill, height: tamanho.indicador, width: tamanho.indicador },
+  statusText: { ...tipografia.corpoForte },
+  acknowledged: { alignItems: 'flex-start', flexDirection: 'row', gap: espaco.sm, marginTop: espaco.xxl },
+  acknowledgedTitle: { ...tipografia.corpoForte, color: cores.status.sucesso.forte },
+  acknowledgedText: { ...tipografia.corpo, color: cores.texto.secundario, marginTop: espaco.micro },
+  revoked: { marginTop: espaco.xxl },
+  revokedTitle: { ...tipografia.corpoForte, color: cores.status.erro.forte },
+  revokedText: { ...tipografia.corpo, color: cores.texto.secundario, marginTop: espaco.micro },
+  rule: { backgroundColor: cores.borda.sutil, height: borda.fina, marginVertical: espaco.xxl },
+  body: { ...tipografia.corpo, color: cores.texto.primario, fontSize: 16, lineHeight: 28 },
+  author: { gap: espaco.micro },
+  authorName: { ...tipografia.corpoForte, color: cores.texto.primario },
+  authorMeta: { ...tipografia.legenda, color: cores.texto.discreto },
+  sectionRule: { backgroundColor: cores.borda.sutil, height: borda.fina, marginTop: espaco.xxxl, marginBottom: espaco.xl },
+  sectionLabel: { ...tipografia.rotulo, color: cores.texto.discreto, textTransform: 'uppercase' },
+  link: { ...tipografia.corpo, color: cores.accent.douradoProfundo, marginTop: espaco.sm },
+  linkActions: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: espaco.md, marginTop: espaco.lg },
+  linkActionsNarrow: { alignItems: 'stretch', flexDirection: 'column' },
+  documentRow: { alignItems: 'center', borderTopColor: cores.borda.sutil, borderTopWidth: borda.fina, flexDirection: 'row', justifyContent: 'space-between', marginTop: espaco.xxl, paddingTop: espaco.xl },
+  documentTitle: { ...tipografia.corpoForte, color: cores.texto.primario },
+  documentHint: { ...tipografia.legenda, color: cores.texto.discreto, marginTop: espaco.micro },
+  moreWrap: { alignItems: 'flex-end', marginTop: espaco.xxl },
+  moreButton: { alignItems: 'center', flexDirection: 'row', gap: espaco.sm, minHeight: tamanho.toqueMinimo, paddingHorizontal: espaco.sm },
+  moreText: { ...tipografia.corpoForte, color: cores.texto.secundario },
+  moreMenu: { alignSelf: 'flex-end', backgroundColor: cores.superficie.elevada, borderColor: cores.borda.sutil, borderRadius: raio.controle, borderWidth: borda.fina, marginTop: espaco.xs },
+  revokeAction: { minHeight: tamanho.toqueMinimo, justifyContent: 'center', paddingHorizontal: espaco.lg },
+  revokeActionText: { ...tipografia.corpoForte, color: cores.status.erro.forte },
 });

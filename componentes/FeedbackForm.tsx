@@ -23,6 +23,7 @@ export function FeedbackForm({ value, onChange, disabled = false }: FeedbackForm
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [error, setError] = useState('');
   const selected = employees.find((employee) => employee.id === value.employee_id);
   const filtered = useMemo(() => {
@@ -38,11 +39,18 @@ export function FeedbackForm({ value, onChange, disabled = false }: FeedbackForm
     <View style={styles.form}>
       <View>
         <Text style={styles.label}>Colaborador</Text>
-        {selected ? <Text style={styles.selected}>Selecionado: {selected.name}</Text> : <Text style={styles.hint}>Escolha a pessoa que receberá este feedback.</Text>}
-        <Input editable={!disabled && !loading} label="Buscar colaborador" onChangeText={setSearch} placeholder="Digite um nome" value={search} />
+        {selected ? <Text style={styles.selected}>Para {selected.name} · {employeeDescription(selected) || 'Colaborador'}</Text> : <Text style={styles.hint}>Escolha a pessoa que receberá este feedback.</Text>}
+        <Input
+          editable={!disabled && !loading}
+          label="Buscar colaborador"
+          onChangeText={(query) => { setSearch(query); setPickerOpen(true); }}
+          onFocus={() => setPickerOpen(true)}
+          placeholder={selected ? selected.name : 'Buscar por nome'}
+          value={search}
+        />
         {loading ? <Skeleton accessibilityLabel="Carregando colaboradores" style={styles.skeleton} /> : null}
         {error ? <Text style={styles.error}>{error}</Text> : null}
-        {!loading && !error ? (
+        {!loading && !error && pickerOpen ? (
           <ScrollView contentContainerStyle={styles.employeeList} nestedScrollEnabled style={styles.employeeScroll}>
             {filtered.map((employee) => {
               const active = employee.id === value.employee_id;
@@ -52,7 +60,7 @@ export function FeedbackForm({ value, onChange, disabled = false }: FeedbackForm
                   accessibilityState={{ checked: active, disabled }}
                   disabled={disabled}
                   key={employee.id}
-                  onPress={() => onChange({ ...value, employee_id: employee.id })}
+                  onPress={() => { onChange({ ...value, employee_id: employee.id }); setSearch(''); setPickerOpen(false); }}
                   style={[styles.employee, active && styles.employeeSelected]}
                 >
                   <View style={styles.employeeCopy}>
@@ -86,6 +94,7 @@ export function FeedbackForm({ value, onChange, disabled = false }: FeedbackForm
         textAlignVertical="top"
         value={value.content}
       />
+      <Text style={styles.count}>{value.content.length.toLocaleString('pt-BR')} / 10.000 caracteres</Text>
     </View>
   );
 }
@@ -104,8 +113,9 @@ const styles = StyleSheet.create({
   employeeCopy: { flex: 1 },
   employeeName: { ...tipografia.corpoForte, color: cores.texto.primario },
   employeeMeta: { ...tipografia.legenda, color: cores.texto.discreto, marginTop: espaco.micro },
-  radio: { alignItems: 'center', borderColor: cores.borda.forte, borderRadius: raio.pill, borderWidth: borda.media, height: espaco.md, justifyContent: 'center', width: espaco.md },
+  radio: { alignItems: 'center', borderColor: cores.borda.forte, borderRadius: raio.pill, borderWidth: borda.fina, height: espaco.md, justifyContent: 'center', width: espaco.md },
   radioSelected: { borderColor: cores.accent.dourado },
   radioDot: { backgroundColor: cores.accent.dourado, borderRadius: raio.pill, height: espaco.sm, width: espaco.sm },
-  contentInput: { minHeight: tamanho.toqueMinimo * 4 },
+  contentInput: { minHeight: tamanho.toqueMinimo * 5 },
+  count: { ...tipografia.legenda, color: cores.texto.discreto, marginTop: -espaco.md, textAlign: 'right' },
 });

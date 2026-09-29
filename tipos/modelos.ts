@@ -270,7 +270,10 @@ export interface Feedback {
   created_at: string;
   updated_at: string;
   employee_name?: string;
+  employee_role_title?: string | null;
+  employee_department_name?: string | null;
   created_by_name?: string | null;
+  created_by_role?: string | null;
 }
 
 export type CreateFeedbackData = Pick<Feedback, 'employee_id' | 'title' | 'content'>;
@@ -279,7 +282,11 @@ export interface PublicFeedback {
   title: string;
   content: string;
   employee_name: string;
+  employee_role_title: string | null;
+  employee_department_name: string | null;
   company_name: string;
+  created_by_name: string | null;
+  created_by_role: string | null;
   status: Extract<FeedbackStatus, 'published' | 'acknowledged'>;
   published_at: string;
   acknowledged_at: string | null;
