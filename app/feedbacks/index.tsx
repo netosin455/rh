@@ -54,13 +54,18 @@ function FeedbackRow({ feedback, wide, onOpen, onCopy, onPdf, onManage }: {
   onManage: () => void;
 }) {
   const [hovered, setHovered] = useState(false);
+  // Foco de teclado também revela as ações (quem navega com Tab precisa vê-las).
+  const [focusedInside, setFocusedInside] = useState(false);
+  const showActions = hovered || focusedInside || !wide;
   const canShare = Boolean(feedback.public_token && feedback.status !== 'revoked');
   const employeeMeta = [feedback.employee_role_title, feedback.employee_department_name].filter(Boolean).join(' · ');
 
   return (
-    <Pressable
-      onHoverIn={() => setHovered(true)}
-      onHoverOut={() => setHovered(false)}
+    // View + onPointerEnter/Leave (semântica do DOM: não dispara ao passar entre filhos).
+    // O onHoverIn/Out do Pressable "piscava" a cada troca de filho sob o cursor.
+    <View
+      onPointerEnter={() => setHovered(true)}
+      onPointerLeave={() => setHovered(false)}
       style={[styles.row, hovered && styles.rowHovered, !wide && styles.rowNarrow]}
     >
       <View style={[styles.personColumn, !wide && styles.narrowMain]}>
@@ -70,13 +75,19 @@ function FeedbackRow({ feedback, wide, onOpen, onCopy, onPdf, onManage }: {
       <View style={[styles.titleColumn, !wide && styles.narrowTitle]}><Text numberOfLines={2} style={styles.title}>{feedback.title}</Text></View>
       <Text style={[styles.dateColumn, !wide && styles.dateNarrow]}>{shortDate(feedback.published_at ?? feedback.created_at)}</Text>
       <FeedbackState feedback={feedback} />
-      <View pointerEvents={hovered || !wide ? 'auto' : 'none'} style={[styles.rowActions, !wide && styles.rowActionsNarrow, !hovered && wide && styles.rowActionsHidden]}>
+      {/* Sempre montado e SEM pointerEvents alternando: se o hover controlasse quem recebe o mouse,
+          a caixa sumiria sob o cursor, o hover cairia e voltaria em loop (a linha "tremia"). Só a opacidade muda. */}
+      <View
+        onBlur={() => setFocusedInside(false)}
+        onFocus={() => setFocusedInside(true)}
+        style={[styles.rowActions, !wide && styles.rowActionsNarrow, !showActions && styles.rowActionsHidden]}
+      >
         <Button icon="eye-outline" label="Abrir" onPress={onOpen} variant="ghost" />
         {canShare ? <Button icon="copy-outline" label="Copiar link" onPress={onCopy} variant="ghost" /> : null}
         <Button icon="ellipsis-horizontal" label="Mais" onPress={onManage} variant="ghost" />
         {canShare ? <Button accessibilityLabel="Baixar PDF" icon="download-outline" onPress={onPdf} variant="ghost" /> : null}
       </View>
-    </Pressable>
+    </View>
   );
 }
 
