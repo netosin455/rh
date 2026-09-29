@@ -1,0 +1,58 @@
+// ============================================================
+// contextos/Contadores.tsx — SuperRH
+// Contadores do shell (férias pendentes e notificações não lidas).
+// Único lugar que faz polling: sidebar web e abas mobile só leem daqui.
+// ============================================================
+
+import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { countPendentes } from '../conexoes/ausencias';
+import { buscarNotificacoes } from '../conexoes/notificacoes';
+import { CAN_APPROVE } from '../helpers/shellNav';
+import { useAuth } from './Autenticacao';
+
+const INTERVALO_MS = 120_000;
+
+interface ContadoresShell {
+  pendentes: number;
+  naoLidas: number;
+}
+
+const ContadoresContext = createContext<ContadoresShell>({ pendentes: 0, naoLidas: 0 });
+
+export function ContadoresProvider({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
+  const role = user?.role ?? '';
+  const logado = Boolean(user);
+  const [pendentes, setPendentes] = useState(0);
+  const [naoLidas, setNaoLidas] = useState(0);
+
+  useEffect(() => {
+    if (!CAN_APPROVE.includes(role)) {
+      setPendentes(0);
+      return;
+    }
+    // Badge é conveniência: falha aqui não deve incomodar, só é registrada.
+    const buscar = () => countPendentes().then(setPendentes).catch((erro: unknown) => console.warn('[Contadores] pendentes:', erro));
+    buscar();
+    const timer = setInterval(buscar, INTERVALO_MS);
+    return () => clearInterval(timer);
+  }, [role]);
+
+  useEffect(() => {
+    if (!logado) {
+      setNaoLidas(0);
+      return;
+    }
+    const buscar = () => buscarNotificacoes().then((r) => setNaoLidas(r.unread)).catch((erro: unknown) => console.warn('[Contadores] notificações:', erro));
+    buscar();
+    const timer = setInterval(buscar, INTERVALO_MS);
+    return () => clearInterval(timer);
+  }, [logado]);
+
+  const valor = useMemo(() => ({ pendentes, naoLidas }), [pendentes, naoLidas]);
+  return <ContadoresContext.Provider value={valor}>{children}</ContadoresContext.Provider>;
+}
+
+export function useContadoresShell(): ContadoresShell {
+  return useContext(ContadoresContext);
+}

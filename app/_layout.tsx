@@ -2,14 +2,17 @@
 // app/_layout.tsx — SuperRH · Root Layout
 // ============================================================
 
-import { Stack, useRouter, useSegments } from 'expo-router';
+import { Stack, usePathname, useRouter, useSegments } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Platform } from 'react-native';
+import { Platform, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts, Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
 import { CormorantGaramond_600SemiBold } from '@expo-google-fonts/cormorant-garamond';
 import { AuthProvider, useAuth } from '../contextos/Autenticacao';
+import { ContadoresProvider } from '../contextos/Contadores';
 import { ToastProvider } from '../contextos/Toast';
+import { ShellSidebar } from '../componentes/ShellSidebar';
+import { deveMostrarShell } from '../helpers/navegacao';
 import { PushProvider } from '../componentes/PushProvider';
 
 function readSSOParams(): { sso_token?: string; sso_error?: string } {
@@ -23,6 +26,10 @@ function AuthGuard() {
   const segments  = useSegments();
   const router    = useRouter();
   const ssoHandled = useRef(false);
+  const pathname  = usePathname();
+  const { width } = useWindowDimensions();
+  // Sidebar persistente só na web larga, com usuário logado e fora das rotas públicas.
+  const mostrarSidebar = Platform.OS === 'web' && width >= 960 && Boolean(user) && deveMostrarShell(pathname);
 
   // Detecta token / erro SSO Google na URL (/?sso_token=... ou /?sso_error=...)
   useEffect(() => {
@@ -60,7 +67,11 @@ function AuthGuard() {
     }
   }, [user, loading, segments]);
 
+  // A estrutura (row > sidebar? + Stack) é sempre a mesma: só a sidebar entra e sai, sem remontar o Stack.
   return (
+    <View style={styles.raiz}>
+      {mostrarSidebar ? <ShellSidebar /> : null}
+      <View style={styles.conteudo}>
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="login" options={{ headerShown: false }} />
@@ -76,8 +87,15 @@ function AuthGuard() {
       <Stack.Screen name="onboarding/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="notificacoes" options={{ headerShown: false }} />
     </Stack>
+      </View>
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  raiz: { flex: 1, flexDirection: 'row' },
+  conteudo: { flex: 1, minWidth: 0 },
+});
 
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
@@ -104,8 +122,10 @@ export default function RootLayout() {
     <AuthProvider>
       <ToastProvider>
         <PushProvider>
-          <StatusBar style="dark" />
-          <AuthGuard />
+          <ContadoresProvider>
+            <StatusBar style="dark" />
+            <AuthGuard />
+          </ContadoresProvider>
         </PushProvider>
       </ToastProvider>
     </AuthProvider>

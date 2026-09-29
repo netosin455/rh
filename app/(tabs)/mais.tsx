@@ -8,7 +8,7 @@ import { Section } from '../../componentes/Section';
 import { useAuth } from '../../contextos/Autenticacao';
 import { cores } from '../../estilo/cores';
 import { espaco, raio, tamanho } from '../../estilo/espaco';
-import { MOBILE_PRIMARY_KEYS, SHELL_GROUPS, canAccessNavigation } from './_layout';
+import { MOBILE_PRIMARY_KEYS, SHELL_GROUPS, canAccessNavigation } from '../../helpers/shellNav';
 
 export default function MaisScreen() {
   const router = useRouter();

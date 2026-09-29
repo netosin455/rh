@@ -50,3 +50,16 @@ export function resolverItemAtivo(
   }
   return melhor?.key;
 }
+
+/** Rotas sem shell: login, link público de feedback e resposta de pesquisa. */
+const ROTAS_SEM_SHELL: readonly string[] = ['/login', '/feedback', '/responder'];
+
+/**
+ * Indica se a sidebar do shell deve aparecer para o pathname.
+ * (Quem chama ainda precisa checar se há usuário logado e se a web é larga.)
+ * '/feedbacks' (área do RH) mostra o shell; '/feedback/[token]' (público) não.
+ */
+export function deveMostrarShell(pathname: string): boolean {
+  const alvo = normalizarCaminho(pathname);
+  return !ROTAS_SEM_SHELL.some((rota) => estaSob(alvo, rota));
+}

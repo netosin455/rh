@@ -1,6 +1,6 @@
 // tests/navegacao.test.ts
 import { describe, it, expect } from 'vitest';
-import { normalizarCaminho, resolverItemAtivo, ItemNavegavel } from '../helpers/navegacao';
+import { deveMostrarShell, normalizarCaminho, resolverItemAtivo, ItemNavegavel } from '../helpers/navegacao';
 
 const ITENS: ItemNavegavel[] = [
   { key: 'dashboard', href: '/(tabs)' },
@@ -39,5 +39,26 @@ describe('resolverItemAtivo', () => {
 
   it('retorna undefined para rotas fora da sidebar', () => {
     expect(resolverItemAtivo('/notificacoes', ITENS)).toBeUndefined();
+  });
+});
+
+describe('deveMostrarShell', () => {
+  it('mostra o shell nas rotas autenticadas, inclusive telas fora de (tabs)', () => {
+    for (const rota of ['/', '/colaboradores', '/colaborador/12', '/pesquisas', '/pesquisas/3', '/onboarding/4', '/feedbacks', '/feedbacks/novo', '/feedbacks/9', '/notificacoes']) {
+      expect(deveMostrarShell(rota), rota).toBe(true);
+    }
+  });
+
+  it('esconde no login, no link público de feedback e em responder', () => {
+    for (const rota of ['/login', '/feedback/abc123', '/responder/7', '/login?x=1']) {
+      expect(deveMostrarShell(rota), rota).toBe(false);
+    }
+  });
+});
+
+describe('item ativo nas rotas fora de (tabs)', () => {
+  it('/notificacoes não marca nenhum item; /feedbacks/novo marca Feedbacks', () => {
+    expect(resolverItemAtivo('/notificacoes', ITENS)).toBeUndefined();
+    expect(resolverItemAtivo('/feedbacks/novo', ITENS)).toBe('feedbacks');
   });
 });
