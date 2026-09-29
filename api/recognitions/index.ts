@@ -8,6 +8,7 @@
 import type { Request as VercelRequest, Response as VercelResponse } from 'express';
 import { sql, cors, authenticate, err, IS_ADMIN, parsePagination } from '../_lib';
 import { buildRecognitionEmail, sendEmail } from '../_email';
+import { handleFeedbackAdmin, handleFeedbackPublic } from '../feedback/_handler';
 
 const VALID_CATEGORIES = ['trabalho_em_equipe', 'inovacao', 'lideranca', 'atendimento', 'resultado', 'outro'];
 const CAN_MANAGE_PAYSLIPS = ['super_admin', 'admin', 'rh', 'adm'];
@@ -182,6 +183,11 @@ async function handleRecognitions(req: VercelRequest, res: VercelResponse, ctx: 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   cors(req, res);
   if (req.method === 'OPTIONS') return res.status(200).end();
+
+  // O plano Hobby já usa o limite de 12 funções. Feedback compartilha esta função
+  // de comunicação, mantendo URLs externas próprias sem adicionar serverless functions.
+  if (req.query.type === 'feedbacks') return handleFeedbackAdmin(req, res);
+  if (req.query.feedback_public === 'true') return handleFeedbackPublic(req, res);
 
   let ctx;
   try { ctx = authenticate(req); } catch (e: unknown) { const er = e as { status?: number; message?: string }; return err(res, er.status ?? 401, er.message ?? 'Não autorizado'); }

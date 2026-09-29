@@ -45,7 +45,7 @@ describe('API administrativa de feedbacks', () => {
     mockSql
       .mockResolvedValueOnce([{ id: 7 }])
       .mockResolvedValueOnce([{ id: 31, company_id: 10, status: 'draft' }]);
-    const { default: handler } = await import('../api/feedbacks/index');
+    const { handleFeedbackAdmin: handler } = await import('../api/feedback/_handler');
     const res = makeRes();
 
     await handler({
@@ -61,7 +61,7 @@ describe('API administrativa de feedbacks', () => {
 
   it('não permite que papel sem gestão crie feedback', async () => {
     mockAuthenticate.mockReturnValue({ ...rhCtx, role: 'colaborador' });
-    const { default: handler } = await import('../api/feedbacks/index');
+    const { handleFeedbackAdmin: handler } = await import('../api/feedback/_handler');
     const res = makeRes();
 
     await handler({ method: 'POST', query: {}, headers: { authorization: 'Bearer token' }, body: { employee_id: 7, title: 'x', content: 'x' } } as any, res);
@@ -72,7 +72,7 @@ describe('API administrativa de feedbacks', () => {
 
   it('não encontra um feedback de outra empresa mesmo com id válido', async () => {
     mockSql.mockResolvedValueOnce([]);
-    const { default: handler } = await import('../api/feedbacks/index');
+    const { handleFeedbackAdmin: handler } = await import('../api/feedback/_handler');
     const res = makeRes();
 
     await handler({ method: 'GET', query: { id: '999' }, headers: { authorization: 'Bearer token' } } as any, res);
@@ -83,7 +83,7 @@ describe('API administrativa de feedbacks', () => {
 
   it('não publica novamente um feedback que já saiu do estado draft', async () => {
     mockSql.mockResolvedValueOnce([{ id: 31, status: 'published' }]);
-    const { default: handler } = await import('../api/feedbacks/index');
+    const { handleFeedbackAdmin: handler } = await import('../api/feedback/_handler');
     const res = makeRes();
 
     await handler({ method: 'POST', query: { id: '31', action: 'publish' }, headers: { authorization: 'Bearer token' } } as any, res);
@@ -103,7 +103,7 @@ describe('API pública de feedbacks', () => {
       title: 'Desenvolvimento', content: 'Conteúdo', status: 'published', published_at: '2026-09-29T12:00:00Z',
       acknowledged_at: null, employee_name: 'Ana', company_name: 'Empresa A',
     });
-    const { default: handler } = await import('../api/feedback/public');
+    const { handleFeedbackPublic: handler } = await import('../api/feedback/_handler');
     const res = makeRes();
 
     await handler({ method: 'GET', query: { token }, headers: {} } as any, res);
@@ -119,7 +119,7 @@ describe('API pública de feedbacks', () => {
       acknowledged_at: null, employee_name: 'Ana', company_name: 'Empresa A',
     });
     mockSql.mockResolvedValueOnce([{ acknowledged_at: '2026-09-29T13:00:00Z' }]);
-    const { default: handler } = await import('../api/feedback/public');
+    const { handleFeedbackPublic: handler } = await import('../api/feedback/_handler');
     const res = makeRes();
 
     await handler({ method: 'POST', query: { token, action: 'acknowledge' }, headers: {}, body: { acknowledged: true } } as any, res);
@@ -129,7 +129,7 @@ describe('API pública de feedbacks', () => {
   });
 
   it('rejeita confirmação sem a caixa de ciência marcada', async () => {
-    const { default: handler } = await import('../api/feedback/public');
+    const { handleFeedbackPublic: handler } = await import('../api/feedback/_handler');
     const res = makeRes();
 
     await handler({ method: 'POST', query: { token, action: 'acknowledge' }, headers: {}, body: { acknowledged: false } } as any, res);
@@ -144,7 +144,7 @@ describe('API pública de feedbacks', () => {
       title: 'Desenvolvimento', content: 'Conteúdo', status: 'revoked', published_at: '2026-09-29T12:00:00Z',
       acknowledged_at: null, employee_name: 'Ana', company_name: 'Empresa A',
     });
-    const { default: handler } = await import('../api/feedback/public');
+    const { handleFeedbackPublic: handler } = await import('../api/feedback/_handler');
     const res = makeRes();
 
     await handler({ method: 'GET', query: { token }, headers: {} } as any, res);
@@ -158,7 +158,7 @@ describe('API pública de feedbacks', () => {
       acknowledged_at: '2026-09-29T13:00:00Z', employee_name: 'Ana', company_name: 'Empresa A',
     });
     mockCreateFeedbackPdf.mockResolvedValueOnce(new Uint8Array([37, 80, 68, 70]));
-    const { default: handler } = await import('../api/feedback/public');
+    const { handleFeedbackPublic: handler } = await import('../api/feedback/_handler');
     const res = makeRes();
 
     await handler({ method: 'GET', query: { token, action: 'pdf' }, headers: {} } as any, res);
