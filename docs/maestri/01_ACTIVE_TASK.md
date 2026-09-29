@@ -1,27 +1,61 @@
 # Tarefa ativa
 
-Modelo de ficha (copiar por tarefa; o resumo fica em `00_PROJECT_CONTROL.md`).
+Toda tarefa atualiza este arquivo **antes** de qualquer edição e o fecha ao terminar. O resumo histórico fica em `00_PROJECT_CONTROL.md`.
+
+## Modelo
 
 ```
-ID:
+# TASK RH-XXX
+
 Objetivo:
-Módulos afetados:
-Risco (BAIXO/MÉDIO/ALTO):
-Agentes / dono:
-Branch / worktree:
+
+Escopo:
+
+Risco: BAIXO / MÉDIO / ALTO
+
+Agentes:
+
+Skills:
+
 Arquivos permitidos:
-Testes obrigatórios:
-Critério de aceite:
+
+Arquivos proibidos:
+
+Plano:
+
+Testes:
+
+Critérios de aceite:
+
+Riscos:
+
 Status:
 ```
 
 ## Em andamento
 
-**RH-001 — Tema claro completo (inclui login)** · BAIXO · Codex · `redesign-claro` (`C:\Users\carlo\rh-visual`)
-Aceite: sem hex fora de `estilo/cores.ts`; `accessibilityLabel` em botões só de ícone; texto ≥ 12 px; `tsc` sem erros novos.
+# TASK RH-007 — Formalizar o Maestri
 
-**RH-002 — Auditoria de bugs** · MÉDIO · Codex #2 · `fix-feedback-email` (`C:\Users\carlo\rh-backend`)
-Aceite: corrigidos os bugs claros; duvidosos em `reports/bugs_found.md`; testes passando.
+Objetivo: alinhar `CLAUDE.md` e `docs/maestri/` à especificação `MAESTRI_SUPERRH.md` (classificação de risco, escopo, handoff, honestidade, gates, skills, ADRs, direção V3).
 
-**RH-003 — Email de feedback ao colaborador** · ALTO · Codex #2 · mesma branch
-Aceite: helper `api/_email.ts`; falha de email não quebra a criação; destinatário da mesma empresa; teste de isolamento entre empresas; `RESEND_API_KEY` documentada.
+Escopo: somente documentação.
+
+Risco: BAIXO (docs).
+
+Agentes: Claude Code (Maestri + Frontend/docs). Sem revisor independente: revisão pelo mesmo agente; Carlo revisa o diff.
+
+Skills: nenhuma (documentação; nenhuma skill de design carregada).
+
+Arquivos permitidos: `CLAUDE.md`, `docs/maestri/*`.
+
+Arquivos proibidos: `app/`, `componentes/`, `estilo/`, `api/`, `banco/`, `conexoes/`, `contextos/`, `helpers/`, `tests/`, `package.json`.
+
+Plano: criar `12_SUPERRH_PRODUCT_UI_V3.md`; reescrever `00`, `01`, `03`, `08`, `09`; marcar `10`, `11`, `12_UI_V2_PLAN` como históricos; encurtar o bloco de workflow do `CLAUDE.md` para o ponteiro `## Maestri`.
+
+Testes: busca por `Ã` nos arquivos alterados; `git diff` mostrando que só docs mudaram. `tsc`/`vitest` não se aplicam (nenhum código alterado).
+
+Critérios de aceite: Carlo aprova o diff; nenhum arquivo fora do escopo alterado; sem commit e sem push até autorização.
+
+Riscos: nenhum de produto. Risco de processo: docs divergirem da spec original; mitigado pela revisão do Carlo.
+
+Status: escrito, aguardando revisão do Carlo. Sem commit.

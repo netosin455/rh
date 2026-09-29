@@ -1,3 +1,5 @@
+> **HISTÓRICO (2026-09-29).** Auditoria feita em 2026-09-25, antes do V2 e do V3; os problemas apontados já foram tratados nos redesigns. A direção visual vigente é `12_SUPERRH_PRODUCT_UI_V3.md`. Este arquivo fica só como registro; onde citar dourado, Cormorant, tema bege ou o Araujo Prev como identidade, vale o V3.
+
 # Auditoria de UI — SuperRH (2026-09-25)
 
 Auditoria técnica de código (impeccable audit). Somente leitura. Contexto: app Expo/React Native que roda em produção como web; redesign para tema claro igual ao Araujo Prev. Não há PRODUCT.md/DESIGN.md no projeto.

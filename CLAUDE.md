@@ -50,23 +50,25 @@ Fronteiras: tela não faz SQL; API não contém UI; regra de negócio não mora 
 ## Armadilhas conhecidas do projeto
 
 - `Alert.alert` não funciona na web: usar `helpers/confirm.ts`.
-- **Push na `main` = deploy automático em produção (Vercel).** Nunca dar push sem passar pelo gate de release (`docs/maestri/08_RELEASE_CHECKLIST.md`).
+- **Push na `main` = deploy automático em produção (Vercel).** Nunca dar push sem autorização explícita e sem passar pelo gate de release (`docs/maestri/08_RELEASE_CHECKLIST.md`).
 - **PowerShell 5.1 corrompe acentos:** nunca reescrever arquivo com `Get-Content`/`Set-Content`. Use Edit/Write e procure `Ã` antes de commitar.
 - Todo trabalho relevante vira entrada em `docs/changelog.md`.
 
-## Workflow
+## Maestri
 
-Classifique a tarefa antes de começar (detalhes em `docs/maestri/00_PROJECT_CONTROL.md`):
+Toda tarefa relevante passa pelo Maestri, definido em `docs/maestri/` (visão geral em `00_PROJECT_CONTROL.md`). Antes de editar, o Maestri classifica o risco, escolhe agentes e skills e define escopo, arquivos permitidos e proibidos, testes e critério de aceite, e registra tudo em `01_ACTIVE_TASK.md`. Nunca implemente fora do escopo da tarefa ativa; se precisar, pare e reclassifique.
 
-- **BAIXO** (estilo, texto, componente visual): implementar → testes/tsc → revisão.
-- **MÉDIO** (endpoint, CRUD, regra de negócio, notificação): planejar → implementar → segurança → testes → revisão.
-- **ALTO** (auth, RBAC, `company_id`, migration, férias, dados pessoais, IA, integração externa, produção): planejar → arquitetura → implementar → segurança + privacidade → testes → revisão independente → preview → aprovação humana → produção.
+- **BAIXO** (visual, texto, componente): Frontend → QA → revisão.
+- **MÉDIO** (endpoint, CRUD, regra de negócio, notificação, analytics): plano → arquitetura → implementação → segurança → QA → revisão.
+- **ALTO** (auth, JWT, RBAC, `company_id`, migration, dados pessoais, férias, IA, Resend, produção): pipeline completo com Domínio RH, segurança, privacidade, revisão final e aprovação humana.
+- Tarefa **visual** nunca toca `api/`, `banco/`, auth, queries nem regras de RH.
+- Handoff, honestidade ("testado" só se executado, "skill usada" só se carregada) e limite contra burocracia: ver `00_PROJECT_CONTROL.md`.
 
-## Skill routing (Maestri)
+**Skills:** antes de UI ou motion, faça o preflight (conferir quais existem, registrar na tarefa). Regras e precedência em `docs/maestri/09_SKILLS_POLICY.md`; direção visual vigente (V3) em `docs/maestri/12_SUPERRH_PRODUCT_UI_V3.md`.
 
-Trabalho de UI ou motion passa por pré-flight: conferir as skills disponíveis, declarar quais serão usadas e avisar se faltar alguma. UI: `impeccable` + `redesign-existing-projects` (Taste como referência estética). Motion: `find-animation-opportunities` → `animate-expo`. Backend, banco e auth não usam skill de design. Precedência: regras do projeto > Maestri > Impeccable > motion > Taste. Detalhes em `docs/maestri/09_SKILLS_POLICY.md`.
+**Gate de produção:** `npx tsc --noEmit`, `npm test` e `npx expo export --platform web`, mais segurança e privacidade quando aplicável; checklist em `docs/maestri/08_RELEASE_CHECKLIST.md`. Rode `tsc` e `npm test` antes de começar para conhecer a linha de base.
 
-Antes de qualquer etapa de implementação: rodar `npx tsc --noEmit` e `npm test` para conhecer a linha de base.
+**Push em `main` ou deploy de produção exige autorização explícita do Carlo**, mesmo com testes e build verdes.
 
 ## Segurança (checklist mínimo ao fechar uma tarefa)
 

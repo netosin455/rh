@@ -1,3 +1,5 @@
+> **HISTÓRICO (2026-09-29).** Brief do redesign claro dourado (RH-001), superado. A direção visual vigente é `12_SUPERRH_PRODUCT_UI_V3.md`. Este arquivo fica só como registro; onde citar dourado, Cormorant, tema bege ou o Araujo Prev como identidade, vale o V3.
+
 # Brief de design (método Impeccable) — SuperRH
 
 Objetivo deste arquivo: o agente que implementa **reproduz o raciocínio do Maestri**, não só aplica uma lista de correções. Leia inteiro antes de mexer em qualquer tela. Fonte: `10_UI_AUDIT.md` + crítica da entrega RH-001.

@@ -1,3 +1,5 @@
+> **HISTÓRICO (2026-09-29).** Plano do V2 (sistema, motion, shell, login, dashboard, telas), concluído e mergeado em 2026-09-28. A direção visual vigente é `12_SUPERRH_PRODUCT_UI_V3.md`. Este arquivo fica só como registro; onde citar dourado, Cormorant, tema bege ou o Araujo Prev como identidade, vale o V3.
+
 # Plano de redesign V2 — SuperRH
 
 Status: **PLANO. Nada disso foi implementado.** Aguarda aprovação do Carlo antes de qualquer edição de UI.

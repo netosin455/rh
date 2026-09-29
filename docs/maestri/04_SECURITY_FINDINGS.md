@@ -16,3 +16,4 @@ Registro vivo. Cada item: data, local, impacto, status.
 | 2026-08-04 | CORS permissivo (`*`) em `api/_lib.ts` | corrigido (allowlist) |
 | 2026-08-04 | Senha do Neon em arquivo local de debug | corrigido (arquivo apagado, senha rotacionada) |
 | — | JWT com 7 dias e sem revogação | risco aceito no MVP; reduzir para 24h + refresh |
+| 2026-09-28 | `GROQ_API_KEY` em produção inválida/expirada (401 direto na API do Groq): derruba Insights do Dashboard (500) e o chat de IA (502) | aberto: Carlo precisa gerar chave nova e atualizar na Vercel |
