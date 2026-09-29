@@ -13,6 +13,7 @@ import { Badge } from '../../componentes/Badge';
 import { Button } from '../../componentes/Button';
 import { Card } from '../../componentes/Card';
 import { EmptyState } from '../../componentes/EmptyState';
+import { ErroComRetry } from '../../componentes/ErroComRetry';
 import { Input } from '../../componentes/Input';
 import { ListRow } from '../../componentes/ListRow';
 import { Modal } from '../../componentes/Modal';
@@ -78,6 +79,7 @@ export default function AgendaScreen() {
   const [employees,  setEmployees]  = useState<Employee[]>([]);
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadError,  setLoadError]  = useState(false);
   const [showModal,  setShowModal]  = useState(false);
   const [saving,     setSaving]     = useState(false);
   const [formError,  setFormError]  = useState('');
@@ -102,8 +104,10 @@ export default function AgendaScreen() {
       ]);
       setEvents(evts);
       if (employees.length === 0) setEmployees(emps);
+      setLoadError(false);
     } catch (e) {
       console.error('[Agenda]', e);
+      setLoadError(true);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -194,6 +198,7 @@ export default function AgendaScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={cores.accent.dourado} />}
       >
         <ScreenHeader title="Agenda" subtitle="Acompanhe prazos, reuniões e aniversários da equipe." action={<Button label="Novo evento" icon="add" onPress={openModal} />} />
+        {loadError ? <ErroComRetry mensagem="Não foi possível carregar a agenda. Os dias sem evento podem estar incompletos." onTentarNovamente={onRefresh} carregando={refreshing} /> : null}
         <Section title={`${MONTH_NAMES[month]} de ${year}`} action={<View style={styles.monthActions}><Button icon="chevron-back" accessibilityLabel="Mês anterior" variant="ghost" onPress={prevMonth} /><Button icon="chevron-forward" accessibilityLabel="Próximo mês" variant="ghost" onPress={nextMonth} /></View>}>
           <Card padded={false}>
             <View style={styles.weekRow}>{WEEKDAYS.map((weekday, index) => <Text key={`${weekday}-${index}`} style={[styles.weekDay, (index === 0 || index === 6) && styles.weekend]}>{weekday}</Text>)}</View>
@@ -209,7 +214,7 @@ export default function AgendaScreen() {
         </Section>
         <Section title={selected === today ? 'Hoje' : formatDateDisplay(selected)} description={`${selectedEvents.length} evento${selectedEvents.length === 1 ? '' : 's'}${selectedBirthdays.length ? ` e ${selectedBirthdays.length} aniversário${selectedBirthdays.length === 1 ? '' : 's'}` : ''}.`} action={Platform.OS === 'web' && events.length > 0 ? <Button label="Exportar calendário" icon="download-outline" variant="ghost" onPress={() => { downloadICS(events, `agenda-${monthKey}.ics`); window.alert('Arquivo .ics baixado!\n\nPara importar no Google Calendar:\n1. Abra calendar.google.com\n2. Configurações → Importar e exportar\n3. Clique em Importar e selecione o arquivo baixado'); }} /> : undefined}>
           {selectedBirthdays.length > 0 ? <Card padded={false}>{selectedBirthdays.map((employee) => <ListRow key={employee.id} title={employee.name} description={`${employee.role_title} · Aniversário`} leading={<Avatar name={employee.name} size="small" />} trailing={<Badge label="Aniversário" tone="gold" />} />)}</Card> : null}
-          {selectedEvents.length === 0 && selectedBirthdays.length === 0 ? <Card><EmptyState icon="calendar-outline" title="Nenhum evento neste dia" description="Adicione um evento para organizar este prazo." action={<Button label="Adicionar evento" icon="add" onPress={openModal} />} /></Card> : null}
+          {selectedEvents.length === 0 && selectedBirthdays.length === 0 && !loadError ? <Card><EmptyState icon="calendar-outline" title="Nenhum evento neste dia" description="Adicione um evento para organizar este prazo." action={<Button label="Adicionar evento" icon="add" onPress={openModal} />} /></Card> : null}
           {selectedEvents.length > 0 ? <Card padded={false}>{selectedEvents.sort((a, b) => (a.start_time ?? '').localeCompare(b.start_time ?? '')).map((event) => <ListRow key={event.id} title={event.title} description={[event.start_time ? `${event.start_time}${event.end_time ? ` – ${event.end_time}` : ''}` : '', event.location, event.description].filter(Boolean).join(' · ')} leading={<View style={styles.eventIcon}><Ionicons name="calendar-outline" size={tamanho.iconeMedio} color={cores.status.informacao.forte} /></View>} trailing={<Badge label={CATEGORY_LABELS[event.category] || event.category} tone={categoryTone[event.category]} />} />)}</Card> : null}
         </Section>
       </ScrollView>

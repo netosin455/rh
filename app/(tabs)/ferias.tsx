@@ -16,6 +16,7 @@ import { Badge } from '../../componentes/Badge';
 import { Button } from '../../componentes/Button';
 import { Card } from '../../componentes/Card';
 import { EmptyState } from '../../componentes/EmptyState';
+import { ErroComRetry } from '../../componentes/ErroComRetry';
 import { Input } from '../../componentes/Input';
 import { ListRow } from '../../componentes/ListRow';
 import { MetricCard } from '../../componentes/MetricCard';
@@ -143,6 +144,7 @@ export default function FeriasScreen() {
   const [editId,     setEditId]     = useState<number | null>(null);
   const [vacDays,    setVacDays]    = useState<number | null>(null);
   const [folgaHours, setFolgaHours] = useState<number | null>(null);
+  const [loadError, setLoadError] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -152,11 +154,13 @@ export default function FeriasScreen() {
       setAbsences(abs);
       setEmployees(emps);
       if (canApprove) setPendentes(pend ?? []);
+      setLoadError(false);
       const names: Record<number, string> = {};
       emps.forEach((e: Employee) => { names[e.id] = e.name; });
       setEmpNames(names);
     } catch (e) {
       console.error('[Ferias]', e);
+      setLoadError(true);
       toast.error('Não foi possível carregar as ausências.');
     } finally {
       setLoading(false);
@@ -312,6 +316,7 @@ export default function FeriasScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={cores.accent.dourado} />}
       >
         <ScreenHeader title="Férias e ausências" subtitle="Registre afastamentos, acompanhe saldos e decida solicitações pendentes." action={<Button label="Novo lançamento" icon="add" onPress={() => openModal()} />} />
+        {loadError ? <ErroComRetry mensagem="Não foi possível carregar as ausências." onTentarNovamente={onRefresh} carregando={refreshing} /> : null}
         {canApprove && pendentes.length > 0 ? (
           <Section title="Aguardando aprovação" description={`${pendentes.length} solicitação${pendentes.length === 1 ? '' : 'ões'} requer${pendentes.length === 1 ? '' : 'em'} decisão.`}>
             <View style={styles.pendingList}>
@@ -346,7 +351,7 @@ export default function FeriasScreen() {
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterTabs}>
             {FILTER_TABS.map((tab) => <Button key={tab.key} label={tab.label} variant={activeTab === tab.key ? 'primary' : 'secondary'} accessibilityLabel={`Filtrar por ${tab.label}`} onPress={() => setActiveTab(tab.key)} />)}
           </ScrollView>
-          {filtered.length === 0 ? (
+          {filtered.length === 0 && !loadError ? (
             <Card><EmptyState icon="umbrella-outline" title="Nenhum registro" description="Não há lançamentos para este filtro." action={<Button label="Novo lançamento" icon="add" onPress={() => openModal()} />} /></Card>
           ) : (
             <View style={styles.recordList}>

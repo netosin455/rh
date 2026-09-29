@@ -19,6 +19,7 @@ import { useToast } from '../../contextos/Toast';
 import { Avatar } from '../../componentes/Avatar';
 import { Button } from '../../componentes/Button';
 import { EmptyState } from '../../componentes/EmptyState';
+import { ErroComRetry } from '../../componentes/ErroComRetry';
 import { Input } from '../../componentes/Input';
 import { Modal } from '../../componentes/Modal';
 import { ScreenHeader } from '../../componentes/ScreenHeader';
@@ -112,13 +113,16 @@ export default function ColaboradoresScreen() {
   const [quickModal, setQuickModal] = useState<{ emp: Employee; type: 'falta' | 'folga' | 'credito' } | null>(null);
   const [quickHoursInput, setQuickHoursInput] = useState('');
   const [quickSaving, setQuickSaving] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   const [hoveredEmployeeId, setHoveredEmployeeId] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     try {
       setEmployees(await getEmployees());
+      setLoadError(false);
     } catch (e) {
       console.error('[Colaboradores]', e);
+      setLoadError(true);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -282,7 +286,8 @@ export default function ColaboradoresScreen() {
         refreshControl={<RefreshControl onRefresh={onRefresh} refreshing={refreshing} tintColor={cores.accent.dourado} />}
         style={styles.list}
       >
-        {filtered.length === 0 ? (
+        {loadError ? <ErroComRetry mensagem="Não foi possível carregar os colaboradores." onTentarNovamente={onRefresh} carregando={refreshing} /> : null}
+        {filtered.length === 0 && !loadError ? (
           <EmptyState
             description={search ? 'Tente outro termo de busca.' : 'Nenhum resultado para este filtro.'}
             icon="people-outline"

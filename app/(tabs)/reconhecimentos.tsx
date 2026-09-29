@@ -18,6 +18,7 @@ import { Badge } from '../../componentes/Badge';
 import { Button } from '../../componentes/Button';
 import { Card } from '../../componentes/Card';
 import { EmptyState } from '../../componentes/EmptyState';
+import { ErroComRetry } from '../../componentes/ErroComRetry';
 import { Input } from '../../componentes/Input';
 import { ListRow } from '../../componentes/ListRow';
 import { MetricCard } from '../../componentes/MetricCard';
@@ -50,6 +51,7 @@ export default function RecognitionsScreen() {
   const [total,      setTotal]      = useState(0);
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadError,  setLoadError]  = useState(false);
 
   // Modal state
   const [modalOpen,   setModalOpen]   = useState(false);
@@ -104,7 +106,9 @@ export default function RecognitionsScreen() {
       const res = await getRecognitions();
       setItems(res.data);
       setTotal(res.total);
+      setLoadError(false);
     } catch (e: any) {
+      setLoadError(true);
       toast.error(e?.message ?? 'Não foi possível carregar reconhecimentos');
     } finally {
       setLoading(false);
@@ -118,7 +122,11 @@ export default function RecognitionsScreen() {
     try {
       const emps = await getEmployees();
       setEmployees(emps.filter(e => e.status !== 'desligado'));
-    } catch { setEmployees([]); }
+    } catch (e: unknown) {
+      console.error('[Reconhecimentos] colaboradores:', e);
+      toast.error('Não foi possível carregar os colaboradores. Tente de novo.');
+      return;
+    }
     setStep('pick');
     setSelectedEmp(null);
     setEmpSearch('');
@@ -176,9 +184,10 @@ export default function RecognitionsScreen() {
             </Card>
           </Animated.View>
         ) : null}
+        {loadError ? <ErroComRetry mensagem="Não foi possível carregar os reconhecimentos." onTentarNovamente={() => { setRefreshing(true); load(); }} carregando={refreshing} /> : null}
         <MetricCard label="Reconhecimentos" value={total} detail="Registrados no mural" />
 
-        {items.length === 0 ? (
+        {items.length === 0 && !loadError ? (
           <Card><EmptyState icon="trophy-outline" title="Nenhum reconhecimento ainda" description="Seja a primeira pessoa a celebrar alguém da equipe." action={<Button label="Dar kudos" icon="add" onPress={openModal} />} /></Card>
         ) : (
           <Section title="Mural" description="Mensagens enviadas pela equipe."><View style={styles.recognitionList}>{items.map((recognition) => {

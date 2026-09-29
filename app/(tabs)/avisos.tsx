@@ -15,6 +15,7 @@ import { Badge } from '../../componentes/Badge';
 import { Button } from '../../componentes/Button';
 import { Card } from '../../componentes/Card';
 import { EmptyState } from '../../componentes/EmptyState';
+import { ErroComRetry } from '../../componentes/ErroComRetry';
 import { Input } from '../../componentes/Input';
 import { ListRow } from '../../componentes/ListRow';
 import { Modal } from '../../componentes/Modal';
@@ -76,12 +77,15 @@ export default function AvisosScreen() {
   const [form,       setForm]       = useState(EMPTY_FORM);
   const [expanded,   setExpanded]   = useState<number | null>(null);
   const [formError,  setFormError]  = useState('');
+  const [loadError,  setLoadError]  = useState(false);
 
   const load = useCallback(async () => {
     try {
       setNotices(await getNotices());
+      setLoadError(false);
     } catch (e) {
       console.error('[Avisos]', e);
+      setLoadError(true);
       toast.error('Não foi possível carregar os avisos.');
     } finally {
       setLoading(false);
@@ -172,7 +176,8 @@ export default function AvisosScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={cores.accent.dourado} />}
       >
         <ScreenHeader title="Avisos" subtitle="Comunicados para manter toda a equipe informada." action={canManage ? <Button label="Novo aviso" icon="add" onPress={openModal} /> : undefined} />
-        {notices.length === 0 ? (
+        {loadError ? <ErroComRetry mensagem="Não foi possível carregar os avisos." onTentarNovamente={onRefresh} carregando={refreshing} /> : null}
+        {notices.length === 0 && !loadError ? (
           <Card><EmptyState icon="megaphone-outline" title="Nenhum aviso publicado" description={canManage ? 'Publique o primeiro aviso para a equipe.' : 'Quando houver um comunicado, ele aparecerá aqui.'} action={canManage ? <Button label="Publicar aviso" icon="add" onPress={openModal} /> : undefined} /></Card>
         ) : (
           <>

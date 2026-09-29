@@ -19,6 +19,7 @@ import { getNotices } from '../../conexoes/avisos';
 import { getEmployees } from '../../conexoes/colaboradores';
 import { getUpcomingEvents } from '../../conexoes/eventos';
 import { buscarInsights, Insight } from '../../conexoes/insights';
+import { ErroComRetry } from '../../componentes/ErroComRetry';
 import { useAuth } from '../../contextos/Autenticacao';
 import { cores } from '../../estilo/cores';
 import { borda, espaco, raio, tamanho } from '../../estilo/espaco';
@@ -87,39 +88,61 @@ export default function DashboardScreen() {
   const [pendentesCount, setPendentesCount] = useState(0);
   const [insights, setInsights] = useState<Insight[]>([]);
   const [insightsLoading, setInsightsLoading] = useState(false);
+  const [insightsErro, setInsightsErro] = useState(false);
+  // Blocos do dashboard que falharam ao carregar: evita que falha de API pareça "nenhum dado".
+  const [falhas, setFalhas] = useState<string[]>([]);
   const [insightsExpanded, setInsightsExpanded] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const canSeeInsights = INSIGHT_ROLES.includes(user?.role ?? '');
 
+  const registrarFalha = useCallback((bloco: string, erro: unknown) => {
+    console.error(`[Dashboard] Falha ao carregar ${bloco}:`, erro);
+    setFalhas((atual) => (atual.includes(bloco) ? atual : [...atual, bloco]));
+  }, []);
+
+  const carregarInsights = useCallback(async (forcar = false) => {
+    setInsightsLoading(true);
+    setInsightsErro(false);
+    try {
+      const result = await buscarInsights(forcar);
+      setInsights(result.insights);
+    } catch (error) {
+      console.error('[Dashboard] Falha ao carregar insights:', error);
+      setInsightsErro(true);
+    } finally {
+      setInsightsLoading(false);
+    }
+  }, []);
+
   const load = useCallback(async () => {
     // Sem sessão o AuthGuard redireciona para login: não chamar a API evita erros falsos.
     if (!user) return;
 
+    setFalhas([]);
     try {
-      const [employeeList, eventList, noticeList] = await Promise.all([
+      const [employeeList, eventList, noticeList] = await Promise.allSettled([
         getEmployees(),
         getUpcomingEvents(5),
-        getNotices().catch(() => [] as Notice[]),
+        getNotices(),
       ]);
-      setEmployees(employeeList);
-      setEvents(eventList);
-      setNotices(noticeList);
-      getAlerts().then(setAlerts).catch(() => {});
+      if (employeeList.status === 'fulfilled') setEmployees(employeeList.value);
+      else registrarFalha('colaboradores', employeeList.reason);
+      if (eventList.status === 'fulfilled') setEvents(eventList.value);
+      else registrarFalha('agenda', eventList.reason);
+      if (noticeList.status === 'fulfilled') setNotices(noticeList.value);
+      else registrarFalha('avisos', noticeList.reason);
+
+      getAlerts().then(setAlerts).catch((erro: unknown) => registrarFalha('alertas', erro));
       const currentMonth = getTodayString().slice(0, 7);
-      countAbsences('falta', currentMonth).then(setFaltaCount).catch(() => {});
-      if (APPROVER_ROLES.includes(user.role ?? '')) countPendentes().then(setPendentesCount).catch(() => {});
-      if (canSeeInsights) {
-        setInsightsLoading(true);
-        buscarInsights().then((result) => setInsights(result.insights)).catch(() => {}).finally(() => setInsightsLoading(false));
-      }
-    } catch (error) {
-      console.error('[Dashboard] Erro ao carregar dados:', error);
+      countAbsences('falta', currentMonth).then(setFaltaCount).catch((erro: unknown) => registrarFalha('faltas do mês', erro));
+      if (APPROVER_ROLES.includes(user.role ?? '')) countPendentes().then(setPendentesCount).catch((erro: unknown) => registrarFalha('férias pendentes', erro));
+      if (canSeeInsights) void carregarInsights();
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [canSeeInsights, user?.role]);
+  }, [canSeeInsights, carregarInsights, registrarFalha, user?.role]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -212,6 +235,14 @@ export default function DashboardScreen() {
         subtitle={`${todayName} · ${formatDateDisplay(today)}`}
       />
 
+      {falhas.length > 0 ? (
+        <ErroComRetry
+          mensagem={`Não foi possível carregar: ${falhas.join(', ')}. Os números abaixo podem estar incompletos.`}
+          onTentarNovamente={onRefresh}
+          carregando={refreshing}
+        />
+      ) : null}
+
       <View style={[styles.overviewRow, compact && styles.overviewRowCompact]}>
         <Card style={styles.overviewCard}>
           <View style={styles.overviewHeader}>
@@ -281,19 +312,19 @@ export default function DashboardScreen() {
         </Card>
       </Section>
 
-      {canSeeInsights && (insightsLoading || insights.length > 0) ? (
+      {canSeeInsights && (insightsLoading || insightsErro || insights.length > 0) ? (
         <Section
           action={
             <View style={styles.insightActions}>
               <Button accessibilityLabel={insightsExpanded ? 'Ocultar insights da IA' : 'Mostrar insights da IA'} label={insightsExpanded ? 'Ocultar' : 'Mostrar'} onPress={() => setInsightsExpanded((expanded) => !expanded)} variant="ghost" />
-              <Button accessibilityLabel="Atualizar insights da IA" icon="refresh" onPress={() => {
-                setInsightsLoading(true);
-                buscarInsights(true).then((result) => setInsights(result.insights)).catch(() => {}).finally(() => setInsightsLoading(false));
-              }} variant="ghost" />
+              <Button accessibilityLabel="Atualizar insights da IA" icon="refresh" onPress={() => { void carregarInsights(true); }} variant="ghost" />
             </View>
           }
           title="Insights"
         >
+          {insightsErro && !insightsLoading ? (
+            <ErroComRetry mensagem="Não foi possível carregar os insights." onTentarNovamente={() => { void carregarInsights(true); }} />
+          ) : null}
           <Card padded={false} style={styles.listCard}>
             <Animated.View pointerEvents={insightsVisible ? 'auto' : 'none'} style={[styles.insightContent, insightContentStyle]}>
               {insightsLoading && insights.length === 0 ? (
