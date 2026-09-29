@@ -16,7 +16,7 @@ Formato: ID · Data · Problema · Decisão · Motivo · Alternativas · Consequ
 
 ### ADR-003 · 2026-09-25 · Push na `main` só após preview e checklist de release
 - **Problema:** push na `main` deploya em produção (Vercel).
-- **Decisão:** nenhum agente decide push ou deploy sozinho; exige autorização explícita do Carlo e o gate de `08_RELEASE_CHECKLIST.md`.
+- **Decisão:** nenhum agente decide push ou deploy sozinho; exige autorização explícita do Carlo e o gate de `quality/RELEASE_CHECKLIST.md`.
 - **Consequências:** reforçada em 2026-09-29 (ver ADR-013).
 
 ### ADR-004 · 2026-09-25 · Migration 012 (`employees.email`) antes do código que a usa
@@ -34,7 +34,7 @@ Formato: ID · Data · Problema · Decisão · Motivo · Alternativas · Consequ
 
 ### ADR-007 · 2026-09-25 · Redesign V2 em fases
 - **Problema:** a direção visual foi trocada quatro vezes sem fechar.
-- **Decisão:** ordem sistema → motion → shell → login → dashboard → telas (plano em `12_UI_V2_PLAN.md`).
+- **Decisão:** ordem sistema → motion → shell → login → dashboard → telas (plano em `design/history/UI_V2_PLAN.md`).
 - **Consequências:** concluído e mergeado em 2026-09-28.
 
 ### ADR-008 · 2026-09-25 · Login próprio do SuperRH
@@ -53,7 +53,7 @@ Formato: ID · Data · Problema · Decisão · Motivo · Alternativas · Consequ
 - **Problema:** a direção bege + dourado + Cormorant + sidebar preta foi rejeitada.
 - **Decisão:** índigo (`#4F5BD5`) + grafite claro, referência SaaS moderno, **somente visual**. Protótipo isolado validado com o Carlo antes do código real.
 - **Alternativas:** manter o dourado como accent principal.
-- **Consequências:** chaves `accent.dourado*` mantidas como nomes legados com valor índigo; dourado só como traço da marca. Direção em `12_SUPERRH_PRODUCT_UI_V3.md`.
+- **Consequências:** chaves `accent.dourado*` mantidas como nomes legados com valor índigo; dourado só como traço da marca. Direção em `design/SUPERRH_UI_V3.md`.
 
 ### ADR-012 · 2026-09-29 · Araujo Prev é referência de engenharia visual, não de identidade
 - **Problema:** o SuperRH herdou a identidade visual do Araujo Prev.
@@ -61,7 +61,7 @@ Formato: ID · Data · Problema · Decisão · Motivo · Alternativas · Consequ
 - **Consequências:** o SuperRH ganha identidade própria (V3).
 
 ### ADR-013 · 2026-09-29 · Push e deploy só com autorização explícita
-- **Problema:** `00_PROJECT_CONTROL.md` listava o Claude como quem "faz merge e push".
+- **Problema:** `core/00_PROJECT_CONTROL.md` listava o Claude como quem "faz merge e push".
 - **Decisão:** o Claude prepara commit e merge; `git push origin main` e deploy exigem autorização explícita do Carlo, mesmo com testes e build verdes.
 - **Consequências:** vale para qualquer agente.
 
@@ -73,3 +73,13 @@ Formato: ID · Data · Problema · Decisão · Motivo · Alternativas · Consequ
 - **Problema:** a spec cita `npm run typecheck`, que não existe em `package.json`.
 - **Decisão:** os docs usam o comando real; adicionar o script exigiria mexer fora de `docs/`.
 - **Alternativas:** criar o script `typecheck`.
+
+### ADR-016 · 2026-09-29 · `docs/maestri/` organizado em pastas
+- **Problema:** os documentos numerados soltos (00 a 13) misturavam estado, papéis, rotas, qualidade e design, e o Claude não tinha um índice nem rotas por tipo de tarefa.
+- **Decisão:** estrutura em `core/`, `agents/`, `workflows/`, `skills/`, `domains/`, `quality/`, `design/` e `templates/`, com `README.md` como índice central. O `CLAUDE.md` aponta para o `README.md`.
+- **Motivo:** o Maestri precisa ser um sistema operável (papel por arquivo, rota por risco, templates), não só documentação.
+- **Alternativas:** manter os arquivos numerados (versão enxuta).
+- **Consequências:** os nomes numerados antigos (como 09_SKILLS_POLICY) deixam de existir; `12_UI_V2_PLAN` e `13_POLISH_BRIEF` (fora da árvore pedida) foram para `design/history/`. Registros anteriores neste log citam os nomes antigos apenas como histórico.
+
+### ADR-017 · 2026-09-29 · Araujo Prev: referência técnica, não de identidade
+- **Complemento do ADR-012.** O Araujo Prev pode ser referência de disciplina de tokens, componentes, motion, Drawer, Modal, feedback, acessibilidade e UX técnica. **Não** é referência direta da identidade visual do SuperRH, que tem identidade própria (V3: `design/SUPERRH_UI_V3.md`).

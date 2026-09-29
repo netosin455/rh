@@ -1,11 +1,13 @@
 # Política de skills (roteamento do Maestri)
 
+Detalhe por grupo: `skills/UI_SKILLS.md` (Impeccable, Taste) e `skills/MOTION_SKILLS.md` (motion e Emil). Rotas completas: `workflows/UI_REDESIGN.md` e `workflows/MOTION.md`. Caminhos relativos a `docs/maestri/`.
+
 Skill é ferramenta; o projeto é a autoridade. O Maestri decide **quando** cada skill entra. Não se carregam skills indiscriminadamente: mexer em SQL, auth, RBAC ou email não carrega skill de design.
 
 ## Skill preflight (obrigatório antes de trabalho de UI ou motion)
 
 1. Conferir na lista de skills da sessão quais existem de fato.
-2. Registrar em `01_ACTIVE_TASK.md` quais serão usadas e em que ordem.
+2. Registrar em `core/01_ACTIVE_TASK.md` quais serão usadas e em que ordem.
 3. Se uma skill esperada não existir, avisar o Carlo antes de implementar (não trocar em silêncio) e registrar como ausente.
 4. **Só se diz "skill usada" depois de a skill ter sido carregada e seguida.** Estar instalada não conta.
 
@@ -37,7 +39,7 @@ Rechecar a cada tarefa: a lista muda entre sessões.
 ## Precedência
 
 1. Pedido do usuário
-2. Regras do projeto (`CLAUDE.md`, `02_ARCHITECTURE_RULES.md`)
+2. Regras do projeto (`CLAUDE.md`, `core/02_ARCHITECTURE_RULES.md`)
 3. Maestri (risco, escopo, gates)
 4. Arquitetura
 5. Impeccable
@@ -48,8 +50,8 @@ Rechecar a cada tarefa: a lista muda entre sessões.
 
 ## Motion
 
-Base em `estilo/movimento.ts` e `12_SUPERRH_PRODUCT_UI_V3.md`: instant 100 ms, fast 140, normal 200, estrutural 260, celebração até 400. Entrada ease-out, saída mais rápida, `prefers-reduced-motion` obrigatório. Motion comunica estado, feedback, hierarquia ou relação espacial; sem bounce excessivo, glow pulsante, animação infinita, efeito decorativo ou scroll reveal sem propósito. Motion não mascara lentidão: o feedback começa na hora.
+Tempos, curvas, reduced motion e proibições ficam em `design/MOTION_SYSTEM.md` (fonte de verdade no código: `estilo/movimento.ts`). Motion comunica estado, feedback, hierarquia ou relação espacial e não mascara lentidão.
 
 ## Agentes que não carregam skills
 
-Agentes externos (ex.: Codex) não carregam as skills do Claude Code. Ao delegar UI, o Maestri resume no prompt a direção que a skill definiu (tokens, hierarquia, o que evitar) e aponta `12_SUPERRH_PRODUCT_UI_V3.md`, em vez de pedir que o agente "use a skill".
+Agentes externos (ex.: Codex) não carregam as skills do Claude Code. Ao delegar UI, o Maestri resume no prompt a direção que a skill definiu (tokens, hierarquia, o que evitar) e aponta `design/SUPERRH_UI_V3.md`, em vez de pedir que o agente "use a skill".

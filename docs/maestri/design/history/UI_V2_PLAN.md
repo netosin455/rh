@@ -1,11 +1,11 @@
-> **HISTÓRICO (2026-09-29).** Plano do V2 (sistema, motion, shell, login, dashboard, telas), concluído e mergeado em 2026-09-28. A direção visual vigente é `12_SUPERRH_PRODUCT_UI_V3.md`. Este arquivo fica só como registro; onde citar dourado, Cormorant, tema bege ou o Araujo Prev como identidade, vale o V3.
+> **HISTÓRICO (2026-09-29).** Plano do V2 (sistema, motion, shell, login, dashboard, telas), concluído e mergeado em 2026-09-28. A direção visual vigente é `design/SUPERRH_UI_V3.md`. Este arquivo fica só como registro; onde citar dourado, Cormorant, tema bege ou o Araujo Prev como identidade, vale o V3.
 
 # Plano de redesign V2 — SuperRH
 
 Status: **PLANO. Nada disso foi implementado.** Aguarda aprovação do Carlo antes de qualquer edição de UI.
 Contexto: a direção visual foi trocada quatro vezes seguidas (escuro, claro, correção do claro, login copiado do Araujo Prev). Este plano fecha a direção e define a ordem: sistema → shell → motion → telas → polish.
 
-## 0. Preflight de skills (política em `09_SKILLS_POLICY.md`)
+## 0. Preflight de skills (política em `skills/SKILLS_POLICY.md`)
 
 | Skill | Situação |
 |---|---|
@@ -14,7 +14,7 @@ Contexto: a direção visual foi trocada quatro vezes seguidas (escuro, claro, c
 | `find-animation-opportunities`, `animate-expo`, `animate`, `improve-animations`, `animation-vocabulary`, `emil-design-eng`, `mobile-native` | instaladas |
 | `review-animations` | **ausente** (apenas registrado) |
 
-Leitura obrigatória feita: `10_UI_AUDIT.md`, `11_DESIGN_BRIEF.md`, `09_SKILLS_POLICY.md`.
+Leitura obrigatória feita: `design/UI_AUDIT.md`, `design/DESIGN_BRIEF.md`, `skills/SKILLS_POLICY.md`.
 Os Codex não carregam skills: o Maestri traduz cada decisão abaixo em instrução concreta no prompt.
 
 ## 1. Problemas atuais (com evidência)

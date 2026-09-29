@@ -1,12 +1,14 @@
 # SuperRH — Direção visual V3 (vigente)
 
-Status: **em vigor desde 2026-09-28.** Substitui `11_DESIGN_BRIEF.md` (tema claro dourado, herdado do Araujo Prev) e `12_UI_V2_PLAN.md` (plano de sistema/motion/shell). Aprovada pelo Carlo depois de rejeitar a direção "Modern Law" (bege + dourado + Cormorant + sidebar preta). Histórico completo em `docs/changelog.md`, entrada "V3".
+Status: **em vigor desde 2026-09-28.** Substitui `design/DESIGN_BRIEF.md` (tema claro dourado, herdado do Araujo Prev) e `design/history/UI_V2_PLAN.md` (plano de sistema/motion/shell). Aprovada pelo Carlo depois de rejeitar a direção "Modern Law" (bege + dourado + Cormorant + sidebar preta). Histórico completo em `docs/changelog.md`, entrada "V3".
 
 Escopo desde o pedido: **somente visual**. Nenhuma linha de API, banco, auth, RBAC ou regra de negócio faz parte desta direção.
 
 ## Referência
 
 SaaS moderno (Linear, Notion, Rippling) como norte de qualidade, sem copiar nenhum literalmente. O Araujo Prev é referência de **engenharia visual** (tokens, componentes), não de identidade (ver ADR-012).
+
+Documentos irmãos: `design/DESIGN_TOKENS.md` (todos os tokens), `design/MOTION_SYSTEM.md` (motion), `design/UI_AUDIT.md` (auditoria e estado das telas) e `workflows/UI_REDESIGN.md` (como executar um redesign).
 
 ## Paleta (fonte: `estilo/cores.ts`)
 

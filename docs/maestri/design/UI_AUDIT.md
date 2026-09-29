@@ -1,4 +1,4 @@
-> **HISTÓRICO (2026-09-29).** Auditoria feita em 2026-09-25, antes do V2 e do V3; os problemas apontados já foram tratados nos redesigns. A direção visual vigente é `12_SUPERRH_PRODUCT_UI_V3.md`. Este arquivo fica só como registro; onde citar dourado, Cormorant, tema bege ou o Araujo Prev como identidade, vale o V3.
+> **HISTÓRICO (2026-09-29).** Auditoria feita em 2026-09-25, antes do V2 e do V3; os problemas apontados já foram tratados nos redesigns. A direção visual vigente é `design/SUPERRH_UI_V3.md`. Este arquivo fica só como registro; onde citar dourado, Cormorant, tema bege ou o Araujo Prev como identidade, vale o V3.
 
 # Auditoria de UI — SuperRH (2026-09-25)
 
@@ -73,3 +73,18 @@ Referência: `scratchpad/araujo-visual.md` e o CSS do Araujo Prev.
 4. P2 `/impeccable layout` + `adapt` — navegação e alvos de toque
 5. P2 `/impeccable typeset`
 6. `/impeccable polish` como passe final
+
+---
+
+## Estado atual (2026-09-29)
+
+Conferência das telas contra o V3 (`design/SUPERRH_UI_V3.md`), feita por leitura do código e busca por hex hardcoded. Não substitui teste manual em tela.
+
+| Situação | Telas |
+|---|---|
+| Recompostas no V3 | login, sidebar, dashboard, equipe, férias, kudos |
+| No design system; herdam a paleta pelos tokens; zero hex hardcoded | admin, agenda, avisos, ia, analytics, mais, pesquisas (lista e detalhe), onboarding (lista e detalhe), detalhe do colaborador |
+| Legado via `theme` (aliases para `cores`) | notificações (cores antigas corrigidas em `97fe4a1`), responder pesquisa (página pública) |
+| Fora do V3 | exportação em PDF (`helpers/pdf.ts` ainda em dourado `#C9A84C`) |
+
+Pendências: migrar `notificacoes` e `responder` de `theme` para `cores`; trocar o dourado do PDF; atualizar o comentário-cabeçalho de `estilo/cores.ts` ("Modern Law", "Champagne Gold"). Tokens: `design/DESIGN_TOKENS.md`. Motion: `design/MOTION_SYSTEM.md`.

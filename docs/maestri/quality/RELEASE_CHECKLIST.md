@@ -13,7 +13,7 @@ Nada sobe sem todos os itens aplicáveis:
 - [ ] Tarefa visual: `git diff --stat` sem nenhuma linha em `api/`, `banco/`, auth ou regras de negócio
 - [ ] **Segurança:** JWT validado antes da lógica; role por constante de `_lib.ts`; SQL parametrizado; sem IDOR; sem segredo/CPF em log ou email
 - [ ] **Privacidade** (se houver dado pessoal): conteúdo mínimo; destinatário da mesma empresa
-- [ ] **IA** (se houver Groq/prompt): checklist de `06_AI_GOVERNANCE.md`
+- [ ] **IA** (se houver Groq/prompt): checklist de `domains/AI_GOVERNANCE.md`
 - [ ] Migration (se houver): numerada, idempotente, rollback descrito, OK do Carlo
 - [ ] Novas variáveis de ambiente listadas (ex.: `RESEND_API_KEY`, `GROQ_API_KEY`) e configuradas na Vercel
 - [ ] `docs/changelog.md` atualizado

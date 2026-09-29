@@ -1,7 +1,7 @@
 # CLAUDE.md — SuperRH
 
 > Lido automaticamente pelo Claude Code em toda sessão. Define como agentes de IA trabalham neste projeto.
-> Fonte de verdade da arquitetura: `docs/architecture.md`. Governança multi-agente: `docs/maestri/`.
+> Fonte de verdade da arquitetura: `docs/architecture.md`. Governança multi-agente: `docs/maestri/README.md`.
 
 ---
 
@@ -50,25 +50,22 @@ Fronteiras: tela não faz SQL; API não contém UI; regra de negócio não mora 
 ## Armadilhas conhecidas do projeto
 
 - `Alert.alert` não funciona na web: usar `helpers/confirm.ts`.
-- **Push na `main` = deploy automático em produção (Vercel).** Nunca dar push sem autorização explícita e sem passar pelo gate de release (`docs/maestri/08_RELEASE_CHECKLIST.md`).
+- **Push na `main` = deploy automático em produção (Vercel).** Nunca dar push sem autorização explícita e sem passar pelo gate de release (`docs/maestri/quality/RELEASE_CHECKLIST.md`).
 - **PowerShell 5.1 corrompe acentos:** nunca reescrever arquivo com `Get-Content`/`Set-Content`. Use Edit/Write e procure `Ã` antes de commitar.
 - Todo trabalho relevante vira entrada em `docs/changelog.md`.
 
 ## Maestri
 
-Toda tarefa relevante passa pelo Maestri, definido em `docs/maestri/` (visão geral em `00_PROJECT_CONTROL.md`). Antes de editar, o Maestri classifica o risco, escolhe agentes e skills e define escopo, arquivos permitidos e proibidos, testes e critério de aceite, e registra tudo em `01_ACTIVE_TASK.md`. Nunca implemente fora do escopo da tarefa ativa; se precisar, pare e reclassifique.
+Todo trabalho relevante passa pelo Maestri. Índice e fluxo: `docs/maestri/README.md`.
 
-- **BAIXO** (visual, texto, componente): Frontend → QA → revisão.
-- **MÉDIO** (endpoint, CRUD, regra de negócio, notificação, analytics): plano → arquitetura → implementação → segurança → QA → revisão.
-- **ALTO** (auth, JWT, RBAC, `company_id`, migration, dados pessoais, férias, IA, Resend, produção): pipeline completo com Domínio RH, segurança, privacidade, revisão final e aprovação humana.
-- Tarefa **visual** nunca toca `api/`, `banco/`, auth, queries nem regras de RH.
-- Handoff, honestidade ("testado" só se executado, "skill usada" só se carregada) e limite contra burocracia: ver `00_PROJECT_CONTROL.md`.
-
-**Skills:** antes de UI ou motion, faça o preflight (conferir quais existem, registrar na tarefa). Regras e precedência em `docs/maestri/09_SKILLS_POLICY.md`; direção visual vigente (V3) em `docs/maestri/12_SUPERRH_PRODUCT_UI_V3.md`.
-
-**Gate de produção:** `npx tsc --noEmit`, `npm test` e `npx expo export --platform web`, mais segurança e privacidade quando aplicável; checklist em `docs/maestri/08_RELEASE_CHECKLIST.md`. Rode `tsc` e `npm test` antes de começar para conhecer a linha de base.
-
-**Push em `main` ou deploy de produção exige autorização explícita do Carlo**, mesmo com testes e build verdes.
+- Leia `docs/maestri/core/01_ACTIVE_TASK.md` (tarefa corrente) e `docs/maestri/core/00_PROJECT_CONTROL.md` (regras e estado) antes de editar.
+- **Classifique a tarefa antes de implementar** (LOW, MEDIUM ou HIGH, `docs/maestri/agents/TASK_CLASSIFIER.md`), defina escopo, arquivos permitidos e protegidos e registre na tarefa ativa. Nunca implemente fora desse escopo; se precisar, pare e reclassifique.
+- Use os workflows de `docs/maestri/workflows/` (LOW_RISK, MEDIUM_RISK, HIGH_RISK, UI_REDESIGN, MOTION, DATABASE_CHANGE, AI_CHANGE, RELEASE) e os papéis de `docs/maestri/agents/`. Menor conjunto suficiente de agentes.
+- Tarefa **visual** nunca toca `api/`, `banco/`, auth, JWT, queries nem regras de RH.
+- Skills seguem `docs/maestri/skills/`: preflight antes de UI ou motion; só diga "skill usada" se ela foi carregada. Direção visual vigente: `docs/maestri/design/SUPERRH_UI_V3.md`.
+- Honestidade: "testado" só se executado; "sem regressão" nunca só porque o build passou.
+- Release segue `docs/maestri/quality/RELEASE_CHECKLIST.md`: `npx tsc --noEmit`, `npm test` e `npx expo export --platform web`, mais segurança e privacidade quando aplicável. Rode `tsc` e `npm test` antes de começar para conhecer a linha de base.
+- **Push em `main` ou deploy de produção exige autorização explícita do Carlo**, mesmo com testes e build verdes.
 
 ## Segurança (checklist mínimo ao fechar uma tarefa)
 
