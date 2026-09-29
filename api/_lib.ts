@@ -271,7 +271,7 @@ export async function createAbsenceRecord(
   const qtyLabel = hoursRequested != null ? `${hoursRequested}h` : `${daysRequested} dia${daysRequested > 1 ? 's' : ''}`;
 
   if (autoApprove) {
-    if (emp.user_id) {
+    if (typeof emp.user_id === 'number') {
       const notifTitle = `${typeLabel} registrada`;
       const notifBody  = `Sua ${typeLabel.toLowerCase()} de ${start_date} a ${end_date} foi registrada pela RH (${qtyLabel}).`;
       await sql`
@@ -293,11 +293,14 @@ export async function createAbsenceRecord(
     const notifBody  = `${emp.name} solicitou ${typeLabel.toLowerCase()} de ${start_date} a ${end_date} (${qtyLabel})`;
 
     for (const u of rhUsers as any[]) {
+      const rhUserId = (u as { id?: unknown }).id;
+      if (typeof rhUserId !== 'number') continue;
+
       await sql`
         INSERT INTO notifications (company_id, user_id, title, body, type, route)
-        VALUES (${ctx.company_id}, ${u.id}, ${notifTitle}, ${notifBody}, 'ferias', '/(tabs)/ferias')
+        VALUES (${ctx.company_id}, ${rhUserId}, ${notifTitle}, ${notifBody}, 'ferias', '/(tabs)/ferias')
       `.catch(() => {});
-      const tokens = await sql`SELECT token FROM push_tokens WHERE user_id = ${u.id}`.catch(() => []);
+      const tokens = await sql`SELECT token FROM push_tokens WHERE user_id = ${rhUserId}`.catch(() => []);
       await sendPush((tokens as any[]).map(t => t.token), notifTitle, notifBody, { route: '/(tabs)/ferias' });
     }
   }
@@ -392,17 +395,18 @@ export async function resolveAbsenceApproval(
   }
   if (!rows[0]) return { ok: false, status: 404, error: 'Solicitação não encontrada' };
 
-  const empUserId = (rows[0] as any).employee_user_id;
+  const empUserId = (rows[0] as { employee_user_id?: unknown }).employee_user_id;
   const typeLabel = absenceTypeLabel(absenceData.type);
   const notifTitle = approved ? `${typeLabel} aprovada ✅` : `${typeLabel} recusada ❌`;
   const notifBody  = approved ? `Sua solicitação de ${typeLabel.toLowerCase()} foi aprovada.` : `Sua solicitação de ${typeLabel.toLowerCase()} foi recusada.`;
 
-  await sql`
-    INSERT INTO notifications (company_id, user_id, title, body, type, route)
-    VALUES (${ctx.company_id}, ${empUserId ?? null}, ${notifTitle}, ${notifBody}, 'ferias', '/(tabs)/ferias')
-  `.catch(() => {});
+  // user_id nulo é interpretado como aviso global pela central de notificações.
+  if (typeof empUserId === 'number') {
+    await sql`
+      INSERT INTO notifications (company_id, user_id, title, body, type, route)
+      VALUES (${ctx.company_id}, ${empUserId}, ${notifTitle}, ${notifBody}, 'ferias', '/(tabs)/ferias')
+    `.catch(() => {});
 
-  if (empUserId) {
     const tokens = await sql`SELECT token FROM push_tokens WHERE user_id = ${empUserId}`;
     await sendPush(tokens.map((t: any) => t.token), notifTitle, notifBody, { route: '/(tabs)/ferias' });
   }

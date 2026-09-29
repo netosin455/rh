@@ -82,8 +82,7 @@ describe('regras críticas de ausências', () => {
         type: 'ferias', days_count: 5, hours: null, status: 'pendente',
         employee_id: 9, vacation_days: 10, folga_hours: 8,
       }])
-      .mockResolvedValueOnce([{ id: 40, employee_user_id: null, status: 'aprovado' }])
-      .mockResolvedValueOnce([]);
+      .mockResolvedValueOnce([{ id: 40, employee_user_id: null, status: 'aprovado' }]);
 
     const result = await resolveAbsenceApproval(rhCtx, 40, true);
 
@@ -91,5 +90,26 @@ describe('regras críticas de ausências', () => {
     const mutation = String(mockSql.mock.calls[1][0]);
     expect(mutation).toContain('WITH debited');
     expect(mutation).toContain("status = 'pendente'");
+  });
+
+  it.each([
+    [true, 'aprovar'],
+    [false, 'recusar'],
+  ])('não cria notificação global ao %s ausência de colaborador sem login', async (approved) => {
+    mockSql
+      .mockResolvedValueOnce([{
+        type: 'ferias', days_count: 5, hours: null, status: 'pendente',
+        employee_id: 9, vacation_days: 10, folga_hours: 8,
+      }])
+      .mockResolvedValueOnce([{
+        id: 40,
+        employee_user_id: null,
+        status: approved ? 'aprovado' : 'recusado',
+      }]);
+
+    const result = await resolveAbsenceApproval(rhCtx, 40, approved);
+
+    expect(result).toMatchObject({ ok: true, status: 200 });
+    expect(mockSql.mock.calls.some(([query]) => String(query).includes('INSERT INTO notifications'))).toBe(false);
   });
 });

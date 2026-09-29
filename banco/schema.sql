@@ -152,7 +152,7 @@ CREATE TABLE IF NOT EXISTS absences (
   company_id      integer NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
   employee_id     integer NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
   type            text NOT NULL DEFAULT 'ferias'
-                    CHECK (type IN ('ferias','licenca_medica','licenca_maternidade','licenca_paternidade','folga','outro')),
+                    CHECK (type IN ('ferias','licenca_medica','licenca_maternidade','licenca_paternidade','folga','falta','outro')),
   start_date      date NOT NULL,
   end_date        date NOT NULL,
   days_count      integer GENERATED ALWAYS AS (end_date - start_date + 1) STORED,
