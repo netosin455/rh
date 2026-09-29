@@ -12,13 +12,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { buscarNotificacoes, marcarLida, marcarTodasLidas, Notificacao } from '../conexoes/notificacoes';
 import { useToast } from '../contextos/Toast';
-import { theme } from '../estilo/cores';
+import { theme, cores } from '../estilo/cores';
 
 const TYPE_ICONS: Record<string, { icon: string; color: string }> = {
   ferias:       { icon: 'umbrella-outline',   color: theme.info },
   aviso:        { icon: 'megaphone-outline',  color: theme.warning },
   pesquisa:     { icon: 'bar-chart-outline',  color: theme.success },
-  onboarding:   { icon: 'rocket-outline',     color: '#A78BFA' },
+  onboarding:   { icon: 'rocket-outline',     color: cores.categoria.familia },
   reconhecimento: { icon: 'trophy-outline',   color: theme.gold },
 };
 
@@ -169,7 +169,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16, paddingVertical: 14,
     borderBottomWidth: 1, borderBottomColor: theme.border,
   },
-  itemUnread:      { backgroundColor: 'rgba(201,168,76,0.04)' },
+  itemUnread:      { backgroundColor: theme.surface3 },
   iconWrap:        { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   itemTop:         { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 },
   itemTitle:       { fontSize: 13, color: theme.textLight, fontWeight: '500', flex: 1 },

@@ -1,5 +1,17 @@
 # Changelog — SuperRH
 
+## [2026-09-29] — Notificações: cores legadas trocadas pelos tokens do V3, e Maestri formalizado
+
+### Corrigido (somente visual)
+- `app/notificacoes.tsx`: o ícone de "onboarding" usava `#A78BFA` fixo e o fundo de item não lido usava um dourado antigo (`rgba(201,168,76,0.04)`, quase invisível). Agora usam `cores.categoria.familia` e `theme.surface3` (tom claro do índigo), então o não lido aparece de verdade. Nenhuma lógica alterada.
+- Conferência das demais telas contra o V3: admin, agenda, avisos, ia, analytics, mais, pesquisas, onboarding e detalhe do colaborador já usam os componentes e tokens novos, sem hex hardcoded. Pendência conhecida: `helpers/pdf.ts` ainda exporta PDF em dourado.
+
+### Documentação
+- `CLAUDE.md` enxuto com bloco `## Maestri`; `docs/maestri/` atualizado (regras de risco, escopo, handoff, honestidade, gate de release, política de skills, ADR-001 a ADR-015) e nova direção visual em `12_SUPERRH_PRODUCT_UI_V3.md`. Push na `main` passa a exigir autorização explícita.
+
+### Verificado
+- tsc limpo, npm test 51/51, expo export --platform web sem erro.
+
 ## [2026-09-28] — V3: nova identidade visual (índigo/grafite claro), SOMENTE visual
 
 Redesign completo da pele do SuperRH, aprovado pelo Carlo depois de rejeitar a direção "Modern Law"
