@@ -2,7 +2,7 @@
 // services/employees.ts
 // ============================================================
 import { apiFetch } from './http';
-import { Employee, CreateEmployeeData, UpdateEmployeeData } from '../../tipos/modelos';
+import { Employee, CreateEmployeeData, UpdateEmployeeData } from '../tipos/modelos';
 
 export async function getEmployees(): Promise<Employee[]> {
   return apiFetch('/api/employees');
@@ -34,7 +34,7 @@ export async function deleteEmployee(id: number): Promise<void> {
 // services/events.ts
 // ============================================================
 import { apiFetch as fetch3 } from './http';
-import { Event, CreateEventData } from '../../tipos/modelos';
+import { Event, CreateEventData } from '../tipos/modelos';
 
 export async function getEventsByMonth(month: string): Promise<Event[]> {
   return fetch3(`/api/events?month=${month}`);
@@ -70,7 +70,7 @@ export async function deleteEvent(id: string): Promise<void> {
 // services/absences.ts
 // ============================================================
 import { apiFetch as fetch4 } from './http';
-import { Absence, CreateAbsenceData } from '../../tipos/modelos';
+import { Absence, CreateAbsenceData } from '../tipos/modelos';
 
 export async function getAbsences(status?: string): Promise<Absence[]> {
   const q = status ? `?status=${status}` : '';

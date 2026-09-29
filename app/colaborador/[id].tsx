@@ -56,7 +56,7 @@ export default function ColaboradorScreen() {
   const [saving, setSaving] = useState(false);
   const [payslipModal, setPayslipModal] = useState(false);
   const [psSaving, setPsSaving] = useState(false);
-  const [form, setForm] = useState<Partial<Employee & { salary: string }>>({});
+  const [form, setForm] = useState<Partial<Omit<Employee, 'salary'>> & { salary?: string }>({});
   const [psForm, setPsForm] = useState({ month: '', description: '', file_url: '' });
 
   const load = useCallback(async () => {
@@ -68,7 +68,7 @@ export default function ColaboradorScreen() {
   const loadAbsences = useCallback(async () => { setAbsLoading(true); try { const data = await apiFetch<any>(`/api/absences?employee_id=${id}`); setAbsences(Array.isArray(data) ? data : data?.data ?? []); } catch { setAbsences([]); } finally { setAbsLoading(false); } }, [id]);
   const loadPayslips = useCallback(async () => { try { setPayslips(await getPayslips(Number(id))); } catch { setPayslips([]); } }, [id]);
   useEffect(() => { load(); loadAbsences(); loadPayslips(); }, [load, loadAbsences, loadPayslips]);
-  const set = (field: string, value: any) => setForm((current) => ({ ...current, [field]: value }));
+  const set = (field: string, value: unknown) => setForm((current) => ({ ...current, [field]: value }));
 
   async function save() {
     if (!form.name?.trim()) return toast.warning('Informe o nome.'); if (!form.role_title?.trim()) return toast.warning('Informe o cargo.');
@@ -95,13 +95,13 @@ export default function ColaboradorScreen() {
       <Section title="Área jurídica"><View style={styles.choices}>{LEGAL_AREAS.map((item) => <Button key={item.key} label={item.label} onPress={() => set('legal_area', form.legal_area === item.key ? undefined : item.key)} disabled={saving} style={styles.choice} variant={form.legal_area === item.key ? 'primary' : 'secondary'} />)}</View></Section>
       <Input editable={!saving} label="Número OAB" value={form.oab_number} onChangeText={(value) => set('oab_number', value)} placeholder="SP 123456" />
       <Input editable={!saving} keyboardType="phone-pad" label="Telefone" value={form.phone} onChangeText={(value) => set('phone', maskPhone(value))} placeholder="(11) 99999-9999" />
-      <Input autoCapitalize="none" autoCorrect={false} editable={!saving} keyboardType="email-address" label="Email" value={form.email} onChangeText={(value) => set('email', value)} placeholder="nome@empresa.com" />
+      <Input autoCapitalize="none" autoCorrect={false} editable={!saving} keyboardType="email-address" label="Email" value={form.email ?? ''} onChangeText={(value) => set('email', value)} placeholder="nome@empresa.com" />
       <Input editable={!saving} keyboardType="numeric" label="CPF" value={form.cpf} onChangeText={(value) => set('cpf', maskCPF(value))} placeholder="000.000.000-00" />
       <Input editable={!saving} keyboardType="numeric" label="Admissão (DD/MM/AAAA)" maxLength={10} value={form.hire_date} onChangeText={(value) => set('hire_date', maskDate(value))} />
       <Input editable={!saving} keyboardType="numeric" label="Nascimento (DD/MM/AAAA)" maxLength={10} value={form.birth_date} onChangeText={(value) => set('birth_date', maskDate(value))} />
       <Input editable={!saving} keyboardType="number-pad" label="Dias de férias disponíveis" value={String(form.vacation_days ?? '')} onChangeText={(value) => set('vacation_days', parseInt(value) || 0)} />
       <Input editable={!saving} keyboardType="decimal-pad" label="Banco de horas de folga" value={String(form.folga_hours ?? '')} onChangeText={(value) => set('folga_hours', parseFloat(value.replace(',', '.')) || 0)} />
-      {canSeeSalary ? <Input editable={!saving} keyboardType="decimal-pad" label="Salário base (R$)" value={form.salary as string} onChangeText={(value) => set('salary', value)} /> : null}
+      {canSeeSalary ? <Input editable={!saving} keyboardType="decimal-pad" label="Salário base (R$)" value={form.salary ?? ''} onChangeText={(value) => set('salary', value)} /> : null}
       <View style={styles.formActions}><Button label="Cancelar" onPress={() => setEditing(false)} style={styles.flex} variant="secondary" disabled={saving} /><Button label="Salvar alterações" onPress={save} style={styles.flex} loading={saving} /></View>
     </View></Card> : <>
       <Card><ListRow title={employee.name} description={[employee.role_title, employee.department_name, employee.oab_number ? `OAB ${employee.oab_number}` : null].filter(Boolean).join(' · ')} leading={<Avatar name={employee.name} size="large" />} trailing={<StatusPill label={STATUS_LABELS[employee.status]} status={statusTone(employee.status)} />} /></Card>

@@ -1,5 +1,5 @@
 import { apiFetch } from './http';
-import { OnboardingProcess, OnboardingTemplate } from '../../tipos/modelos';
+import { OnboardingProcess, OnboardingTemplate } from '../tipos/modelos';
 
 export async function getOnboardings(activeOnly = false): Promise<OnboardingProcess[]> {
   return apiFetch<OnboardingProcess[]>(`/api/onboarding${activeOnly ? '?active_only=true' : ''}`);

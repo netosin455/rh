@@ -1,5 +1,5 @@
-import { apiFetch } from './http';
-import { Absence, CreateAbsenceData } from '../../tipos/modelos';
+import { apiFetch, extrairLista, RespostaLista } from './http';
+import { Absence, CreateAbsenceData } from '../tipos/modelos';
 
 export async function getAbsences(
   status?: string,
@@ -12,27 +12,27 @@ export async function getAbsences(
   if (status) params.set('status', status);
   if (type)   params.set('type', type);
   if (month)  params.set('month', month);
-  const res = await apiFetch(`/api/absences?${params}`);
-  return res?.data ?? res;
+  const res = await apiFetch<RespostaLista<Absence>>(`/api/absences?${params}`);
+  return extrairLista(res);
 }
 
 export async function countAbsences(type?: string, month?: string): Promise<number> {
   const params = new URLSearchParams({ page: '1', limit: '1' });
   if (type)  params.set('type', type);
   if (month) params.set('month', month);
-  const res = await apiFetch(`/api/absences?${params}`);
+  const res = await apiFetch<{ total?: number }>(`/api/absences?${params}`);
   return res?.total ?? 0;
 }
 
 export async function countPendentes(): Promise<number> {
   const params = new URLSearchParams({ page: '1', limit: '1', status: 'pendente' });
-  const res = await apiFetch(`/api/absences?${params}`);
+  const res = await apiFetch<{ total?: number }>(`/api/absences?${params}`);
   return res?.total ?? 0;
 }
 
 export async function getPendingAbsences(): Promise<Absence[]> {
-  const res = await apiFetch(`/api/absences?status=pendente&limit=50`);
-  return res?.data ?? res;
+  const res = await apiFetch<RespostaLista<Absence>>(`/api/absences?status=pendente&limit=50`);
+  return extrairLista(res);
 }
 
 export async function createAbsence(data: CreateAbsenceData): Promise<Absence> {

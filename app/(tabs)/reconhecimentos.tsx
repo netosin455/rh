@@ -158,7 +158,7 @@ export default function RecognitionsScreen() {
   );
 
   if (loading) {
-    return <View style={styles.container}><View style={styles.loadingContent}><Skeleton height={tamanho.tela} /><Skeleton height={tamanho.tela} /><Skeleton height={tamanho.tela} /></View></View>;
+    return <View style={styles.container}><View style={styles.loadingContent}><Skeleton height={espaco.tela} /><Skeleton height={espaco.tela} /><Skeleton height={espaco.tela} /></View></View>;
   }
 
   return (

@@ -98,7 +98,7 @@ export default function AnalyticsScreen() {
   if (loading) {
     return (
       <View style={styles.centered}>
-        <View style={styles.loadingContent}><Skeleton height={tamanho.tela} /><Skeleton height={tamanho.tela} /><Skeleton height={tamanho.tela} /></View>
+        <View style={styles.loadingContent}><Skeleton height={espaco.tela} /><Skeleton height={espaco.tela} /><Skeleton height={espaco.tela} /></View>
       </View>
     );
   }

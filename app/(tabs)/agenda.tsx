@@ -197,7 +197,7 @@ export default function AgendaScreen() {
         <Section title={`${MONTH_NAMES[month]} de ${year}`} action={<View style={styles.monthActions}><Button icon="chevron-back" accessibilityLabel="Mês anterior" variant="ghost" onPress={prevMonth} /><Button icon="chevron-forward" accessibilityLabel="Próximo mês" variant="ghost" onPress={nextMonth} /></View>}>
           <Card padded={false}>
             <View style={styles.weekRow}>{WEEKDAYS.map((weekday, index) => <Text key={`${weekday}-${index}`} style={[styles.weekDay, (index === 0 || index === 6) && styles.weekend]}>{weekday}</Text>)}</View>
-            {loading ? <View style={styles.loadingCalendar}><Skeleton height={tamanho.tela} /></View> : <View style={styles.calendarGrid}>{weeks.map((week, weekIndex) => <View key={weekIndex} style={styles.weekRow}>{week.map((dateString, dayIndex) => {
+            {loading ? <View style={styles.loadingCalendar}><Skeleton height={espaco.tela} /></View> : <View style={styles.calendarGrid}>{weeks.map((week, weekIndex) => <View key={weekIndex} style={styles.weekRow}>{week.map((dateString, dayIndex) => {
               if (!dateString) return <View key={dayIndex} style={styles.dayCell} />;
               const isToday = dateString === today;
               const isSelected = dateString === selected;

@@ -14,6 +14,7 @@ import { borda, espaco, raio, tamanho } from '../../estilo/espaco';
 import { useMotion } from '../../estilo/movimento';
 import { tipografia } from '../../estilo/tipografia';
 import { confirmAction } from '../../helpers/confirm';
+import { resolverItemAtivo } from '../../helpers/navegacao';
 
 type TabName = 'index' | 'colaboradores' | 'ferias' | 'agenda' | 'avisos' | 'reconhecimentos' | 'analytics' | 'ia' | 'admin' | 'mais';
 
@@ -22,6 +23,8 @@ export type ShellNavigationItem = {
   title: string;
   icon: keyof typeof Ionicons.glyphMap;
   href: string;
+  /** Rotas de detalhe que pertencem a este item (ex.: /colaborador/[id] marca Equipe). */
+  subrotas?: readonly string[];
   tabName?: Exclude<TabName, 'mais'>;
   roles: readonly string[] | null;
 };
@@ -39,7 +42,7 @@ export const SHELL_GROUPS: readonly ShellNavigationGroup[] = [
   {
     title: 'Pessoas',
     items: [
-      { key: 'equipe', title: 'Equipe', icon: 'people', href: '/(tabs)/colaboradores', tabName: 'colaboradores', roles: null },
+      { key: 'equipe', title: 'Equipe', icon: 'people', href: '/(tabs)/colaboradores', tabName: 'colaboradores', subrotas: ['/colaborador'], roles: null },
       { key: 'onboarding', title: 'Onboarding', icon: 'rocket', href: '/onboarding', roles: null },
     ],
   },
@@ -160,23 +163,25 @@ function SidebarItem({
   );
 }
 
-function WideSidebar({ state, pendentesCount }: BottomTabBarProps & { pendentesCount: number }) {
+function WideSidebar({ pendentesCount }: BottomTabBarProps & { pendentesCount: number }) {
   const motion = useMotion();
   const pathname = usePathname();
   const router = useRouter();
   const { user } = useAuth();
   const [layouts, setLayouts] = useState<Record<string, ItemLayout>>({});
   const indicatorY = useSharedValue(0);
-  const indicatorHeight = useSharedValue(tamanho.toqueMinimo);
+  const indicatorHeight = useSharedValue<number>(tamanho.toqueMinimo);
   const indicatorOpacity = useSharedValue(0);
   const role = user?.role;
   const groups = useMemo(() => SHELL_GROUPS
     .map((group) => ({ ...group, items: group.items.filter((item) => canAccessNavigation(item.roles, role)) }))
     .filter((group) => group.items.length > 0), [role]);
-  const activeTab = state.routes[state.index]?.name;
-  const activeItem = groups.flatMap((group) => group.items).find((item) => (
-    item.tabName ? item.tabName === activeTab : pathname.startsWith(item.href)
-  ));
+  // Fonte única de verdade: o pathname (cobre abas e subrotas como /colaborador/[id]).
+  const activeItem = useMemo(() => {
+    const itens = groups.flatMap((group) => group.items);
+    const key = resolverItemAtivo(pathname, itens);
+    return itens.find((item) => item.key === key);
+  }, [groups, pathname]);
   const indicatorLayout = activeItem ? layouts[activeItem.key] : undefined;
 
   useEffect(() => {
@@ -357,7 +362,7 @@ const styles = StyleSheet.create({
   groupLabel: { ...tipografia.rotulo, color: cores.sidebar.textoInativo, paddingHorizontal: espaco.md, textTransform: 'uppercase' },
   sidebarItem: { alignItems: 'center', borderColor: cores.superficie.transparente, borderRadius: raio.controle, borderWidth: borda.fina, flexDirection: 'row', gap: espaco.md, minHeight: tamanho.toqueMinimo, overflow: 'hidden', paddingHorizontal: espaco.md, position: 'relative' },
   sidebarItemActive: { backgroundColor: cores.sidebar.itemAtivo },
-  sidebarItemHover: { ...StyleSheet.absoluteFillObject, backgroundColor: cores.sidebar.hover },
+  sidebarItemHover: { bottom: 0, left: 0, position: 'absolute', right: 0, top: 0, backgroundColor: cores.sidebar.hover },
   sidebarItemFocused: { borderColor: cores.foco.anel, borderWidth: borda.foco },
   sidebarLabel: { ...tipografia.corpoForte, color: cores.sidebar.textoInativo, flex: 1 },
   sidebarLabelActive: { color: cores.sidebar.texto },

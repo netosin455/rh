@@ -1,5 +1,5 @@
 import { apiFetch } from './http';
-import { Event, CreateEventData } from '../../tipos/modelos';
+import { Event, CreateEventData } from '../tipos/modelos';
 
 export async function getEventsByMonth(month: string): Promise<Event[]> {
   return apiFetch(`/api/events?month=${month}`);

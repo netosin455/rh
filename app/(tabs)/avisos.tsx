@@ -154,9 +154,9 @@ export default function AvisosScreen() {
     return (
       <View style={styles.container}>
         <View style={styles.loadingContent}>
-          <Skeleton height={tamanho.tela} />
-          <Skeleton height={tamanho.tela} />
-          <Skeleton height={tamanho.tela} />
+          <Skeleton height={espaco.tela} />
+          <Skeleton height={espaco.tela} />
+          <Skeleton height={espaco.tela} />
         </View>
       </View>
     );

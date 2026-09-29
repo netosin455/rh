@@ -1,5 +1,5 @@
 import { apiFetch } from './http';
-import { AnalyticsOverview, ProactiveAlert } from '../../tipos/modelos';
+import { AnalyticsOverview, ProactiveAlert } from '../tipos/modelos';
 
 export async function getAnalyticsOverview(): Promise<AnalyticsOverview> {
   return apiFetch<AnalyticsOverview>('/api/analytics');

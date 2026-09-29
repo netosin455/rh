@@ -68,7 +68,7 @@ export const Sheet = Drawer;
 
 const styles = StyleSheet.create({
   backdrop: { backgroundColor: theme.elevacao.backdrop, flex: 1 },
-  backdropAction: { ...StyleSheet.absoluteFillObject },
+  backdropAction: { bottom: 0, left: 0, position: 'absolute', right: 0, top: 0 },
   panel: { ...elevacao.overlay, backgroundColor: theme.superficie.elevada, borderColor: theme.bordaSemantica.sutil, borderWidth: borda.fina, position: 'absolute', shadowColor: theme.elevacao.sombra },
   left: { borderBottomRightRadius: raio.overlay, borderTopRightRadius: raio.overlay, bottom: espaco.zero, left: espaco.zero, maxWidth: largura.drawer, top: espaco.zero, width: largura.completa },
   right: { borderBottomLeftRadius: raio.overlay, borderTopLeftRadius: raio.overlay, bottom: espaco.zero, maxWidth: largura.drawer, right: espaco.zero, top: espaco.zero, width: largura.completa },

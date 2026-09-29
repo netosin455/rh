@@ -51,10 +51,11 @@ function AuthGuard() {
   useEffect(() => {
     if (loading) return;
     if (ssoHandled.current) return;
-    const isPublic = segments[0] === 'login' || segments[0] === 'responder' || segments[0] === 'feedback' || segments.length === 0;
+    const rota: string[] = segments; // tipos gerados não conhecem rotas públicas como "feedback"
+    const isPublic = rota[0] === 'login' || rota[0] === 'responder' || rota[0] === 'feedback' || rota.length === 0;
     if (!user && !isPublic) {
       router.replace('/login');
-    } else if (user && (segments[0] === 'login' || segments.length === 0)) {
+    } else if (user && (rota[0] === 'login' || rota.length === 0)) {
       router.replace('/(tabs)');
     }
   }, [user, loading, segments]);

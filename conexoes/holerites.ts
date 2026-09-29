@@ -1,5 +1,5 @@
 import { apiFetch } from './http';
-import { Payslip } from '../../tipos/modelos';
+import { Payslip } from '../tipos/modelos';
 
 export async function getPayslips(employeeId?: number): Promise<Payslip[]> {
   const qs = employeeId ? `?employee_id=${employeeId}` : '';

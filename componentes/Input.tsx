@@ -47,7 +47,7 @@ export const Input = forwardRef<TextInput, InputProps>(function Input(
           {...props}
           ref={ref}
           accessibilityLabel={accessibilityLabel ?? label}
-          accessibilityState={{ invalid: Boolean(error) }}
+          accessibilityHint={error || props.accessibilityHint}
           onFocus={(event) => {
             focused.value = 1;
             onFocus?.(event);

@@ -1,4 +1,4 @@
-import { apiFetch } from './http';
+import { apiFetch, extrairLista, RespostaLista } from './http';
 
 export interface SystemUser {
   id: number;
@@ -26,8 +26,8 @@ export interface UpdateUserData {
 }
 
 export async function getUsers(page = 1, limit = 50): Promise<SystemUser[]> {
-  const res = await apiFetch(`/api/users?page=${page}&limit=${limit}`);
-  return res?.data ?? res;
+  const res = await apiFetch<RespostaLista<SystemUser>>(`/api/users?page=${page}&limit=${limit}`);
+  return extrairLista(res);
 }
 
 export async function createUser(data: CreateUserData): Promise<SystemUser> {

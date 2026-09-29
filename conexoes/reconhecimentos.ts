@@ -1,5 +1,5 @@
 import { apiFetch } from './http';
-import { Recognition, RecognitionCategory } from '../../tipos/modelos';
+import { Recognition, RecognitionCategory } from '../tipos/modelos';
 
 export async function getRecognitions(toEmployeeId?: number): Promise<{ data: Recognition[]; total: number }> {
   const qs = toEmployeeId ? `?to_employee_id=${toEmployeeId}` : '';

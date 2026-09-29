@@ -1,5 +1,5 @@
 import { apiFetch } from './http';
-import { PulseSurvey, SurveyResults, CreateSurveyData } from '../../tipos/modelos';
+import { PulseSurvey, SurveyResults, CreateSurveyData } from '../tipos/modelos';
 
 export async function getSurveys(): Promise<PulseSurvey[]> {
   return apiFetch<PulseSurvey[]>('/api/surveys');

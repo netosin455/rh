@@ -1,9 +1,9 @@
-import { apiFetch } from './http';
+import { apiFetch, extrairLista, RespostaLista } from './http';
 import { Notice, CreateNoticeData } from '../tipos/modelos';
 
 export async function getNotices(page = 1, limit = 50): Promise<Notice[]> {
-  const res = await apiFetch(`/api/notices?page=${page}&limit=${limit}`);
-  return res?.data ?? res;
+  const res = await apiFetch<RespostaLista<Notice>>(`/api/notices?page=${page}&limit=${limit}`);
+  return extrairLista(res);
 }
 
 export async function createNotice(data: CreateNoticeData): Promise<Notice> {

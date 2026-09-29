@@ -296,10 +296,10 @@ export default function FeriasScreen() {
     return (
       <View style={styles.container}>
         <View style={styles.loadingContent}>
-          <Skeleton height={tamanho.tela} />
+          <Skeleton height={espaco.tela} />
           <Skeleton height={tamanho.toqueMinimo} />
-          <Skeleton height={tamanho.tela} />
-          <Skeleton height={tamanho.tela} />
+          <Skeleton height={espaco.tela} />
+          <Skeleton height={espaco.tela} />
         </View>
       </View>
     );

@@ -3,9 +3,13 @@
 // ============================================================
 
 import { apiFetch } from './http';
-import type { Insight } from '../api/insights';
-
-export type { Insight };
+/** Espelha o formato retornado por GET /api/analytics?view=insights. */
+export interface Insight {
+  title:         string;
+  description:   string;
+  severity:      'high' | 'medium' | 'low';
+  action_route?: string;
+}
 
 export interface InsightsResponse {
   insights: Insight[];

@@ -1,9 +1,9 @@
-import { apiFetch } from './http';
-import { Employee, CreateEmployeeData, UpdateEmployeeData } from '../../tipos/modelos';
+import { apiFetch, extrairLista, RespostaLista } from './http';
+import { Employee, CreateEmployeeData, UpdateEmployeeData } from '../tipos/modelos';
 
 export async function getEmployees(page = 1, limit = 50): Promise<Employee[]> {
-  const res = await apiFetch(`/api/employees?page=${page}&limit=${limit}`);
-  return res?.data ?? res;
+  const res = await apiFetch<RespostaLista<Employee>>(`/api/employees?page=${page}&limit=${limit}`);
+  return extrairLista(res);
 }
 
 export async function getEmployeeById(id: number): Promise<Employee> {

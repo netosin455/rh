@@ -22,8 +22,8 @@ Notifications.setNotificationHandler({
 export function PushProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const router   = useRouter();
-  const notifListener    = useRef<ReturnType<typeof Notifications.addNotificationReceivedListener>>();
-  const responseListener = useRef<ReturnType<typeof Notifications.addNotificationResponseReceivedListener>>();
+  const notifListener    = useRef<ReturnType<typeof Notifications.addNotificationReceivedListener>>(undefined);
+  const responseListener = useRef<ReturnType<typeof Notifications.addNotificationResponseReceivedListener>>(undefined);
 
   useEffect(() => {
     if (!user) return;
