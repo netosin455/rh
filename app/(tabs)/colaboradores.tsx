@@ -6,19 +6,18 @@ import {
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../contextos/Autenticacao';
 import { Ionicons } from '@expo/vector-icons';
-import { getEmployees, createEmployee, updateEmployee } from '../../conexoes/colaboradores';
-import { createAbsence } from '../../conexoes/ausencias';
+import { getEmployees, createEmployee } from '../../conexoes/colaboradores';
 import { Employee, EmployeeStatus, LegalArea, STATUS_LABELS, CreateEmployeeData } from '../../tipos/modelos';
 import { cores } from '../../estilo/cores';
 import { borda, espaco, raio, tamanho } from '../../estilo/espaco';
 import { tipografia } from '../../estilo/tipografia';
-import { brToIso, maskDate, todayBr, getTodayString } from '../../helpers/datas';
+import { brToIso, maskDate, todayBr } from '../../helpers/datas';
 import { maskCPF, maskPhone } from '../../helpers/validacoes';
 import { exportEmployeesPDF } from '../../helpers/pdf';
-import { useToast } from '../../contextos/Toast';
 import { Avatar } from '../../componentes/Avatar';
 import { Button } from '../../componentes/Button';
 import { EmptyState } from '../../componentes/EmptyState';
+import { LancarAusencia } from '../../componentes/LancarAusencia';
 import { ErroComRetry } from '../../componentes/ErroComRetry';
 import { Input } from '../../componentes/Input';
 import { Modal } from '../../componentes/Modal';
@@ -98,7 +97,6 @@ function Chip({ label, active, onPress }: { label: string; active: boolean; onPr
 export default function ColaboradoresScreen() {
   const router = useRouter();
   const { user } = useAuth();
-  const toast = useToast();
   const canManageEmployees = ['super_admin','admin','rh','adm'].includes(user?.role ?? '');
 
   const [employees,  setEmployees]  = useState<Employee[]>([]);
@@ -110,9 +108,8 @@ export default function ColaboradoresScreen() {
   const [saving,     setSaving]     = useState(false);
   const [form,       setForm]       = useState(EMPTY_FORM);
   const [formError,  setFormError]  = useState('');
-  const [quickModal, setQuickModal] = useState<{ emp: Employee; type: 'falta' | 'folga' | 'credito' } | null>(null);
-  const [quickHoursInput, setQuickHoursInput] = useState('');
-  const [quickSaving, setQuickSaving] = useState(false);
+  // Tela única "Lançar" (falta, folga, hora extra, férias, licença), já com a pessoa da linha.
+  const [lancar, setLancar] = useState<{ employeeId: number } | null>(null);
   const [loadError, setLoadError] = useState(false);
   const [hoveredEmployeeId, setHoveredEmployeeId] = useState<number | null>(null);
 
@@ -131,49 +128,6 @@ export default function ColaboradoresScreen() {
 
   useEffect(() => { load(); }, [load]);
   const onRefresh = useCallback(() => { setRefreshing(true); load(); }, [load]);
-
-  // Ação rápida: registrar falta ou folga de hoje (horas opcionais, útil pra quem não
-  // trabalha 8h/dia, ex: estagiário de 6h) ou creditar horas no banco (ex: hora extra).
-  function openQuickModal(emp: Employee, type: 'falta' | 'folga' | 'credito') {
-    setQuickModal({ emp, type });
-    setQuickHoursInput('');
-  }
-
-  async function handleConfirmQuick() {
-    if (!quickModal) return;
-    const { emp, type } = quickModal;
-    const raw = quickHoursInput.trim();
-    let hours: number | undefined;
-    if (raw !== '') {
-      hours = parseFloat(raw.replace(',', '.'));
-      if (!Number.isFinite(hours) || hours <= 0) {
-        toast.warning('Informe um número de horas válido, ou deixe em branco pro dia inteiro.');
-        return;
-      }
-    } else if (type === 'folga' || type === 'credito') {
-      toast.warning('Informe as horas.');
-      return;
-    }
-
-    setQuickSaving(true);
-    try {
-      if (type === 'credito') {
-        const updated = await updateEmployee(emp.id, { folga_hours_delta: hours });
-        setEmployees(prev => prev.map(e => e.id === emp.id ? updated : e));
-        toast.success(`${hours}h creditadas no banco de horas de ${emp.name}.`);
-      } else {
-        const today = getTodayString();
-        await createAbsence({ employee_id: emp.id, type, start_date: today, end_date: today, hours });
-        const label = type === 'falta' ? 'Falta' : 'Folga';
-        toast.success(`${label}${hours != null ? ` de ${hours}h` : ''} registrada pra ${emp.name}.`);
-      }
-      setQuickModal(null);
-    } catch (e: any) {
-      toast.error(e.message || 'Não foi possível registrar.');
-    } finally {
-      setQuickSaving(false);
-    }
-  }
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
@@ -319,35 +273,13 @@ export default function ColaboradoresScreen() {
               <View style={styles.trailing}>
                 <StatusPill label={STATUS_LABELS[emp.status]} status={employeeStatusTone(emp.status)} />
                 {canManageEmployees && (
-                  <View style={styles.quickActionsRow}>
-                    <Pressable
-                      accessibilityLabel={`Registrar falta hoje para ${emp.name}`}
-                      accessibilityRole="button"
-                      hitSlop={espaco.xs}
-                      onPress={() => openQuickModal(emp, 'falta')}
-                      style={styles.quickActionBtn}
-                    >
-                      <Ionicons color={cores.status.erro.forte} name="close-circle-outline" size={tamanho.iconePequeno} />
-                    </Pressable>
-                    <Pressable
-                      accessibilityLabel={`Registrar folga hoje para ${emp.name}`}
-                      accessibilityRole="button"
-                      hitSlop={espaco.xs}
-                      onPress={() => openQuickModal(emp, 'folga')}
-                      style={styles.quickActionBtn}
-                    >
-                      <Ionicons color={cores.accent.douradoProfundo} name="time-outline" size={tamanho.iconePequeno} />
-                    </Pressable>
-                    <Pressable
-                      accessibilityLabel={`Creditar horas no banco de ${emp.name}`}
-                      accessibilityRole="button"
-                      hitSlop={espaco.xs}
-                      onPress={() => openQuickModal(emp, 'credito')}
-                      style={styles.quickActionBtn}
-                    >
-                      <Ionicons color={cores.status.sucesso.forte} name="add-circle-outline" size={tamanho.iconePequeno} />
-                    </Pressable>
-                  </View>
+                  <Button
+                    accessibilityLabel={`Lançar falta, folga, hora extra, férias ou licença para ${emp.name}`}
+                    icon="add"
+                    label="Lançar"
+                    onPress={() => setLancar({ employeeId: emp.id })}
+                    variant="secondary"
+                  />
                 )}
               </View>
             </View>
@@ -409,36 +341,13 @@ export default function ColaboradoresScreen() {
         </ScrollView>
       </Modal>
 
-      <Modal
-        footer={
-          <View style={styles.modalFooter}>
-            <Button accessibilityLabel="Cancelar" label="Cancelar" onPress={() => setQuickModal(null)} style={{ flex: 1 }} variant="secondary" />
-            <Button accessibilityLabel="Confirmar" label="Confirmar" loading={quickSaving} onPress={handleConfirmQuick} style={{ flex: 2 }} />
-          </View>
-        }
-        onClose={() => setQuickModal(null)}
-        subtitle={quickModal?.emp.name}
-        title={
-          quickModal?.type === 'falta' ? 'Registrar falta hoje'
-            : quickModal?.type === 'folga' ? 'Registrar folga hoje'
-            : 'Creditar horas no banco'
-        }
-        visible={!!quickModal}
-      >
-        <Input
-          accessibilityLabel="Quantidade de horas"
-          autoFocus
-          keyboardType="decimal-pad"
-          label={`Horas ${quickModal?.type === 'falta' ? '(opcional — em branco conta o dia inteiro)' : ''}`}
-          onChangeText={setQuickHoursInput}
-          placeholder={
-            quickModal?.type === 'falta' ? 'Ex: 3 (estagiário de 6h que faltou meio turno)'
-              : quickModal?.type === 'credito' ? 'Ex: 2 (hora extra feita hoje)'
-              : 'Ex: 4'
-          }
-          value={quickHoursInput}
-        />
-      </Modal>
+      <LancarAusencia
+        employeeId={lancar?.employeeId ?? null}
+        employees={employees}
+        onClose={() => setLancar(null)}
+        onLancado={() => { void load(); }}
+        visible={lancar !== null}
+      />
     </View>
   );
 }
@@ -471,8 +380,6 @@ const styles = StyleSheet.create({
   rowTitle: { ...tipografia.corpoForte, color: cores.texto.primario },
   rowDescription: { ...tipografia.legenda, color: cores.texto.discreto },
   trailing: { alignItems: 'flex-end', gap: espaco.xs },
-  quickActionsRow: { flexDirection: 'row', gap: espaco.xs },
-  quickActionBtn: { alignItems: 'center', height: tamanho.toqueMinimo, justifyContent: 'center', width: tamanho.toqueMinimo },
 
   fab: {
     alignItems: 'center', backgroundColor: cores.accent.dourado, borderRadius: raio.pill, bottom: espaco.xl,

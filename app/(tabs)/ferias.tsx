@@ -18,6 +18,7 @@ import { Card } from '../../componentes/Card';
 import { EmptyState } from '../../componentes/EmptyState';
 import { ErroComRetry } from '../../componentes/ErroComRetry';
 import { Input } from '../../componentes/Input';
+import { LancarAusencia } from '../../componentes/LancarAusencia';
 import { ListRow } from '../../componentes/ListRow';
 import { MetricCard } from '../../componentes/MetricCard';
 import { Modal } from '../../componentes/Modal';
@@ -136,6 +137,8 @@ export default function FeriasScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab,  setActiveTab]  = useState<AbsenceType | 'todos'>('todos');
   const [showModal,  setShowModal]  = useState(false);
+  // Novos lançamentos usam a tela única "Lançar"; o modal abaixo ficou só para editar pendentes antigos.
+  const [showLancar, setShowLancar] = useState(false);
   const [saving,     setSaving]     = useState(false);
   const [approvingId, setApprovingId] = useState<number | null>(null);
   const [form,       setForm]       = useState(EMPTY_FORM);
@@ -315,7 +318,7 @@ export default function FeriasScreen() {
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={cores.accent.dourado} />}
       >
-        <ScreenHeader title="Férias e ausências" subtitle="Registre afastamentos, acompanhe saldos e decida solicitações pendentes." action={<Button label="Novo lançamento" icon="add" onPress={() => openModal()} />} />
+        <ScreenHeader title="Férias e ausências" subtitle="Registre afastamentos, acompanhe saldos e decida solicitações pendentes." action={<Button label="Lançar" icon="add" onPress={() => setShowLancar(true)} />} />
         {loadError ? <ErroComRetry mensagem="Não foi possível carregar as ausências." onTentarNovamente={onRefresh} carregando={refreshing} /> : null}
         {canApprove && pendentes.length > 0 ? (
           <Section title="Aguardando aprovação" description={`${pendentes.length} solicitação${pendentes.length === 1 ? '' : 'ões'} requer${pendentes.length === 1 ? '' : 'em'} decisão.`}>
@@ -352,7 +355,7 @@ export default function FeriasScreen() {
             {FILTER_TABS.map((tab) => <Button key={tab.key} label={tab.label} variant={activeTab === tab.key ? 'primary' : 'secondary'} accessibilityLabel={`Filtrar por ${tab.label}`} onPress={() => setActiveTab(tab.key)} />)}
           </ScrollView>
           {filtered.length === 0 && !loadError ? (
-            <Card><EmptyState icon="umbrella-outline" title="Nenhum registro" description="Não há lançamentos para este filtro." action={<Button label="Novo lançamento" icon="add" onPress={() => openModal()} />} /></Card>
+            <Card><EmptyState icon="umbrella-outline" title="Nenhum registro" description="Não há lançamentos para este filtro." action={<Button label="Lançar" icon="add" onPress={() => setShowLancar(true)} />} /></Card>
           ) : (
             <View style={styles.recordList}>
               {filtered.map((absence) => {
@@ -370,6 +373,13 @@ export default function FeriasScreen() {
           )}
         </Section>
       </ScrollView>
+
+      <LancarAusencia
+        employees={employees}
+        onClose={() => setShowLancar(false)}
+        onLancado={() => { void load(); }}
+        visible={showLancar}
+      />
 
       <Modal
         visible={showModal}

@@ -69,7 +69,7 @@ export const Input = forwardRef<TextInput, InputProps>(function Input(
 const styles = StyleSheet.create({
   label: { ...tipografia.rotulo, color: theme.texto.discreto, marginBottom: espaco.xs, textTransform: 'uppercase' },
   inputRow: { alignItems: 'center', backgroundColor: theme.superficie.elevada, borderColor: theme.bordaSemantica.sutil, borderRadius: raio.controle, borderWidth: borda.fina, flexDirection: 'row', minHeight: tamanho.toqueMinimo },
-  input: { ...tipografia.corpo, color: theme.texto.primario, flex: 1, minHeight: tamanho.toqueMinimo, paddingHorizontal: espaco.md, paddingVertical: espaco.sm },
+  input: { ...tipografia.corpo, color: theme.texto.primario, flex: 1, minHeight: tamanho.toqueMinimo, minWidth: 0, paddingHorizontal: espaco.md, paddingVertical: espaco.sm },
   inputError: { borderColor: theme.status.erro.forte },
   error: { ...tipografia.legenda, color: theme.status.erro.forte, marginTop: espaco.xs },
 });
