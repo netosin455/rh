@@ -77,6 +77,7 @@ function AuthGuard() {
       <Stack.Screen name="login" options={{ headerShown: false }} />
       <Stack.Screen name="colaborador/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="pesquisas/index" options={{ headerShown: false }} />
+      <Stack.Screen name="pesquisas/nova" options={{ headerShown: false }} />
       <Stack.Screen name="pesquisas/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="responder/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="feedbacks/index" options={{ headerShown: false }} />

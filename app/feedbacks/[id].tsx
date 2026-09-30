@@ -132,6 +132,7 @@ export default function FeedbackDetailScreen() {
           <>
             <View style={styles.titleRow}><View style={styles.titleCopy}><Text accessibilityRole="header" style={styles.heading}>{feedback.title}</Text><View style={styles.employeeBlock}><Text style={styles.employeeName}>{feedback.employee_name ?? 'Colaborador'}</Text><Text style={styles.employeeMeta}>{employeeMeta(feedback)}</Text></View></View><View style={styles.status}><View style={[styles.dot, { backgroundColor: status.color }]} /><Text style={[styles.statusText, { color: status.color }]}>{status.label}</Text></View></View>
             {feedback.status === 'acknowledged' && feedback.acknowledged_at ? <View style={styles.acknowledged}><Ionicons color={cores.status.sucesso.forte} name="checkmark" size={tamanho.iconePequeno} /><View><Text style={styles.acknowledgedTitle}>Leitura confirmada</Text><Text style={styles.acknowledgedText}>{feedback.employee_name ?? 'O colaborador'} confirmou a leitura em {dateTime(feedback.acknowledged_at)}.</Text></View></View> : null}
+            {feedback.status === 'acknowledged' && feedback.acknowledgment_note ? <View accessibilityLabel="Observação do colaborador" style={styles.note}><Text style={styles.noteLabel}>Observação do colaborador</Text><Text selectable style={styles.noteText}>{feedback.acknowledgment_note}</Text></View> : null}
             {feedback.status === 'revoked' ? <View style={styles.revoked}><Text style={styles.revokedTitle}>Acesso revogado</Text><Text style={styles.revokedText}>Este link foi revogado em {dateTime(feedback.revoked_at)} e não pode mais ser acessado.</Text></View> : null}
             <View style={styles.rule} />
             <Text style={styles.body}>{feedback.content}</Text>
@@ -167,6 +168,9 @@ const styles = StyleSheet.create({
   status: { alignItems: 'center', flexDirection: 'row', gap: espaco.sm, marginTop: espaco.sm },
   dot: { borderRadius: raio.pill, height: tamanho.indicador, width: tamanho.indicador },
   statusText: { ...tipografia.corpoForte },
+  note: { backgroundColor: cores.superficie.sutil, borderColor: cores.borda.sutil, borderRadius: raio.controle, borderWidth: borda.fina, gap: espaco.xs, marginTop: espaco.lg, padding: espaco.md },
+  noteLabel: { ...tipografia.rotulo, color: cores.texto.discreto, textTransform: 'uppercase' },
+  noteText: { ...tipografia.corpo, color: cores.texto.primario },
   acknowledged: { alignItems: 'flex-start', flexDirection: 'row', gap: espaco.sm, marginTop: espaco.xxl },
   acknowledgedTitle: { ...tipografia.corpoForte, color: cores.status.sucesso.forte },
   acknowledgedText: { ...tipografia.corpo, color: cores.texto.secundario, marginTop: espaco.micro },

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Request as VercelRequest, Response as VercelResponse } from 'express';
 
 const mockSql = vi.fn();
 const mockAuthenticate = vi.fn();
@@ -116,16 +117,44 @@ describe('API pública de feedbacks', () => {
   it('só confirma leitura quando o cliente declara ciência e grava o horário uma vez', async () => {
     mockFindPublicFeedback.mockResolvedValueOnce({
       title: 'Desenvolvimento', content: 'Conteúdo', status: 'published', published_at: '2026-09-29T12:00:00Z',
-      acknowledged_at: null, employee_name: 'Ana', company_name: 'Empresa A',
+      acknowledged_at: null, acknowledgment_note: null, employee_name: 'Ana', company_name: 'Empresa A',
     });
-    mockSql.mockResolvedValueOnce([{ acknowledged_at: '2026-09-29T13:00:00Z' }]);
+    mockSql.mockResolvedValueOnce([{ acknowledged_at: '2026-09-29T13:00:00Z', acknowledgment_note: 'Obrigada pela conversa.' }]);
     const { handleFeedbackPublic: handler } = await import('../api/feedback/_handler');
     const res = makeRes();
 
-    await handler({ method: 'POST', query: { token, action: 'acknowledge' }, headers: {}, body: { acknowledged: true } } as any, res);
+    await handler(
+      { method: 'POST', query: { token, action: 'acknowledge' }, headers: {}, body: { acknowledged: true, note: 'Obrigada pela conversa.' } } as unknown as VercelRequest,
+      res as unknown as VercelResponse,
+    );
 
-    expect(res.json).toHaveBeenCalledWith({ acknowledged_at: '2026-09-29T13:00:00Z', already_acknowledged: false });
+    expect(res.json).toHaveBeenCalledWith({
+      acknowledged_at: '2026-09-29T13:00:00Z',
+      acknowledgment_note: 'Obrigada pela conversa.',
+      already_acknowledged: false,
+    });
     expect(String(mockSql.mock.calls[0][0])).toContain("status = 'published'");
+  });
+
+  it('não sobrescreve a observação quando a confirmação é repetida', async () => {
+    mockFindPublicFeedback.mockResolvedValueOnce({
+      title: 'Desenvolvimento', content: 'Conteúdo', status: 'acknowledged', published_at: '2026-09-29T12:00:00Z',
+      acknowledged_at: '2026-09-29T13:00:00Z', acknowledgment_note: 'Nota original.', employee_name: 'Ana', company_name: 'Empresa A',
+    });
+    const { handleFeedbackPublic: handler } = await import('../api/feedback/_handler');
+    const res = makeRes();
+
+    await handler(
+      { method: 'POST', query: { token, action: 'acknowledge' }, headers: {}, body: { acknowledged: true, note: 'Tentativa de troca.' } } as unknown as VercelRequest,
+      res as unknown as VercelResponse,
+    );
+
+    expect(res.json).toHaveBeenCalledWith({
+      acknowledged_at: '2026-09-29T13:00:00Z',
+      acknowledgment_note: 'Nota original.',
+      already_acknowledged: true,
+    });
+    expect(mockSql).not.toHaveBeenCalled();
   });
 
   it('rejeita confirmação sem a caixa de ciência marcada', async () => {

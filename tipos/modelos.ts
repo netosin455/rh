@@ -222,7 +222,17 @@ export interface OnboardingProcess {
 
 // ── Pulse Surveys ────────────────────────────────────────────
 
-export type SurveyType = 'scale' | 'choice';
+export type SurveyType = 'scale' | 'choice' | 'text';
+
+/** Pergunta de uma pesquisa (1 a 10 por pesquisa). */
+export interface SurveyQuestion {
+  id: number;
+  position: number;
+  question: string;
+  type: SurveyType;
+  options: string[] | null;
+  required: boolean;
+}
 
 export interface PulseSurvey {
   id: number;
@@ -230,9 +240,12 @@ export interface PulseSurvey {
   created_by: number | null;
   created_by_name?: string;
   title: string;
-  question: string;
-  type: SurveyType;
-  options: string[] | null;
+  /** Legado: 1ª pergunta (a API antiga devolvia só uma). Use `questions` quando existir. */
+  question?: string;
+  type?: SurveyType;
+  options?: string[] | null;
+  questions?: SurveyQuestion[];
+  question_count?: number;
   target_dept: number | null;
   dept_name?: string | null;
   expires_at?: string | null;
@@ -240,16 +253,59 @@ export interface PulseSurvey {
   response_count?: number;
 }
 
-export interface SurveyResults {
-  survey: PulseSurvey;
-  total_responses: number;
-  results: {
-    avg?: number;                          // scale
-    distribution: Record<string, number>; // scale: {1:n,2:n,...} | choice: {Ótimo:n,...}
-  };
+/** Resultado de UMA pergunta. */
+export interface QuestionResult {
+  question_id: number;
+  position: number;
+  question: string;
+  type: SurveyType;
+  /** Quantas pessoas responderam esta pergunta (perguntas opcionais podem ficar em branco). */
+  answered: number;
+  /** scale: média de 1 a 5. */
+  avg?: number;
+  /** scale: {"1":n,...,"5":n} | choice: {"Opção":n,...}. */
+  distribution?: Record<string, number>;
+  /** text: respostas anônimas, mais recentes primeiro (teto de 200 no servidor). */
+  texts?: string[];
 }
 
-export type CreateSurveyData = Pick<PulseSurvey, 'title' | 'question' | 'type' | 'options' | 'target_dept' | 'expires_at'>;
+export interface SurveyResults {
+  survey: PulseSurvey;
+  /** Quantas participações (pessoas que enviaram a pesquisa). */
+  total_responses: number;
+  questions: QuestionResult[];
+}
+
+/** Pergunta como o RH envia ao criar. */
+export interface NewSurveyQuestion {
+  question: string;
+  type: SurveyType;
+  options?: string[];
+  required: boolean;
+}
+
+export interface CreateSurveyData {
+  title: string;
+  target_dept?: number | null;
+  expires_at?: string | null;
+  questions: NewSurveyQuestion[];
+}
+
+/** Uma resposta enviada pelo colaborador (só um dos três campos, conforme o tipo). */
+export interface SurveyAnswerInput {
+  question_id: number;
+  score?: number;
+  choice?: string;
+  text?: string;
+}
+
+/** Pesquisa como o colaborador enxerga na página pública. */
+export interface PublicSurvey {
+  id: number;
+  title: string;
+  expires_at: string | null;
+  questions: SurveyQuestion[];
+}
 
 // ── Feedback individual ──────────────────────────────────────
 
@@ -266,6 +322,8 @@ export interface Feedback {
   status: FeedbackStatus;
   published_at: string | null;
   acknowledged_at: string | null;
+  /** Observação opcional que o colaborador escreveu ao confirmar a leitura. */
+  acknowledgment_note?: string | null;
   revoked_at: string | null;
   created_at: string;
   updated_at: string;
@@ -290,6 +348,7 @@ export interface PublicFeedback {
   status: Extract<FeedbackStatus, 'published' | 'acknowledged'>;
   published_at: string;
   acknowledged_at: string | null;
+  acknowledgment_note?: string | null;
 }
 
 // ── Analytics ───────────────────────────────────────────────

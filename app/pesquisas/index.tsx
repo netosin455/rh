@@ -1,23 +1,21 @@
 // ============================================================
-// app/pesquisas/index.tsx — Lista + Criar pesquisas de pulso
+// app/pesquisas/index.tsx — Lista de pesquisas (criar: /pesquisas/nova)
 // ============================================================
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { KeyboardAvoidingView, Platform, RefreshControl, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
+import { RefreshControl, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
-import { getSurveys, createSurvey, deleteSurvey } from '../../conexoes/pesquisas';
+import { getSurveys, deleteSurvey } from '../../conexoes/pesquisas';
 import { confirmAction } from '../../helpers/confirm';
-import { PulseSurvey, CreateSurveyData } from '../../tipos/modelos';
+import { PulseSurvey } from '../../tipos/modelos';
 import { useToast } from '../../contextos/Toast';
 import { Badge } from '../../componentes/Badge';
 import { Button } from '../../componentes/Button';
 import { Card } from '../../componentes/Card';
 import { EmptyState } from '../../componentes/EmptyState';
-import { Input } from '../../componentes/Input';
 import { ListRow } from '../../componentes/ListRow';
 import { MetricCard } from '../../componentes/MetricCard';
-import { Modal } from '../../componentes/Modal';
 import { ScreenHeader } from '../../componentes/ScreenHeader';
 import { Section } from '../../componentes/Section';
 import { Skeleton } from '../../componentes/Skeleton';
@@ -29,14 +27,9 @@ import { useMotion } from '../../estilo/movimento';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? '';
 
-const EMPTY: CreateSurveyData = {
-  title:      '',
-  question:   '',
-  type:       'scale',
-  options:    null,
-  target_dept: null,
-  expires_at: null,
-};
+function quantidadePerguntas(s: PulseSurvey): number {
+  return s.question_count ?? s.questions?.length ?? 1;
+}
 
 function daysLeft(expires_at: string | null | undefined) {
   if (!expires_at) return null;
@@ -54,11 +47,6 @@ export default function PesquisasScreen() {
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [loadError,  setLoadError]  = useState('');
-  const [showForm,   setShowForm]   = useState(false);
-  const [saving,     setSaving]     = useState(false);
-  const [form,       setForm]       = useState<CreateSurveyData>(EMPTY);
-  const [optionText, setOptionText] = useState('');
-  const [latestCreatedId, setLatestCreatedId] = useState<number | null>(null);
 
   const activeSurveyCount = surveys.filter((survey) => !survey.expires_at || new Date(survey.expires_at) >= new Date()).length;
   const newSurveyEntering = useMemo(
@@ -84,45 +72,6 @@ export default function PesquisasScreen() {
 
   const onRefresh = () => { setRefreshing(true); load(); };
 
-  function closeForm() {
-    if (!saving) setShowForm(false);
-  }
-
-  function addOption() {
-    const t = optionText.trim();
-    if (!t) return;
-    const opts = form.options ?? [];
-    if (opts.length >= 6) return toast.warning('Máximo de 6 opções de resposta');
-    setForm(f => ({ ...f, options: [...(f.options ?? []), t] }));
-    setOptionText('');
-  }
-
-  function removeOption(i: number) {
-    setForm(f => ({ ...f, options: (f.options ?? []).filter((_, idx) => idx !== i) }));
-  }
-
-  async function handleSave() {
-    if (!form.title.trim() || !form.question.trim()) {
-      return toast.warning('Título e pergunta são obrigatórios');
-    }
-    if (form.type === 'choice' && (!form.options || form.options.length < 2)) {
-      return toast.warning('Adicione ao menos 2 opções de resposta');
-    }
-    setSaving(true);
-    try {
-      const created = await createSurvey({ ...form, title: form.title.trim(), question: form.question.trim() });
-      setLatestCreatedId(created.id);
-      setForm(EMPTY);
-      setShowForm(false);
-      load();
-      toast.success('Pesquisa criada com sucesso!');
-    } catch (e: any) {
-      toast.error(e?.message ?? 'Não foi possível criar pesquisa');
-    } finally {
-      setSaving(false);
-    }
-  }
-
   function handleDelete(s: PulseSurvey) {
     confirmAction('Excluir', `Excluir "${s.title}"?`, async () => {
       try {
@@ -136,7 +85,7 @@ export default function PesquisasScreen() {
 
   function shareLink(s: PulseSurvey) {
     const link = `${API_URL.replace('/api', '')}/responder/${s.id}`.replace('undefined', 'https://super-rh.vercel.app');
-    Share.share({ message: `${s.title}\n\n${s.question}\n\nResponda aqui: ${link}` });
+    Share.share({ message: `${s.title}\n\nResponda aqui (é anônimo): ${link}` });
   }
 
   return (
@@ -148,7 +97,7 @@ export default function PesquisasScreen() {
         <ScreenHeader
           title="Pesquisas de pulso"
           subtitle="Colete feedback da equipe e acompanhe as respostas."
-          action={<Button icon="add-outline" label="Nova pesquisa" onPress={() => setShowForm(true)} />}
+          action={<Button icon="add-outline" label="Nova pesquisa" onPress={() => router.push('/pesquisas/nova' as never)} />}
         />
 
         <MetricCard
@@ -177,7 +126,7 @@ export default function PesquisasScreen() {
               icon="clipboard-outline"
               title="Nenhuma pesquisa criada"
               description="Crie uma pesquisa para coletar feedback da equipe."
-              action={<Button icon="add-outline" label="Criar pesquisa" onPress={() => setShowForm(true)} />}
+              action={<Button icon="add-outline" label="Criar pesquisa" onPress={() => router.push('/pesquisas/nova' as never)} />}
             />
           ) : (
             <View style={styles.surveyList}>
@@ -185,16 +134,16 @@ export default function PesquisasScreen() {
                 const expired = Boolean(survey.expires_at && new Date(survey.expires_at) < new Date());
                 const responseCount = survey.response_count ?? 0;
                 return (
-                  <Animated.View entering={survey.id === latestCreatedId ? newSurveyEntering : undefined} key={survey.id}>
+                  <Animated.View entering={newSurveyEntering} key={survey.id}>
                     <Card padded={false} style={expired ? styles.expiredCard : undefined}>
                       <ListRow
                         accessibilityLabel={`Ver resultados de ${survey.title}`}
-                        description={survey.question}
+                        description={survey.question ?? `${quantidadePerguntas(survey)} perguntas`}
                         onPress={() => router.push(`/pesquisas/${survey.id}` as any)}
                         title={survey.title}
                         trailing={(
                           <View style={styles.rowBadges}>
-                            <Badge label={survey.type === 'scale' ? 'Escala 1–5' : 'Múltipla escolha'} tone={survey.type === 'scale' ? 'info' : 'success'} />
+                            <Badge label={`${quantidadePerguntas(survey)} pergunta${quantidadePerguntas(survey) === 1 ? '' : 's'}`} tone="info" />
                             {survey.expires_at ? <StatusPill label={daysLeft(survey.expires_at) ?? ''} status={expired ? 'inativo' : 'pendente'} /> : null}
                           </View>
                         )}
@@ -217,93 +166,6 @@ export default function PesquisasScreen() {
         </Section>
       </ScrollView>
 
-      <Modal
-        footer={(
-          <View style={styles.footerActions}>
-            <Button disabled={saving} label="Cancelar" onPress={closeForm} style={styles.footerButton} variant="secondary" />
-            <Button label="Criar pesquisa" loading={saving} onPress={handleSave} style={styles.footerButton} />
-          </View>
-        )}
-        onClose={closeForm}
-        subtitle="Defina uma pergunta e como a equipe poderá respondê-la."
-        title="Nova pesquisa"
-        visible={showForm}
-      >
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-          <ScrollView contentContainerStyle={styles.form} keyboardShouldPersistTaps="handled">
-            <Input
-              editable={!saving}
-              label="Título"
-              onChangeText={(value) => setForm((current) => ({ ...current, title: value }))}
-              placeholder="Ex.: Clima organizacional — Maio"
-              value={form.title}
-            />
-            <Input
-              editable={!saving}
-              inputStyle={styles.multilineInput}
-              label="Pergunta"
-              multiline
-              numberOfLines={3}
-              onChangeText={(value) => setForm((current) => ({ ...current, question: value }))}
-              placeholder="Como você avalia o ambiente de trabalho esta semana?"
-              textAlignVertical="top"
-              value={form.question}
-            />
-            <Section title="Tipo de resposta">
-              <View style={styles.typeRow}>
-                {(['scale', 'choice'] as const).map((type) => {
-                  const selected = form.type === type;
-                  return (
-                    <Button
-                      disabled={saving}
-                      icon={type === 'scale' ? 'stats-chart-outline' : 'list-outline'}
-                      key={type}
-                      label={type === 'scale' ? 'Escala 1–5' : 'Múltipla escolha'}
-                      onPress={() => setForm((current) => ({ ...current, type, options: type === 'scale' ? null : current.options }))}
-                      style={styles.typeButton}
-                      variant={selected ? 'primary' : 'secondary'}
-                    />
-                  );
-                })}
-              </View>
-            </Section>
-
-            {form.type === 'choice' ? (
-              <Section title="Opções de resposta" description="Adicione entre duas e seis opções.">
-                {(form.options ?? []).length > 0 ? (
-                  <Card padded={false}>
-                    {(form.options ?? []).map((option, index) => (
-                      <ListRow
-                        key={`${option}-${index}`}
-                        title={option}
-                        trailing={<Button accessibilityLabel={`Remover opção ${option}`} icon="close-outline" onPress={() => removeOption(index)} variant="danger" />}
-                      />
-                    ))}
-                  </Card>
-                ) : null}
-                <Input
-                  editable={!saving}
-                  label="Nova opção"
-                  onChangeText={setOptionText}
-                  onSubmitEditing={addOption}
-                  placeholder="Digite uma opção"
-                  returnKeyType="done"
-                  rightAccessory={<Button accessibilityLabel="Adicionar opção" disabled={saving} icon="add-outline" onPress={addOption} variant="ghost" />}
-                  value={optionText}
-                />
-              </Section>
-            ) : null}
-
-            <Input
-              editable={!saving}
-              label="Encerrar em (opcional)"
-              onChangeText={(value) => setForm((current) => ({ ...current, expires_at: value || null }))}
-              placeholder="AAAA-MM-DD"
-              value={form.expires_at ?? ''}
-            />
-          </ScrollView>
-        </KeyboardAvoidingView>
-      </Modal>
     </View>
   );
 }
@@ -320,10 +182,4 @@ const styles = StyleSheet.create({
   metaText: { ...tipografia.legenda, color: cores.texto.discreto },
   actions: { borderTopColor: cores.borda.sutil, borderTopWidth: 1, flexDirection: 'row', gap: espaco.xs, padding: espaco.sm },
   actionButton: { flex: 1 },
-  footerActions: { flexDirection: 'row', gap: espaco.md },
-  footerButton: { flex: 1 },
-  form: { gap: espaco.lg, paddingBottom: espaco.xs },
-  multilineInput: { minHeight: espaco.secao },
-  typeRow: { flexDirection: 'row', gap: espaco.sm },
-  typeButton: { flex: 1 },
 });

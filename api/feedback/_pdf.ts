@@ -11,6 +11,7 @@ export type PrintableFeedback = {
   content: string;
   published_at: string;
   acknowledged_at?: string | null;
+  acknowledgment_note?: string | null;
 };
 
 const PAGE_WIDTH = 595;
@@ -131,6 +132,11 @@ export async function createFeedbackPdf(feedback: PrintableFeedback): Promise<Ui
     page.drawText('Leitura confirmada', { x: MARGIN + 18, y: cursorY, size: 10, font: bold, color: rgb(0.05, 0.4, 0.26) });
     cursorY -= 16;
     write(formatDate(feedback.acknowledged_at), regular, 10, rgb(0.38, 0.4, 0.45));
+    if (feedback.acknowledgment_note) {
+      cursorY -= 8;
+      write('Observação do colaborador', bold, 9, rgb(0.38, 0.4, 0.45));
+      write(feedback.acknowledgment_note, regular, 10);
+    }
   } else {
     write('Leitura ainda não confirmada.', bold, 10, rgb(0.38, 0.4, 0.45));
   }

@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Linking, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
@@ -40,6 +41,12 @@ function FeedbackState({ feedback }: { feedback: Feedback }) {
       <View style={styles.stateCopy}>
         <Text style={[styles.stateLabel, { color: state.color }]}>{state.label}</Text>
         {feedback.acknowledged_at ? <Text style={styles.stateTime}>{dateTime(feedback.acknowledged_at)}</Text> : null}
+        {feedback.acknowledgment_note ? (
+          <View accessibilityLabel="Com observação do colaborador" style={styles.noteTag}>
+            <Ionicons color={cores.accent.douradoProfundo} name="chatbubble-ellipses-outline" size={tamanho.iconePequeno} />
+            <Text style={styles.noteTagText}>com observação</Text>
+          </View>
+        ) : null}
       </View>
     </View>
   );
@@ -231,6 +238,8 @@ const styles = StyleSheet.create({
   dot: { borderRadius: raio.pill, height: tamanho.indicador, marginTop: espaco.xs, width: tamanho.indicador },
   stateCopy: { flex: 1 },
   stateLabel: { ...tipografia.legenda },
+  noteTag: { alignItems: 'center', flexDirection: 'row', gap: espaco.micro, marginTop: espaco.micro },
+  noteTagText: { ...tipografia.legenda, color: cores.accent.douradoProfundo },
   stateTime: { ...tipografia.legenda, color: cores.texto.discreto, marginTop: espaco.micro },
   rowActions: { alignItems: 'center', backgroundColor: cores.superficie.elevada, flexDirection: 'row', gap: espaco.xs, position: 'absolute', right: espaco.sm },
   rowActionsNarrow: { flexBasis: '100%', flexWrap: 'wrap', position: 'relative', right: undefined },

@@ -5,6 +5,7 @@ import Animated, { FadeInDown, FadeOut } from 'react-native-reanimated';
 import { useLocalSearchParams } from 'expo-router';
 import { Button } from '../../componentes/Button';
 import { EmptyState } from '../../componentes/EmptyState';
+import { Input } from '../../componentes/Input';
 import { Skeleton } from '../../componentes/Skeleton';
 import { acknowledgeFeedback, feedbackPdfUrl, getPublicFeedback } from '../../conexoes/feedbacks';
 import { useToast } from '../../contextos/Toast';
@@ -13,6 +14,8 @@ import { cores } from '../../estilo/cores';
 import { borda, espaco, raio, tamanho } from '../../estilo/espaco';
 import { tipografia } from '../../estilo/tipografia';
 import { useMotion } from '../../estilo/movimento';
+
+const MAX_OBSERVACAO = 1000;
 
 function tokenFromParam(value: string | string[] | undefined): string | null {
   const token = Array.isArray(value) ? value[0] : value;
@@ -41,6 +44,8 @@ export default function PublicFeedbackScreen() {
   const { width } = useWindowDimensions();
   const [feedback, setFeedback] = useState<PublicFeedback | null>(null);
   const [checked, setChecked] = useState(false);
+  // Observação opcional do colaborador: enviada junto com a confirmação (nunca obrigatória).
+  const [note, setNote] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -57,8 +62,8 @@ export default function PublicFeedbackScreen() {
     if (!token || !checked || feedback?.status === 'acknowledged') return;
     setSaving(true);
     try {
-      const result = await acknowledgeFeedback(token);
-      setFeedback((current) => current ? { ...current, status: 'acknowledged', acknowledged_at: result.acknowledged_at } : current);
+      const result = await acknowledgeFeedback(token, note);
+      setFeedback((current) => current ? { ...current, status: 'acknowledged', acknowledged_at: result.acknowledged_at, acknowledgment_note: result.acknowledgment_note ?? (note.trim() || null) } : current);
       toast.success('Leitura confirmada.');
     } catch (reason: any) { toast.error(reason?.message ?? 'Não foi possível confirmar a leitura.'); } finally { setSaving(false); }
   }
@@ -87,7 +92,7 @@ export default function PublicFeedbackScreen() {
         {confirmed ? (
           <Animated.View accessibilityRole="alert" entering={FadeInDown.duration(motion.duracao('normal'))} style={styles.confirmed}>
             <Ionicons color={cores.status.sucesso.forte} name="checkmark" size={tamanho.iconeMedio} />
-            <View style={styles.confirmedCopy}><Text style={styles.confirmedTitle}>Leitura confirmada</Text><Text style={styles.confirmedText}>Sua confirmação foi registrada em {dateTime(feedback.acknowledged_at!)}.</Text><Text style={styles.confirmedHint}>Você pode continuar acessando este feedback e baixar o documento quando quiser.</Text></View>
+            <View style={styles.confirmedCopy}><Text style={styles.confirmedTitle}>Leitura confirmada</Text><Text style={styles.confirmedText}>Você confirmou em {dateTime(feedback.acknowledged_at!)}{feedback.acknowledgment_note ? ' e escreveu:' : '.'}</Text>{feedback.acknowledgment_note ? <View style={styles.noteBox}><Text selectable style={styles.noteText}>{feedback.acknowledgment_note}</Text></View> : null}<Text style={styles.confirmedHint}>Você pode continuar acessando este feedback e baixar o documento quando quiser.</Text></View>
           </Animated.View>
         ) : (
           <Animated.View exiting={FadeOut.duration(motion.duracao('instant'))} style={styles.confirmArea}>
@@ -95,6 +100,19 @@ export default function PublicFeedbackScreen() {
               <View style={[styles.checkbox, checked && styles.checkboxChecked]}>{checked ? <Ionicons color={cores.texto.sobreAccent} name="checkmark" size={tamanho.iconePequeno} /> : null}</View>
               <Text style={styles.checkboxLabel}>Li e estou ciente deste feedback</Text>
             </Pressable>
+            <Input
+              accessibilityLabel="Observação opcional"
+              editable={!saving}
+              inputStyle={styles.noteInput}
+              label="Quer deixar uma observação? (opcional)"
+              maxLength={MAX_OBSERVACAO}
+              multiline
+              onChangeText={setNote}
+              placeholder="Escreva aqui, se quiser. Você pode confirmar sem escrever nada."
+              textAlignVertical="top"
+              value={note}
+            />
+            <Text style={styles.noteCounter}>{note.length} de {MAX_OBSERVACAO}</Text>
             <Text style={styles.confirmHint}>A confirmação registra que você teve acesso ao conteúdo.</Text>
             <Button disabled={!checked} icon="checkmark-outline" label="Confirmar leitura" loading={saving} onPress={acknowledge} style={styles.confirmButton} />
           </Animated.View>
@@ -131,6 +149,10 @@ const styles = StyleSheet.create({
   confirmButton: { alignSelf: 'flex-start', marginTop: espaco.sm },
   confirmed: { alignItems: 'flex-start', borderTopColor: cores.borda.sutil, borderTopWidth: borda.fina, flexDirection: 'row', gap: espaco.sm, marginTop: espaco.xxl, paddingTop: espaco.xxl },
   confirmedCopy: { flex: 1 },
+  noteInput: { minHeight: espaco.tela * 2 },
+  noteCounter: { ...tipografia.legenda, color: cores.texto.discreto, textAlign: 'right' },
+  noteBox: { backgroundColor: cores.superficie.sutil, borderColor: cores.borda.sutil, borderRadius: raio.controle, borderWidth: borda.fina, marginTop: espaco.md, padding: espaco.md },
+  noteText: { ...tipografia.corpo, color: cores.texto.primario },
   confirmedTitle: { ...tipografia.corpoForte, color: cores.status.sucesso.forte },
   confirmedText: { ...tipografia.corpo, color: cores.texto.secundario, marginTop: espaco.micro },
   confirmedHint: { ...tipografia.corpo, color: cores.texto.discreto, marginTop: espaco.md, maxWidth: 420 },

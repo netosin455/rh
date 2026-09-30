@@ -252,6 +252,84 @@ CREATE TABLE IF NOT EXISTS notices (
 CREATE INDEX IF NOT EXISTS notices_company_idx ON notices (company_id, created_at DESC);
 
 -- ──────────────────────────────────────────────────────────
+-- PESQUISAS DE PULSO
+-- ──────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS pulse_surveys (
+  id           serial PRIMARY KEY,
+  company_id   integer NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  created_by   integer REFERENCES users(id) ON DELETE SET NULL,
+  title        text NOT NULL,
+  question     text NOT NULL,
+  type         text NOT NULL DEFAULT 'scale'
+                 CHECK (type IN ('scale', 'choice', 'text')),
+  options      jsonb,
+  target_dept  integer REFERENCES departments(id) ON DELETE SET NULL,
+  expires_at   date,
+  created_at   timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS pulse_surveys_company_idx ON pulse_surveys (company_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS pulse_responses (
+  id           serial PRIMARY KEY,
+  survey_id    integer NOT NULL REFERENCES pulse_surveys(id) ON DELETE CASCADE,
+  score        integer CHECK (score BETWEEN 1 AND 5),
+  choice       text,
+  responded_at timestamptz NOT NULL DEFAULT now(),
+  voter_token  text
+);
+
+CREATE INDEX IF NOT EXISTS pulse_responses_survey_idx ON pulse_responses (survey_id);
+CREATE UNIQUE INDEX IF NOT EXISTS uniq_survey_voter
+  ON pulse_responses (survey_id, voter_token) WHERE voter_token IS NOT NULL;
+
+CREATE TABLE IF NOT EXISTS survey_questions (
+  id           serial PRIMARY KEY,
+  survey_id    integer NOT NULL REFERENCES pulse_surveys(id) ON DELETE CASCADE,
+  position     smallint NOT NULL CHECK (position BETWEEN 1 AND 10),
+  question     text NOT NULL CHECK (char_length(btrim(question)) > 0),
+  type         text NOT NULL CHECK (type IN ('scale', 'choice', 'text')),
+  options      jsonb,
+  required     boolean NOT NULL DEFAULT true,
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (survey_id, position),
+  CHECK (
+    CASE WHEN type = 'choice'
+      THEN jsonb_typeof(options) = 'array' AND jsonb_array_length(options) BETWEEN 2 AND 8
+      ELSE options IS NULL
+    END
+  )
+);
+
+CREATE TABLE IF NOT EXISTS survey_submissions (
+  id           serial PRIMARY KEY,
+  survey_id    integer NOT NULL REFERENCES pulse_surveys(id) ON DELETE CASCADE,
+  voter_token  text,
+  submitted_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS survey_answers (
+  id              serial PRIMARY KEY,
+  submission_id   integer NOT NULL REFERENCES survey_submissions(id) ON DELETE CASCADE,
+  question_id     integer NOT NULL REFERENCES survey_questions(id) ON DELETE CASCADE,
+  score           integer,
+  choice          text,
+  text            text,
+  UNIQUE (submission_id, question_id),
+  CHECK (
+    (score BETWEEN 1 AND 5 AND choice IS NULL AND text IS NULL)
+    OR (score IS NULL AND choice IS NOT NULL AND text IS NULL AND char_length(btrim(choice)) > 0)
+    OR (score IS NULL AND choice IS NULL AND text IS NOT NULL AND char_length(btrim(text)) BETWEEN 1 AND 1000)
+  )
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS survey_submissions_survey_voter_idx
+  ON survey_submissions (survey_id, voter_token) WHERE voter_token IS NOT NULL;
+CREATE INDEX IF NOT EXISTS survey_submissions_survey_idx ON survey_submissions (survey_id, submitted_at DESC);
+CREATE INDEX IF NOT EXISTS survey_answers_submission_idx ON survey_answers (submission_id);
+CREATE INDEX IF NOT EXISTS survey_answers_question_idx ON survey_answers (question_id);
+
+-- ──────────────────────────────────────────────────────────
 -- FEEDBACKS INDIVIDUAIS
 -- ──────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS feedbacks (
@@ -266,6 +344,7 @@ CREATE TABLE IF NOT EXISTS feedbacks (
                     CHECK (status IN ('draft', 'published', 'acknowledged', 'revoked')),
   published_at    timestamptz,
   acknowledged_at timestamptz,
+  acknowledgment_note text CHECK (acknowledgment_note IS NULL OR char_length(btrim(acknowledgment_note)) BETWEEN 1 AND 1000),
   revoked_at      timestamptz,
   created_at      timestamptz NOT NULL DEFAULT now(),
   updated_at      timestamptz NOT NULL DEFAULT now(),

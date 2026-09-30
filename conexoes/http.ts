@@ -123,3 +123,35 @@ function traduzirFalhaDeRede(e: unknown, expirou: boolean, isLeitura: boolean): 
   }
   return new ApiError(0, 'Erro de conexão. Tente novamente.');
 }
+
+/**
+ * Chamada SEM login (páginas públicas: responder pesquisa, ler feedback pelo link).
+ * Mesmo timeout de 15 s e mesmas mensagens de erro do apiFetch; sem retry.
+ */
+export async function publicFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
+  if (!API_URL) throw new ApiError(0, 'URL da API não configurada.');
+  const controller = new AbortController();
+  let expirou = false;
+  const timer = setTimeout(() => { expirou = true; controller.abort(); }, TIMEOUT_MS);
+  const metodo = (options.method ?? 'GET').toUpperCase();
+  const isLeitura = metodo === 'GET' || metodo === 'HEAD';
+  try {
+    let res: Response;
+    try {
+      res = await fetch(`${API_URL}${path}`, {
+        ...options,
+        headers: { 'Content-Type': 'application/json', ...(options.headers as Record<string, string>) },
+        signal: controller.signal,
+      });
+    } catch (e: unknown) {
+      throw traduzirFalhaDeRede(e, expirou, isLeitura);
+    }
+    if (!res.ok) {
+      const body: { error?: string } = await res.json().catch(() => ({}));
+      throw new ApiError(res.status, body?.error || `Erro ${res.status}`);
+    }
+    return (await res.json()) as T;
+  } finally {
+    clearTimeout(timer);
+  }
+}

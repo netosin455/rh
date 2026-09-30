@@ -152,6 +152,7 @@ function publicResponse(row: PublicFeedbackRow) {
     employee_role_title: row.employee_role_title, employee_department_name: row.employee_department_name,
     created_by_name: row.created_by_name, created_by_role: row.created_by_role,
     status: row.status, published_at: row.published_at, acknowledged_at: row.acknowledged_at,
+    acknowledgment_note: row.acknowledgment_note,
   };
 }
 
@@ -164,16 +165,36 @@ async function activeFeedback(res: VercelResponse, token: string): Promise<Publi
 
 async function acknowledge(res: VercelResponse, token: string, body: unknown) {
   if ((body as { acknowledged?: unknown } | null)?.acknowledged !== true) return err(res, 400, 'Confirmação de leitura obrigatória');
+  const rawNote = (body as { note?: unknown } | null)?.note;
+  if (rawNote != null && typeof rawNote !== 'string') return err(res, 400, 'Observação inválida');
+  const note = typeof rawNote === 'string' ? rawNote.trim() : null;
+  if (note && note.length > 1000) return err(res, 400, 'Observação deve ter no máximo 1000 caracteres');
   const feedback = await activeFeedback(res, token);
   if (!feedback) return;
-  if (feedback.status === 'acknowledged') return res.json({ acknowledged_at: feedback.acknowledged_at, already_acknowledged: true });
+  if (feedback.status === 'acknowledged') {
+    return res.json({
+      acknowledged_at: feedback.acknowledged_at,
+      acknowledgment_note: feedback.acknowledgment_note,
+      already_acknowledged: true,
+    });
+  }
   const rows = await sql`
-    UPDATE feedbacks SET status = 'acknowledged', acknowledged_at = now()
-    WHERE public_token = ${token} AND status = 'published' AND acknowledged_at IS NULL RETURNING acknowledged_at
+    UPDATE feedbacks SET status = 'acknowledged', acknowledged_at = now(), acknowledgment_note = ${note || null}
+    WHERE public_token = ${token} AND status = 'published' AND acknowledged_at IS NULL
+    RETURNING acknowledged_at, acknowledgment_note
   `;
-  if (rows[0]) return res.json({ acknowledged_at: rows[0].acknowledged_at, already_acknowledged: false });
+  if (rows[0]) {
+    const acknowledged = rows[0] as { acknowledged_at: string; acknowledgment_note: string | null };
+    return res.json({ ...acknowledged, already_acknowledged: false });
+  }
   const current = await activeFeedback(res, token);
-  if (current?.status === 'acknowledged') return res.json({ acknowledged_at: current.acknowledged_at, already_acknowledged: true });
+  if (current?.status === 'acknowledged') {
+    return res.json({
+      acknowledged_at: current.acknowledged_at,
+      acknowledgment_note: current.acknowledgment_note,
+      already_acknowledged: true,
+    });
+  }
 }
 
 async function downloadPdf(res: VercelResponse, token: string) {

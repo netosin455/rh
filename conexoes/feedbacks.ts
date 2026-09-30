@@ -1,4 +1,4 @@
-import { apiFetch, ApiError } from './http';
+import { apiFetch, ApiError, publicFetch } from './http';
 import type { CreateFeedbackData, Feedback, PublicFeedback } from '../tipos/modelos';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? '';
@@ -43,30 +43,18 @@ export async function revokeFeedback(id: number): Promise<Feedback> {
   return apiFetch<Feedback>(`/api/feedbacks/${id}/revoke`, { method: 'POST' });
 }
 
-async function publicFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
-  let response: Response;
-  try {
-    response = await fetch(publicApiUrl(path), {
-      ...options,
-      headers: { 'Content-Type': 'application/json', ...(options.headers as Record<string, string>) },
-    });
-  } catch {
-    throw new ApiError(0, 'Sem conexão com o servidor. Verifique sua internet.');
-  }
-  if (!response.ok) {
-    const payload = await response.json().catch(() => ({}));
-    throw new ApiError(response.status, payload?.error ?? `Erro ${response.status}`);
-  }
-  return response.json() as Promise<T>;
-}
-
 export async function getPublicFeedback(token: string): Promise<PublicFeedback> {
   return publicFetch<PublicFeedback>(`/api/feedback/public/${token}`);
 }
 
-export async function acknowledgeFeedback(token: string): Promise<{ acknowledged_at: string; already_acknowledged: boolean }> {
+/** Confirma a leitura. A observação é opcional (até 1000 caracteres); em branco não é enviada. */
+export async function acknowledgeFeedback(
+  token: string,
+  note?: string,
+): Promise<{ acknowledged_at: string; already_acknowledged: boolean; acknowledgment_note?: string | null }> {
+  const observacao = note?.trim();
   return publicFetch(`/api/feedback/public/${token}/acknowledge`, {
     method: 'POST',
-    body: JSON.stringify({ acknowledged: true }),
+    body: JSON.stringify(observacao ? { acknowledged: true, note: observacao } : { acknowledged: true }),
   });
 }

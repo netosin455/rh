@@ -6,6 +6,7 @@ export type PublicFeedbackRow = {
   status: 'published' | 'acknowledged' | 'revoked';
   published_at: string;
   acknowledged_at: string | null;
+  acknowledgment_note: string | null;
   employee_name: string;
   employee_role_title: string | null;
   employee_department_name: string | null;
@@ -20,7 +21,7 @@ export function isFeedbackToken(value: unknown): value is string {
 
 export async function findPublicFeedback(token: string): Promise<PublicFeedbackRow | null> {
   const rows = await sql`
-    SELECT f.title, f.content, f.status, f.published_at, f.acknowledged_at,
+    SELECT f.title, f.content, f.status, f.published_at, f.acknowledged_at, f.acknowledgment_note,
       e.name AS employee_name, e.role_title AS employee_role_title,
       d.name AS employee_department_name, c.name AS company_name,
       u.name AS created_by_name, u.role AS created_by_role
