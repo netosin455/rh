@@ -1,5 +1,51 @@
 # Changelog — SuperRH
 
+## [2026-10-01] — Fase 1 de estabilização, CI, NPS de clientes e risco de saída clicável
+
+### Corrigido
+- **Isolamento entre empresas:** `department_id` e `manager_id` (colaborador) e `case_id` (evento) agora são validados por `company_id` (422 sem gravar) e os JOINs conferem a empresa. Testes de regressão em `tests/employees-tenancy.test.ts` e `tests/events-tenancy.test.ts`.
+- **Histórico salarial nunca era gravado:** a tabela `salary_history` estava no `schema.sql` mas NUNCA existiu em produção (o `.catch(() => {})` escondia). Migration `019_salary_history.sql` criou a tabela; a atualização do colaborador e o histórico agora são um único comando, sem falha silenciosa. Descoberto rodando `EXPLAIN` no Neon real: os testes com banco simulado não pegam tabela inexistente.
+- **Notificações lidas por usuário:** migration `018_notification_reads.sql`; a leitura de um usuário não marca como lida para os outros (fallback para o comportamento antigo se a tabela não existir).
+- **Sessão:** `helpers/sessao.ts` (restaurar sessão nunca lança, loading sempre termina), login passa pelo cliente HTTP compartilhado (timeout de 15 s) e um 401 em qualquer tela encerra a sessão na hora (`setUnauthorizedHandler`).
+- **Teste instável:** `tests/recognitions.test.ts` estourava 5 s sob carga (import dinâmico frio) e derrubava o teste seguinte em cascata; import movido para `beforeAll` e `mockReset`.
+- Conta da usuária RH corrigida em produção: "Ariele" para "Arielle" (nome, login e e-mail); o cadastro de funcionária já estava correto.
+
+### Adicionado
+- **CI** (`.github/workflows/ci.yml`): `tsc`, testes e build web em todo PR e push na `main`; scripts `typecheck`, `test:ci`, `build:web` e `verify`. A automação "Agente IA — Análise do Repositório" foi desativada no GitHub (apontava para um repositório inexistente); o arquivo continua no repo.
+- **NPS de clientes** como área própria (item "NPS" no menu): campanhas com público `customers`, pergunta NPS 0 a 10, modelo "Satisfação do cliente", resposta pública anônima por link/QR code (`toqr`, gerado no cliente), contato opcional só com consentimento, "Retornar contato" (marcar contatado, apagar contato sem apagar a resposta). NPS calculado no servidor (9-10 promotores, 7-8 neutros, 0-6 detratores; sem dados = nulo). Migration `020_nps_clientes.sql`.
+- **Trava por IP** nas pesquisas públicas: só HMAC do IP é gravado (nunca o IP puro nem em log); 100 respostas por IP em 24 h para colaboradores e 5 para clientes (HTTP 429).
+- **Risco de saída clicável** em People Analytics: cards alto/médio/baixo viram filtros com o motivo de cada pessoa (`helpers/risco.ts`, espelha a migration 006); filtro na URL (`?risco=`); Dashboard, Analytics, Equipe e Férias navegam por números ("todo número é um caminho"), com `?status=` e `?tab=`.
+
+### Planejamento
+- `PLAN_STABILIZATION.md`, `PLAN_SURVEYS_FEEDBACK_NOTE.md`, `PLAN_NPS_CLIENTES.md` em `docs/maestri/core/`.
+
+### Operação / pendências
+- Migrations 015 a 020 já executadas em produção. Pendente: banco de desenvolvimento separado no Neon e proteção do branch `main` (ação do Carlo nas contas); limpeza agendada de `ip_hash` com mais de 7 dias; evolução/filtro/PDF do NPS; seletores de data e hora na Agenda.
+- Verificado: `tsc` limpo, `npm test` verde, `expo export --platform web` ok, CI verde.
+
+## [2026-09-30] — Tela "Lançar", pesquisas com perguntas próprias, sidebar persistente e correções
+
+### Adicionado
+- **Tela única "Lançar"** (falta, folga, hora extra, férias, licença) no lugar dos 3 botões da Equipe e do formulário de 7 tipos; Folga sempre exige horas e mostra "banco de horas: 10h para 8h" antes de salvar.
+- **Pesquisas com 1 a 10 perguntas** (escala 1-5, escolha, aberta; obrigatória ou não), resposta uma pergunta por tela, resultados por pergunta. Migrations `016_survey_questions.sql` e `017_feedback_ack_note.sql`.
+- **Observação do colaborador** ao confirmar a leitura de um feedback (até 1000 caracteres; aparece no detalhe do RH e no PDF).
+- Migration `015_absences_falta.sql`: o tipo `falta` não existia na regra do banco de produção ("Registrar falta" dava erro).
+
+### Corrigido
+- **Sidebar** persistente em todas as rotas (estava no grupo de abas e sumia em colaborador, pesquisas, onboarding, feedbacks e notificações) e a fita azul acompanha o item ativo (a posição era medida dentro do grupo e dois itens tinham o mesmo y).
+- **Linha de feedback tremia no hover:** loop de `pointerEvents` alternando com o hover; linha passou a usar `onPointerEnter/Leave` e a caixa de ações fica sempre montada, só a opacidade muda.
+- **Busca de colaboradores** não para mais em 50 (`getEmployees` busca todas as páginas de 100); Dashboard, Equipe, Agenda, Avisos, Férias e Reconhecimentos mostram erro com "Tentar de novo" em vez de lista vazia.
+- `tsconfig` passou a cobrir o front inteiro (64 erros corrigidos) e o `apiFetch` ganhou timeout de 15 s com `AbortController`.
+- **Notificação individual vazava como global** quando o colaborador não tinha `user_id` (ficava `NULL`, que significa "empresa toda"); não grava mais.
+
+### Observação de processo
+- Push na `main` = deploy automático; migrations rodam ANTES do push e só com OK nomeado do Carlo.
+
+## [2026-09-29] — Feedback do Tiago removido e feedback individual com link privado e ciência
+
+### Operação
+- Feedback #2 (revogado, de TIAGO FERNANDO DE SOUZA) removido do banco de produção a pedido do Carlo; backup da linha guardado fora do repositório.
+
 ## [2026-09-29] — Feedback individual com link privado e ciência
 
 ### Adicionado
