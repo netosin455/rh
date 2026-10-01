@@ -22,6 +22,8 @@ import { buscarInsights, Insight } from '../../conexoes/insights';
 import { ErroComRetry } from '../../componentes/ErroComRetry';
 import { useAuth } from '../../contextos/Autenticacao';
 import { cores } from '../../estilo/cores';
+import { rotaEquipe, rotaFerias } from '../../helpers/filtros';
+import { rotaDoAlerta } from '../../helpers/risco';
 import { borda, espaco, raio, tamanho } from '../../estilo/espaco';
 import { useMotion } from '../../estilo/movimento';
 import { tipografia } from '../../estilo/tipografia';
@@ -176,7 +178,8 @@ export default function DashboardScreen() {
       description: alert.description ?? 'Este alerta requer revisão.',
       icon: alert.icon as keyof typeof Ionicons.glyphMap,
       level: 'urgent' as const,
-      route: `/${alert.route}`,
+      // Risco de saída vai direto para a lista filtrada em /analytics?risco=alto.
+      route: rotaDoAlerta(alert),
     })),
     ...(canSeeInsights && pendentesCount > 0 ? [{
       id: 'pending-vacations',
@@ -184,7 +187,7 @@ export default function DashboardScreen() {
       description: 'Revise os pedidos da equipe.',
       icon: 'time-outline' as const,
       level: 'important' as const,
-      route: '/(tabs)/ferias',
+      route: rotaFerias(),
     }] : []),
     ...(faltaCount > 0 ? [{
       id: 'monthly-absences',
@@ -192,7 +195,7 @@ export default function DashboardScreen() {
       description: 'Consulte as ausências para acompanhar a equipe.',
       icon: 'alert-circle-outline' as const,
       level: 'important' as const,
-      route: '/(tabs)/ferias',
+      route: rotaFerias('falta'),
     }] : []),
     ...alerts.filter((alert) => alert.severity !== 'alta').map((alert, index) => ({
       id: `important-alert-${index}`,
@@ -200,7 +203,7 @@ export default function DashboardScreen() {
       description: alert.description ?? 'Há um item para acompanhar.',
       icon: alert.icon as keyof typeof Ionicons.glyphMap,
       level: 'important' as const,
-      route: `/${alert.route}`,
+      route: rotaDoAlerta(alert),
     })),
   ];
   const reviewRoute = attentionItems[0]?.route ?? '/notificacoes';
@@ -244,7 +247,7 @@ export default function DashboardScreen() {
       ) : null}
 
       <View style={[styles.overviewRow, compact && styles.overviewRowCompact]}>
-        <Card style={styles.overviewCard}>
+        <Card accessibilityLabel={`Equipe hoje: ${activeEmployees} de ${employees.length} disponíveis. Ver quem está disponível.`} onPress={() => router.navigate(rotaEquipe('ativo') as never)} style={styles.overviewCard}>
           <View style={styles.overviewHeader}>
             <Text style={styles.overviewTitle}>Equipe hoje</Text>
             <StatusPill label={`${availabilityPercentage}% disponível`} status="ativo" />
@@ -289,7 +292,7 @@ export default function DashboardScreen() {
           <Section title="Aniversários">
             <Card padded={false} style={styles.listCard}>
               {upcomingBirthdays.length === 0 ? <EmptyState description="Não há aniversários nos próximos sete dias." icon="gift-outline" title="Sem aniversários próximos" /> : upcomingBirthdays.slice(0, 4).map((employee) => (
-                <ListRow description={employee.birthdayLabel} key={employee.id} leading={<Avatar name={employee.name} />} title={employee.name} />
+                <ListRow accessibilityLabel={`Abrir perfil de ${employee.name}, aniversário ${employee.birthdayLabel}`} description={employee.birthdayLabel} key={employee.id} leading={<Avatar name={employee.name} />} onPress={() => router.navigate(`/colaborador/${employee.id}` as never)} title={employee.name} />
               ))}
             </Card>
           </Section>

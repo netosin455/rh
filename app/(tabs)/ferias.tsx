@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { KeyboardAvoidingView, Platform, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
@@ -6,6 +7,7 @@ import { getAbsences, getPendingAbsences, createAbsence, approveAbsence, updateA
 import { getEmployees } from '../../conexoes/colaboradores';
 import { Absence, AbsenceType, ABSENCE_TYPE_LABELS, CreateAbsenceData, Employee } from '../../tipos/modelos';
 import { cores } from '../../estilo/cores';
+import { lerAbaFerias } from '../../helpers/filtros';
 import { formatDateShort, brToIso, isoToBr, maskDate } from '../../helpers/datas';
 import { confirmAction } from '../../helpers/confirm';
 import { exportAbsencesPDF } from '../../helpers/pdf';
@@ -135,7 +137,11 @@ export default function FeriasScreen() {
   const [empNames,   setEmpNames]   = useState<Record<number, string>>({});
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [activeTab,  setActiveTab]  = useState<AbsenceType | 'todos'>('todos');
+  // A aba mora na URL (/ferias?tab=falta): o card de faltas do Dashboard leva para cá já filtrado.
+  const router = useRouter();
+  const params = useLocalSearchParams<{ tab?: string | string[] }>();
+  const abaUrl = lerAbaFerias(params.tab);
+  const [activeTab,  setActiveTab]  = useState<AbsenceType | 'todos'>(abaUrl);
   const [showModal,  setShowModal]  = useState(false);
   // Novos lançamentos usam a tela única "Lançar"; o modal abaixo ficou só para editar pendentes antigos.
   const [showLancar, setShowLancar] = useState(false);
@@ -173,6 +179,13 @@ export default function FeriasScreen() {
 
   useEffect(() => { load(); }, [load]);
   const onRefresh = useCallback(() => { setRefreshing(true); load(); }, [load]);
+
+  useEffect(() => { setActiveTab(abaUrl); }, [abaUrl]);
+
+  function escolherAba(aba: AbsenceType | 'todos') {
+    setActiveTab(aba);
+    router.setParams({ tab: aba === 'todos' ? undefined : aba });
+  }
 
   const filtered = useMemo(() =>
     activeTab === 'todos' ? absences : absences.filter(a => a.type === activeTab),
@@ -352,7 +365,7 @@ export default function FeriasScreen() {
         </Section>
         <Section title="Registros" description="Filtre por tipo de afastamento para consultar ou editar solicitações pendentes." action={Platform.OS === 'web' && filtered.length > 0 ? <Button label="Exportar PDF" icon="download-outline" variant="ghost" onPress={() => exportAbsencesPDF(filtered as any)} /> : undefined}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterTabs}>
-            {FILTER_TABS.map((tab) => <Button key={tab.key} label={tab.label} variant={activeTab === tab.key ? 'primary' : 'secondary'} accessibilityLabel={`Filtrar por ${tab.label}`} onPress={() => setActiveTab(tab.key)} />)}
+            {FILTER_TABS.map((tab) => <Button key={tab.key} label={tab.label} variant={activeTab === tab.key ? 'primary' : 'secondary'} accessibilityLabel={`Filtrar por ${tab.label}`} onPress={() => escolherAba(tab.key)} />)}
           </ScrollView>
           {filtered.length === 0 && !loadError ? (
             <Card><EmptyState icon="umbrella-outline" title="Nenhum registro" description="Não há lançamentos para este filtro." action={<Button label="Lançar" icon="add" onPress={() => setShowLancar(true)} />} /></Card>

@@ -12,14 +12,22 @@ type MetricCardProps = {
   indicator?: ReactNode;
   onPress?: () => void;
   accessibilityLabel?: string;
+  /** Quando o cartão é um filtro: true = filtro ativo (destaque + aria-pressed). Ignorado sem onPress. */
+  selecionado?: boolean;
 };
 
 /** Métrica leve: hierarquia por tipografia, não por sombra ou caixa pesada. */
-export function MetricCard({ label, value, detail, indicator, onPress, accessibilityLabel }: MetricCardProps) {
+export function MetricCard({ label, value, detail, indicator, onPress, accessibilityLabel, selecionado }: MetricCardProps) {
   const summary = accessibilityLabel ?? [label, String(value), detail].filter(Boolean).join('. ');
 
   return (
-    <Card accessibilityLabel={summary} onPress={onPress} padded>
+    <Card
+      accessibilityLabel={summary}
+      onPress={onPress}
+      padded
+      style={onPress && selecionado ? styles.selecionado : undefined}
+      {...(onPress && selecionado !== undefined ? { 'aria-pressed': selecionado, accessibilityState: { selected: selecionado } } : {})}
+    >
       <View accessibilityRole="text" accessibilityLabel={summary} style={styles.content}>
         <View style={styles.topRow}>
           <Text style={styles.label}>{label}</Text>
@@ -33,6 +41,7 @@ export function MetricCard({ label, value, detail, indicator, onPress, accessibi
 }
 
 const styles = StyleSheet.create({
+  selecionado: { backgroundColor: theme.accent.superficie, borderColor: theme.accent.dourado, borderWidth: 2 },
   content: { gap: espaco.xs, minHeight: tamanho.toqueMinimo },
   topRow: { alignItems: 'center', flexDirection: 'row', gap: espaco.sm, justifyContent: 'space-between' },
   label: { ...tipografia.legenda, color: theme.texto.discreto },

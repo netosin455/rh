@@ -3,12 +3,13 @@ import {
   View, Text, ScrollView, TextInput, Pressable,
   StyleSheet, RefreshControl, Platform,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAuth } from '../../contextos/Autenticacao';
 import { Ionicons } from '@expo/vector-icons';
 import { getEmployees, createEmployee } from '../../conexoes/colaboradores';
 import { Employee, EmployeeStatus, LegalArea, STATUS_LABELS, CreateEmployeeData } from '../../tipos/modelos';
 import { cores } from '../../estilo/cores';
+import { FiltroEquipe, ROTULO_FILTRO_TEMPORARIO, combinaComFiltroEquipe, lerFiltroEquipe } from '../../helpers/filtros';
 import { borda, espaco, raio, tamanho } from '../../estilo/espaco';
 import { tipografia } from '../../estilo/tipografia';
 import { brToIso, maskDate, todayBr } from '../../helpers/datas';
@@ -33,7 +34,7 @@ function employeeStatusTone(status: EmployeeStatus): 'success' | 'info' | 'pendi
   return 'muted';
 }
 
-const FILTERS: { key: EmployeeStatus | 'todos'; label: string }[] = [
+const FILTERS: { key: FiltroEquipe; label: string }[] = [
   { key: 'todos',    label: 'Todos' },
   { key: 'ativo',    label: 'Ativos' },
   { key: 'ferias',   label: 'Férias' },
@@ -41,12 +42,7 @@ const FILTERS: { key: EmployeeStatus | 'todos'; label: string }[] = [
   { key: 'afastado', label: 'Afastado' },
 ];
 
-// Filtro "Licença" cobre qualquer variante (médica/maternidade/paternidade)
-function matchesStatusFilter(empStatus: EmployeeStatus, filterKey: EmployeeStatus | 'todos'): boolean {
-  if (filterKey === 'todos') return true;
-  if (filterKey === 'licenca') return empStatus.startsWith('licenca');
-  return empStatus === filterKey;
-}
+// A regra de cada filtro mora em helpers/filtros.ts ("Licença" cobre as variantes médica/maternidade/paternidade).
 
 const LEGAL_AREAS: { key: LegalArea; label: string }[] = [
   { key: 'civel',       label: 'Cível' },
@@ -103,7 +99,10 @@ export default function ColaboradoresScreen() {
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [search,     setSearch]     = useState('');
-  const [filter,     setFilter]     = useState<EmployeeStatus | 'todos'>('todos');
+  // O filtro de status mora na URL (/colaboradores?status=ativo): números de outras telas levam para cá já filtrados.
+  const params = useLocalSearchParams<{ status?: string | string[] }>();
+  const filtroUrl = lerFiltroEquipe(params.status);
+  const [filter,     setFilter]     = useState<FiltroEquipe>(filtroUrl);
   const [showModal,  setShowModal]  = useState(false);
   const [saving,     setSaving]     = useState(false);
   const [form,       setForm]       = useState(EMPTY_FORM);
@@ -129,10 +128,18 @@ export default function ColaboradoresScreen() {
   useEffect(() => { load(); }, [load]);
   const onRefresh = useCallback(() => { setRefreshing(true); load(); }, [load]);
 
+  // A URL mudou (ex.: veio de outro card): acompanha.
+  useEffect(() => { setFilter(filtroUrl); }, [filtroUrl]);
+
+  function escolherFiltro(novo: FiltroEquipe) {
+    setFilter(novo);
+    router.setParams({ status: novo === 'todos' ? undefined : novo });
+  }
+
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
     return employees.filter(e => {
-      const matchStatus = matchesStatusFilter(e.status, filter);
+      const matchStatus = combinaComFiltroEquipe(e.status, filter);
       const matchSearch = !q || e.name.toLowerCase().includes(q) || e.role_title.toLowerCase().includes(q);
       return matchStatus && matchSearch;
     });
@@ -229,8 +236,10 @@ export default function ColaboradoresScreen() {
 
         <ScrollView contentContainerStyle={styles.filterContent} horizontal showsHorizontalScrollIndicator={false}>
           {FILTERS.map(f => (
-            <Chip active={filter === f.key} key={f.key} label={f.label} onPress={() => setFilter(f.key)} />
+            <Chip active={filter === f.key} key={f.key} label={f.label} onPress={() => escolherFiltro(f.key)} />
           ))}
+          {/* Filtros que vêm de outras telas (ex.: "Em licença" do Analytics) só aparecem enquanto estão ativos. */}
+          {ROTULO_FILTRO_TEMPORARIO[filter] ? <Chip active key={filter} label={ROTULO_FILTRO_TEMPORARIO[filter] ?? ''} onPress={() => escolherFiltro('todos')} /> : null}
         </ScrollView>
 
         <Text style={styles.countLabel}>{filtered.length} colaborador{filtered.length !== 1 ? 'es' : ''}</Text>
