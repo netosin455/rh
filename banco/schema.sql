@@ -207,6 +207,16 @@ CREATE TABLE IF NOT EXISTS notifications (
 CREATE INDEX IF NOT EXISTS notifications_user_idx    ON notifications (user_id, read, created_at DESC);
 CREATE INDEX IF NOT EXISTS notifications_company_idx ON notifications (company_id, read, created_at DESC);
 
+-- Leituras são individuais por usuário; notifications.read permanece apenas como legado das globais.
+CREATE TABLE IF NOT EXISTS notification_reads (
+  notification_id integer NOT NULL REFERENCES notifications(id) ON DELETE CASCADE,
+  user_id         integer NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  read_at         timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (notification_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS notification_reads_user_idx
+  ON notification_reads (user_id, notification_id);
+
 -- ──────────────────────────────────────────────────────────
 -- TRIGGER: atualiza updated_at automaticamente
 -- ──────────────────────────────────────────────────────────

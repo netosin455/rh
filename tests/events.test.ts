@@ -9,6 +9,7 @@ vi.mock('../api/_lib', () => ({
   authenticate: (...args: unknown[]) => mockAuthenticate(...args),
   err: (res: any, status: number, message: string) => res.status(status).json({ error: message }),
   IS_ADMIN: ['super_admin', 'admin'],
+  parsePagination: () => ({ page: 1, limit: 10, offset: 0 }),
 }));
 
 function makeRes() {

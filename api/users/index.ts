@@ -8,9 +8,22 @@ import bcrypt from 'bcryptjs';
 import { sql, cors, authenticate, err, VALID_ROLES, parsePagination } from '../_lib';
 import { isValidEmail } from '../_email';
 
-// ── GET  /api/users?notifications=1  — lista notificações do usuário
-// ── PATCH /api/users?notifications=1 — marca como lida(s)
-async function handleNotifications(req: VercelRequest, res: VercelResponse, userId: number, companyId: number) {
+type NotificationReadRow = { read: boolean };
+
+function notificationReadsUnavailable(error: unknown): boolean {
+  return typeof error === 'object'
+    && error !== null
+    && 'code' in error
+    && (error as { code?: unknown }).code === '42P01';
+}
+
+// Compatibilidade durante a janela entre a publicação do código e a migration 018.
+async function handleLegacyNotifications(
+  req: VercelRequest,
+  res: VercelResponse,
+  userId: number,
+  companyId: number,
+) {
   if (req.method === 'GET') {
     const rows = await sql`
       SELECT id, title, body, type, route, read, created_at
@@ -20,12 +33,13 @@ async function handleNotifications(req: VercelRequest, res: VercelResponse, user
       ORDER BY created_at DESC
       LIMIT 50
     `;
-    const unread = (rows as any[]).filter(r => !r.read).length;
+    const unread = (rows as NotificationReadRow[]).filter((row) => !row.read).length;
     return res.status(200).json({ notifications: rows, unread });
   }
 
   if (req.method === 'PATCH') {
-    const { id, all } = req.body ?? {};
+    const body = req.body as { id?: unknown; all?: unknown } | undefined;
+    const { id, all } = body ?? {};
     if (all) {
       await sql`
         UPDATE notifications SET read = TRUE
@@ -43,6 +57,78 @@ async function handleNotifications(req: VercelRequest, res: VercelResponse, user
   }
 
   return err(res, 405, 'Método não permitido');
+}
+
+// ── GET  /api/users?notifications=1  — lista notificações do usuário
+// ── PATCH /api/users?notifications=1 — registra leitura individual
+async function handleNotifications(req: VercelRequest, res: VercelResponse, userId: number, companyId: number) {
+  try {
+    if (req.method === 'GET') {
+      const rows = await sql`
+        SELECT n.id, n.title, n.body, n.type, n.route,
+          CASE
+            WHEN nr.notification_id IS NOT NULL THEN TRUE
+            -- Decisão de migração: o read legado das globais continua global.
+            WHEN n.user_id IS NULL THEN COALESCE(n.read, FALSE)
+            ELSE FALSE
+          END AS read,
+          n.created_at
+        FROM notifications n
+        LEFT JOIN notification_reads nr
+          ON nr.notification_id = n.id AND nr.user_id = ${userId}
+        WHERE (n.user_id = ${userId} OR n.user_id IS NULL)
+          AND n.company_id = ${companyId}
+        ORDER BY n.created_at DESC
+        LIMIT 50
+      `;
+      const unread = (rows as NotificationReadRow[]).filter((row) => !row.read).length;
+      return res.status(200).json({ notifications: rows, unread });
+    }
+
+    if (req.method === 'PATCH') {
+      const body = req.body as { id?: unknown; all?: unknown } | undefined;
+      const { id, all } = body ?? {};
+
+      if (all) {
+        await sql`
+          INSERT INTO notification_reads (notification_id, user_id)
+          SELECT n.id, ${userId}
+          FROM notifications n
+          WHERE (n.user_id = ${userId} OR n.user_id IS NULL)
+            AND n.company_id = ${companyId}
+          ON CONFLICT (notification_id, user_id) DO NOTHING
+        `;
+      } else {
+        const notificationId = Number(id);
+        if (!Number.isSafeInteger(notificationId) || notificationId <= 0) {
+          return err(res, 400, 'ID de notificação inválido.');
+        }
+        await sql`
+          INSERT INTO notification_reads (notification_id, user_id)
+          SELECT n.id, ${userId}
+          FROM notifications n
+          WHERE n.id = ${notificationId}
+            AND (n.user_id = ${userId} OR n.user_id IS NULL)
+            AND n.company_id = ${companyId}
+          ON CONFLICT (notification_id, user_id) DO NOTHING
+        `;
+      }
+      return res.status(200).json({ ok: true });
+    }
+
+    return err(res, 405, 'Método não permitido');
+  } catch (error: unknown) {
+    if (notificationReadsUnavailable(error)) {
+      return handleLegacyNotifications(req, res, userId, companyId);
+    }
+    console.error({
+      level: 'error',
+      event: 'notification_read_operation_failed',
+      company_id: companyId,
+      error_name: error instanceof Error ? error.name : 'UnknownError',
+    });
+    return err(res, 500, 'Não foi possível consultar ou registrar a leitura da notificação.');
+  }
 }
 
 // POST /api/users?push=1 — registra push token (qualquer role autenticado)

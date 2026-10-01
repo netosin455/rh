@@ -7,6 +7,46 @@ import { sql, cors, authenticate, err, CAN_MANAGE_EMPLOYEES, parsePagination } f
 import { validarCPF } from '../../helpers/validacoes';
 import { normalizeOptionalEmail } from '../_email';
 
+/**
+ * Confirma que as relações opcionais pertencem à mesma empresa do colaborador.
+ * O banco ainda mantém as FKs, mas elas não carregam o contexto de empresa.
+ */
+async function validarRelacoesColaborador(
+  companyId: number,
+  departmentId: unknown,
+  managerId: unknown,
+): Promise<string | null> {
+  if (departmentId != null) {
+    const normalizedDepartmentId = Number(departmentId);
+    if (!Number.isSafeInteger(normalizedDepartmentId) || normalizedDepartmentId <= 0) {
+      return 'Departamento inválido.';
+    }
+
+    const departments = await sql`
+      SELECT id FROM departments
+      WHERE id = ${normalizedDepartmentId} AND company_id = ${companyId}
+    `;
+    if (!departments[0]) return 'Departamento não pertence à empresa.';
+  }
+
+  if (managerId != null) {
+    const normalizedManagerId = Number(managerId);
+    if (!Number.isSafeInteger(normalizedManagerId) || normalizedManagerId <= 0) {
+      return 'Gestor inválido.';
+    }
+
+    const managers = await sql`
+      SELECT id FROM employees
+      WHERE id = ${normalizedManagerId}
+        AND company_id = ${companyId}
+        AND deleted_at IS NULL
+    `;
+    if (!managers[0]) return 'Gestor não pertence à empresa ou está inativo.';
+  }
+
+  return null;
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   cors(req, res);
   if (req.method === 'OPTIONS') return res.status(200).end();
@@ -39,7 +79,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             )
           END AS status
         FROM employees e
-        LEFT JOIN departments d ON d.id = e.department_id
+        LEFT JOIN departments d ON d.id = e.department_id AND d.company_id = e.company_id
         WHERE e.id = ${id} AND e.company_id = ${ctx.company_id} AND e.deleted_at IS NULL
       `;
       if (!rows[0]) return err(res, 404, 'Colaborador não encontrado');
@@ -67,46 +107,66 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return err(res, 400, 'folga_hours_delta deve ser um número');
       }
 
-      // Registrar histórico se salário foi alterado
-      if (salary != null) {
-        const current = await sql`
-          SELECT salary FROM employees WHERE id = ${id} AND company_id = ${ctx.company_id} AND deleted_at IS NULL
-        `;
-        if (current[0] && String(current[0].salary) !== String(salary)) {
-          await sql`
-            INSERT INTO salary_history (company_id, employee_id, old_salary, new_salary, changed_by)
-            VALUES (${ctx.company_id}, ${id}, ${current[0].salary ?? null}, ${salary}, ${ctx.sub})
-          `.catch(() => {});
-        }
-      }
+      const relationError = await validarRelacoesColaborador(ctx.company_id, department_id, manager_id);
+      if (relationError) return err(res, 422, relationError);
 
-      const rows = await sql`
-        UPDATE employees SET
-          name          = COALESCE(${name          ?? null}, name),
-          cpf           = COALESCE(${cpf           ?? null}, cpf),
-          birth_date    = COALESCE(${birth_date    ?? null}, birth_date),
-          hire_date     = COALESCE(${hire_date     ?? null}, hire_date),
-          department_id = COALESCE(${department_id ?? null}, department_id),
-          role_title    = COALESCE(${role_title    ?? null}, role_title),
-          legal_area    = COALESCE(${legal_area    ?? null}, legal_area),
-          oab_number    = COALESCE(${oab_number    ?? null}, oab_number),
-          manager_id    = COALESCE(${manager_id    ?? null}, manager_id),
-          status        = COALESCE(${status        ?? null}, status),
-          photo_url     = COALESCE(${photo_url     ?? null}, photo_url),
-          phone         = COALESCE(${phone         ?? null}, phone),
-          email         = CASE WHEN ${emailProvided}::boolean THEN ${emailParsed.value} ELSE email END,
-          salary        = COALESCE(${salary        ?? null}, salary),
-          vacation_days = COALESCE(${vacation_days ?? null}, vacation_days),
-          folga_hours   = CASE
-            WHEN ${folga_hours_delta ?? null}::numeric IS NOT NULL
-              THEN GREATEST(0, folga_hours + ${folga_hours_delta ?? null}::numeric)
-            ELSE COALESCE(${folga_hours ?? null}, folga_hours)
-          END
-        WHERE id = ${id} AND company_id = ${ctx.company_id} AND deleted_at IS NULL
-        RETURNING *
-      `;
-      if (!rows[0]) return err(res, 404, 'Colaborador não encontrado');
-      return res.json(rows[0]);
+      try {
+        // A atualização e o histórico compartilham a mesma instrução para evitar salário sem auditoria.
+        const rows = await sql`
+          WITH current_employee AS (
+            SELECT id, salary
+            FROM employees
+            WHERE id = ${id} AND company_id = ${ctx.company_id} AND deleted_at IS NULL
+            FOR UPDATE
+          ), updated_employee AS (
+            UPDATE employees e SET
+              name          = COALESCE(${name          ?? null}, e.name),
+              cpf           = COALESCE(${cpf           ?? null}, e.cpf),
+              birth_date    = COALESCE(${birth_date    ?? null}, e.birth_date),
+              hire_date     = COALESCE(${hire_date     ?? null}, e.hire_date),
+              department_id = COALESCE(${department_id ?? null}, e.department_id),
+              role_title    = COALESCE(${role_title    ?? null}, e.role_title),
+              legal_area    = COALESCE(${legal_area    ?? null}, e.legal_area),
+              oab_number    = COALESCE(${oab_number    ?? null}, e.oab_number),
+              manager_id    = COALESCE(${manager_id    ?? null}, e.manager_id),
+              status        = COALESCE(${status        ?? null}, e.status),
+              photo_url     = COALESCE(${photo_url     ?? null}, e.photo_url),
+              phone         = COALESCE(${phone         ?? null}, e.phone),
+              email         = CASE WHEN ${emailProvided}::boolean THEN ${emailParsed.value} ELSE e.email END,
+              salary        = COALESCE(${salary        ?? null}, e.salary),
+              vacation_days = COALESCE(${vacation_days ?? null}, e.vacation_days),
+              folga_hours   = CASE
+                WHEN ${folga_hours_delta ?? null}::numeric IS NOT NULL
+                  THEN GREATEST(0, e.folga_hours + ${folga_hours_delta ?? null}::numeric)
+                ELSE COALESCE(${folga_hours ?? null}, e.folga_hours)
+              END
+            FROM current_employee current
+            WHERE e.id = current.id
+            RETURNING e.*, current.salary AS previous_salary
+          ), salary_change AS (
+            INSERT INTO salary_history (company_id, employee_id, old_salary, new_salary, changed_by)
+            SELECT ${ctx.company_id}, id, previous_salary, salary, ${ctx.sub}
+            FROM updated_employee
+            WHERE ${salary != null}::boolean
+              AND previous_salary IS DISTINCT FROM salary
+            RETURNING employee_id
+          )
+          SELECT updated_employee.*
+          FROM updated_employee
+          LEFT JOIN salary_change ON TRUE
+        `;
+        if (!rows[0]) return err(res, 404, 'Colaborador não encontrado');
+        return res.json(rows[0]);
+      } catch (error: unknown) {
+        console.error({
+          level: 'error',
+          event: 'employee_update_with_salary_history_failed',
+          company_id: ctx.company_id,
+          employee_id: id,
+          error_name: error instanceof Error ? error.name : 'UnknownError',
+        });
+        return err(res, 500, 'Não foi possível atualizar o colaborador.');
+      }
     }
 
     if (req.method === 'DELETE') {
@@ -150,7 +210,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             )
           END AS status
         FROM employees e
-        LEFT JOIN departments d ON d.id = e.department_id
+        LEFT JOIN departments d ON d.id = e.department_id AND d.company_id = e.company_id
         WHERE e.company_id = ${ctx.company_id} AND e.deleted_at IS NULL
         ORDER BY e.name
         LIMIT ${limit} OFFSET ${offset}
@@ -178,6 +238,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
     const emailParsed = normalizeOptionalEmail(email);
     if (!emailParsed.ok) return err(res, 422, 'Email inválido.');
+
+    const relationError = await validarRelacoesColaborador(ctx.company_id, department_id, manager_id);
+    if (relationError) return err(res, 422, relationError);
 
     const rows = await sql`
       INSERT INTO employees

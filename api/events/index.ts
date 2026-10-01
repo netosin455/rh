@@ -3,7 +3,23 @@
 // ============================================================
 
 import type { Request as VercelRequest, Response as VercelResponse } from 'express';
-import { sql, cors, authenticate, err, IS_ADMIN } from '../_lib';
+import { sql, cors, authenticate, err, IS_ADMIN, parsePagination } from '../_lib';
+
+/** Impede que um evento referencie processo jurídico de outra empresa. */
+async function validarCasoEvento(companyId: number, caseId: unknown): Promise<string | null> {
+  if (caseId == null) return null;
+
+  const normalizedCaseId = Number(caseId);
+  if (!Number.isSafeInteger(normalizedCaseId) || normalizedCaseId <= 0) {
+    return 'Processo jurídico inválido.';
+  }
+
+  const cases = await sql`
+    SELECT id FROM legal_cases
+    WHERE id = ${normalizedCaseId} AND company_id = ${companyId}
+  `;
+  return cases[0] ? null : 'Processo jurídico não pertence à empresa.';
+}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   cors(req, res);
@@ -40,6 +56,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         color, category, case_id, location, is_all_day,
       } = req.body ?? {};
 
+      const caseError = await validarCasoEvento(ctx.company_id, case_id);
+      if (caseError) return err(res, 422, caseError);
+
       const rows = await sql`
         UPDATE events SET
           title       = COALESCE(${title       ?? null}, title),
@@ -75,7 +94,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // ── Collection routes ─────────────────────────────────────
   if (req.method === 'GET') {
-    const { month, date, upcoming, limit = '10' } = req.query;
+    const { month, date, upcoming } = req.query;
+    const { limit } = parsePagination(req.query, { defaultLimit: 10, maxLimit: 100 });
 
     let rows;
     if (upcoming === 'true') {
@@ -83,18 +103,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         SELECT e.*, u.name AS created_by_name, c.case_number, c.title AS case_title
         FROM events e
         LEFT JOIN users u ON u.id = e.user_id
-        LEFT JOIN legal_cases c ON c.id = e.case_id
+        LEFT JOIN legal_cases c ON c.id = e.case_id AND c.company_id = e.company_id
         WHERE e.company_id = ${ctx.company_id}
           AND e.date::date >= (NOW() AT TIME ZONE 'America/Sao_Paulo')::date
         ORDER BY e.date ASC, e.start_time ASC
-        LIMIT ${Number(limit)}
+        LIMIT ${limit}
       `;
     } else if (date) {
       rows = await sql`
         SELECT e.*, u.name AS created_by_name, c.case_number, c.title AS case_title
         FROM events e
         LEFT JOIN users u ON u.id = e.user_id
-        LEFT JOIN legal_cases c ON c.id = e.case_id
+        LEFT JOIN legal_cases c ON c.id = e.case_id AND c.company_id = e.company_id
         WHERE e.company_id = ${ctx.company_id} AND e.date = ${String(date)}
         ORDER BY e.start_time ASC
       `;
@@ -103,7 +123,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         SELECT e.*, u.name AS created_by_name, c.case_number, c.title AS case_title
         FROM events e
         LEFT JOIN users u ON u.id = e.user_id
-        LEFT JOIN legal_cases c ON c.id = e.case_id
+        LEFT JOIN legal_cases c ON c.id = e.case_id AND c.company_id = e.company_id
         WHERE e.company_id = ${ctx.company_id} AND e.date LIKE ${`${String(month)}%`}
         ORDER BY e.date ASC, e.start_time ASC
       `;
@@ -112,7 +132,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         SELECT e.*, u.name AS created_by_name, c.case_number, c.title AS case_title
         FROM events e
         LEFT JOIN users u ON u.id = e.user_id
-        LEFT JOIN legal_cases c ON c.id = e.case_id
+        LEFT JOIN legal_cases c ON c.id = e.case_id AND c.company_id = e.company_id
         WHERE e.company_id = ${ctx.company_id}
         ORDER BY e.date DESC
         LIMIT 100
@@ -129,6 +149,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     } = req.body ?? {};
 
     if (!title || !date) return err(res, 400, 'title e date são obrigatórios');
+
+    const caseError = await validarCasoEvento(ctx.company_id, case_id);
+    if (caseError) return err(res, 422, caseError);
 
     const rows = await sql`
       INSERT INTO events
