@@ -4,11 +4,10 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { fazerLogin } from '../conexoes/autenticacao';
+import { setUnauthorizedHandler } from '../conexoes/http';
+import { limparSessao, restaurarSessao, TOKEN_KEY, tokenExpirado, USER_KEY } from '../helpers/sessao';
 import { User, AuthState } from '../tipos/modelos';
-
-const TOKEN_KEY = '@superrh:token';
-const USER_KEY  = '@superrh:user';
-const API_URL   = process.env.EXPO_PUBLIC_API_URL || '';
 
 interface AuthContextData extends AuthState {
   login:           (username: string, password: string) => Promise<void>;
@@ -18,52 +17,44 @@ interface AuthContextData extends AuthState {
 
 const AuthContext = createContext<AuthContextData>({} as AuthContextData);
 
-function isTokenExpired(token: string): boolean {
-  try {
-    const payload = JSON.parse(atob(token.split('.')[1]));
-    return payload.exp * 1000 < Date.now();
-  } catch {
-    return true;
-  }
-}
-
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user,    setUser]    = useState<User | null>(null);
   const [token,   setToken]   = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Carrega sessão salva e valida expiração
+  // Carrega a sessão salva. restaurarSessao nunca lança (storage vazio, token vencido ou JSON
+  // corrompido limpam tudo e caem no login); o finally garante que o loading SEMPRE termina.
   useEffect(() => {
+    let ativo = true;
     async function loadAuth() {
-      const [storedToken, storedUser] = await Promise.all([
-        AsyncStorage.getItem(TOKEN_KEY),
-        AsyncStorage.getItem(USER_KEY),
-      ]);
-
-      if (storedToken && storedUser) {
-        if (isTokenExpired(storedToken)) {
-          // Token expirado — limpa
-          await AsyncStorage.removeItem(TOKEN_KEY);
-          await AsyncStorage.removeItem(USER_KEY);
-        } else {
-          setToken(storedToken);
-          setUser(JSON.parse(storedUser));
+      try {
+        const sessao = await restaurarSessao(AsyncStorage);
+        if (ativo && sessao) {
+          setToken(sessao.token);
+          setUser(sessao.user);
         }
+      } catch (e: unknown) {
+        console.warn('[Sessão] falha inesperada ao restaurar:', e instanceof Error ? e.name : 'erro');
+      } finally {
+        if (ativo) setLoading(false);
       }
-      setLoading(false);
     }
-    loadAuth();
+    void loadAuth();
+    return () => { ativo = false; };
+  }, []);
+
+  // 401 em qualquer tela: a camada HTTP já limpou o storage; aqui a sessão some da UI na hora
+  // (o AuthGuard então manda para o login).
+  useEffect(() => {
+    setUnauthorizedHandler(() => {
+      setToken(null);
+      setUser(null);
+    });
+    return () => setUnauthorizedHandler(null);
   }, []);
 
   async function login(username: string, password: string) {
-    const res = await fetch(`${API_URL}/api/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: username.trim().toLowerCase(), password }),
-    });
-
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Erro ao fazer login');
+    const data = await fazerLogin(username, password);
 
     await Promise.all([
       AsyncStorage.setItem(TOKEN_KEY, data.token),
@@ -75,7 +66,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function loginWithToken(rawToken: string) {
-    if (isTokenExpired(rawToken)) throw new Error('Token expirado');
+    if (tokenExpirado(rawToken)) throw new Error('Token expirado');
     const payload = JSON.parse(atob(rawToken.split('.')[1]));
     const userData: User = {
       id:         payload.sub,
@@ -93,8 +84,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function logout() {
-    await AsyncStorage.removeItem(TOKEN_KEY);
-    await AsyncStorage.removeItem(USER_KEY);
+    await limparSessao(AsyncStorage);
     setToken(null);
     setUser(null);
   }

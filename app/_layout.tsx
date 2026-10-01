@@ -51,7 +51,11 @@ function AuthGuard() {
           if (Platform.OS === 'web') window.history.replaceState({}, '', '/');
           router.replace('/(tabs)');
         })
-        .catch(() => router.replace('/login'));
+        .catch((e: unknown) => {
+          // Sem token nem dados do usuário no log: só o motivo técnico.
+          console.warn('[SSO] falha ao entrar com o token do Google:', e instanceof Error ? e.message : 'erro');
+          router.replace('/login');
+        });
     }
   }, [loading]);
 

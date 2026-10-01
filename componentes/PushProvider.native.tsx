@@ -43,8 +43,9 @@ export function PushProvider({ children }: { children: React.ReactNode }) {
           method: 'POST',
           body:   JSON.stringify({ token: tokenData.data, platform: Platform.OS }),
         });
-      } catch {
-        // Falha silenciosa — push é não-crítico
+      } catch (e: unknown) {
+        // Push é não-crítico (não bloqueia o app), mas a falha fica registrada, sem token no log.
+        console.warn('[Push] não foi possível registrar o dispositivo:', e instanceof Error ? e.name : 'erro');
       }
     }
 

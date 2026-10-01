@@ -4,6 +4,7 @@
 // ============================================================
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { limparSessao } from '../helpers/sessao';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
@@ -22,6 +23,16 @@ export class ApiError extends Error {
     super(message);
     this.name = 'ApiError';
   }
+}
+
+/**
+ * Quem quiser reagir a "sessão expirada" (ex.: o AuthProvider, para voltar ao login na hora)
+ * registra um callback aqui. A camada HTTP continua sem depender de React.
+ */
+let aoSessaoExpirar: (() => void) | null = null;
+
+export function setUnauthorizedHandler(callback: (() => void) | null): void {
+  aoSessaoExpirar = callback;
 }
 
 /** Formato das listas da API: array puro (legado) ou envelope paginado. */
@@ -83,8 +94,13 @@ export async function apiFetch<T = unknown>(
     }
 
     if (res.status === 401) {
-      await AsyncStorage.removeItem('@superrh:token');
-      await AsyncStorage.removeItem('@superrh:user');
+      await limparSessao(AsyncStorage);
+      try {
+        aoSessaoExpirar?.();
+      } catch (e: unknown) {
+        // Um handler com defeito não pode esconder o 401 de quem chamou.
+        console.warn('[HTTP] handler de sessão expirada falhou:', e instanceof Error ? e.name : 'erro');
+      }
       throw new ApiError(401, 'Sessão expirada. Faça login novamente.');
     }
 

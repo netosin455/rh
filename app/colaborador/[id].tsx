@@ -4,7 +4,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { getEmployeeById, updateEmployee, deleteEmployee } from '../../conexoes/colaboradores';
 import { startOnboarding } from '../../conexoes/onboarding';
 import { createPayslip, deletePayslip, getPayslips } from '../../conexoes/holerites';
-import { apiFetch } from '../../conexoes/http';
+import { apiFetch, extrairLista, RespostaLista } from '../../conexoes/http';
 import { Absence, ABSENCE_TYPE_LABELS, Employee, EmployeeStatus, LegalArea, Payslip, STATUS_LABELS } from '../../tipos/modelos';
 import { useAuth } from '../../contextos/Autenticacao';
 import { useToast } from '../../contextos/Toast';
@@ -13,6 +13,7 @@ import { Badge } from '../../componentes/Badge';
 import { Button } from '../../componentes/Button';
 import { Card } from '../../componentes/Card';
 import { EmptyState } from '../../componentes/EmptyState';
+import { ErroComRetry } from '../../componentes/ErroComRetry';
 import { Input } from '../../componentes/Input';
 import { ListRow } from '../../componentes/ListRow';
 import { MetricCard } from '../../componentes/MetricCard';
@@ -51,6 +52,9 @@ export default function ColaboradorScreen() {
   const [payslips, setPayslips] = useState<Payslip[]>([]);
   const [loading, setLoading] = useState(true);
   const [absLoading, setAbsLoading] = useState(true);
+  // Falha ao carregar não pode virar "nenhuma ausência/holerite": mostra erro com retry.
+  const [absErro, setAbsErro] = useState(false);
+  const [payErro, setPayErro] = useState(false);
   const [error, setError] = useState('');
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -65,8 +69,8 @@ export default function ColaboradorScreen() {
     catch (cause: any) { setError(cause.message || 'Não foi possível carregar o colaborador.'); }
     finally { setLoading(false); }
   }, [id]);
-  const loadAbsences = useCallback(async () => { setAbsLoading(true); try { const data = await apiFetch<any>(`/api/absences?employee_id=${id}`); setAbsences(Array.isArray(data) ? data : data?.data ?? []); } catch { setAbsences([]); } finally { setAbsLoading(false); } }, [id]);
-  const loadPayslips = useCallback(async () => { try { setPayslips(await getPayslips(Number(id))); } catch { setPayslips([]); } }, [id]);
+  const loadAbsences = useCallback(async () => { setAbsLoading(true); setAbsErro(false); try { setAbsences(extrairLista(await apiFetch<RespostaLista<Absence>>(`/api/absences?employee_id=${id}`))); } catch (e: unknown) { console.warn('[Colaborador] falha ao carregar ausências:', e instanceof Error ? e.message : 'erro'); setAbsErro(true); } finally { setAbsLoading(false); } }, [id]);
+  const loadPayslips = useCallback(async () => { setPayErro(false); try { setPayslips(await getPayslips(Number(id))); } catch (e: unknown) { console.warn('[Colaborador] falha ao carregar holerites:', e instanceof Error ? e.message : 'erro'); setPayErro(true); } }, [id]);
   useEffect(() => { load(); loadAbsences(); loadPayslips(); }, [load, loadAbsences, loadPayslips]);
   const set = (field: string, value: unknown) => setForm((current) => ({ ...current, [field]: value }));
 
@@ -109,8 +113,8 @@ export default function ColaboradorScreen() {
       <Section title="Dados pessoais"><Card padded={false}><ListRow title="CPF" description={employee.cpf || 'Não informado'} /><ListRow title="Email" description={employee.email || 'Não informado'} /><ListRow title="Nascimento" description={employee.birth_date ? `${formatDate(employee.birth_date)} · ${age(employee.birth_date)} anos` : 'Não informado'} />{employee.phone ? <ListRow title="Telefone" description={employee.phone} trailing={<Button accessibilityLabel="Ligar para colaborador" icon="call-outline" onPress={() => Linking.openURL(`tel:${employee.phone}`)} variant="ghost" />} /> : <ListRow title="Telefone" description="Não informado" />}</Card></Section>
       <Section title="Dados profissionais"><Card padded={false}><ListRow title="Admissão" description={formatDate(employee.hire_date)} /><ListRow title="Área jurídica" description={legalArea || 'Não informada'} /><ListRow title="OAB" description={employee.oab_number || 'Não informado'} />{canSeeSalary && employee.salary != null ? <ListRow title="Salário base" description={`R$ ${Number(employee.salary).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} /> : null}</Card></Section>
       <Section title="Férias" description={`${vacationUsed} dias usados de 30.`}><Card><ProgressBar value={(vacationUsed / 30) * 100} accessibilityLabel="Férias utilizadas" /></Card></Section>
-      <Section title="Histórico de ausências">{absLoading ? <Card><Skeleton accessibilityLabel="Carregando ausências" /></Card> : absences.length === 0 ? <EmptyState icon="checkmark-circle-outline" title="Nenhuma ausência registrada" /> : <Card padded={false}>{absences.map((absence) => <ListRow key={absence.id} title={ABSENCE_TYPE_LABELS[absence.type]} description={`${formatDate(absence.start_date)} a ${formatDate(absence.end_date)} · ${absence.hours != null ? `${absence.hours}h` : `${absence.days_count} dia${absence.days_count !== 1 ? 's' : ''}`}${absence.reason ? ` · ${absence.reason}` : ''}`} trailing={<StatusPill label={absence.status.charAt(0).toUpperCase() + absence.status.slice(1)} status={absenceTone(absence.status)} />} />)}</Card>}</Section>
-      <Section title="Holerites" action={canEdit ? <Button icon="add-outline" label="Adicionar" onPress={() => { setPsForm({ month: '', description: '', file_url: '' }); setPayslipModal(true); }} variant="secondary" /> : undefined}>{payslips.length === 0 ? <EmptyState icon="document-outline" title="Nenhum holerite cadastrado" /> : <Card padded={false}>{payslips.map((payslip) => <ListRow key={payslip.id} title={new Date(`${payslip.month}-01T00:00:00`).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })} description={payslip.description} trailing={<View style={styles.rowActions}><Button accessibilityLabel="Abrir holerite" icon="open-outline" onPress={() => Linking.openURL(payslip.file_url)} variant="ghost" />{canEdit ? <Button accessibilityLabel="Remover holerite" icon="trash-outline" onPress={() => confirmAction('Remover', 'Remover este holerite?', async () => { try { await deletePayslip(payslip.id); loadPayslips(); } catch (cause: any) { toast.error(cause.message || 'Erro ao remover holerite'); } })} variant="danger" /> : null}</View>} />)}</Card>}</Section>
+      <Section title="Histórico de ausências">{absLoading ? <Card><Skeleton accessibilityLabel="Carregando ausências" /></Card> : absErro ? <ErroComRetry mensagem="Não foi possível carregar o histórico de ausências." onTentarNovamente={loadAbsences} /> : absences.length === 0 ? <EmptyState icon="checkmark-circle-outline" title="Nenhuma ausência registrada" /> : <Card padded={false}>{absences.map((absence) => <ListRow key={absence.id} title={ABSENCE_TYPE_LABELS[absence.type]} description={`${formatDate(absence.start_date)} a ${formatDate(absence.end_date)} · ${absence.hours != null ? `${absence.hours}h` : `${absence.days_count} dia${absence.days_count !== 1 ? 's' : ''}`}${absence.reason ? ` · ${absence.reason}` : ''}`} trailing={<StatusPill label={absence.status.charAt(0).toUpperCase() + absence.status.slice(1)} status={absenceTone(absence.status)} />} />)}</Card>}</Section>
+      <Section title="Holerites" action={canEdit ? <Button icon="add-outline" label="Adicionar" onPress={() => { setPsForm({ month: '', description: '', file_url: '' }); setPayslipModal(true); }} variant="secondary" /> : undefined}>{payErro ? <ErroComRetry mensagem="Não foi possível carregar os holerites." onTentarNovamente={loadPayslips} /> : payslips.length === 0 ? <EmptyState icon="document-outline" title="Nenhum holerite cadastrado" /> : <Card padded={false}>{payslips.map((payslip) => <ListRow key={payslip.id} title={new Date(`${payslip.month}-01T00:00:00`).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })} description={payslip.description} trailing={<View style={styles.rowActions}><Button accessibilityLabel="Abrir holerite" icon="open-outline" onPress={() => Linking.openURL(payslip.file_url)} variant="ghost" />{canEdit ? <Button accessibilityLabel="Remover holerite" icon="trash-outline" onPress={() => confirmAction('Remover', 'Remover este holerite?', async () => { try { await deletePayslip(payslip.id); loadPayslips(); } catch (cause: any) { toast.error(cause.message || 'Erro ao remover holerite'); } })} variant="danger" /> : null}</View>} />)}</Card>}</Section>
       {canEdit ? <Button icon="rocket-outline" label="Iniciar onboarding" onPress={start} variant="secondary" /> : null}{canDelete ? <Button icon="trash-outline" label="Excluir colaborador" onPress={removeEmployee} variant="danger" /> : null}
     </>}
   </ScrollView>
