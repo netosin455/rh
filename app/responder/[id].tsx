@@ -17,7 +17,7 @@ import { getPublicSurvey, respondSurvey } from '../../conexoes/pesquisas';
 import { cores } from '../../estilo/cores';
 import { espaco } from '../../estilo/espaco';
 import { ehFormatoAntigo } from '../../helpers/pesquisa';
-import type { PublicSurvey, SurveyAnswerInput } from '../../tipos/modelos';
+import type { PublicSurvey, SurveyAnswerInput, SurveyContactInput } from '../../tipos/modelos';
 
 // Gera UUID v4 simples sem dependência externa
 function uuidv4(): string {
@@ -72,7 +72,7 @@ export default function ResponderScreen() {
 
   useEffect(() => { void carregar(); }, [carregar]);
 
-  async function enviar(respostas: SurveyAnswerInput[]) {
+  async function enviar(respostas: SurveyAnswerInput[], _locais: unknown, contato: SurveyContactInput | null) {
     if (!id || !pesquisa) return;
     const voter_token = await getVoterToken();
     if (ehFormatoAntigo(pesquisa)) {
@@ -80,7 +80,8 @@ export default function ResponderScreen() {
       const r = respostas[0];
       await respondSurvey(id, { voter_token, score: r?.score, choice: r?.choice });
     } else {
-      await respondSurvey(id, { voter_token, answers: respostas });
+      // `contact` só existe quando o cliente marcou o consentimento; senão nenhum dado pessoal sai daqui.
+      await respondSurvey(id, { voter_token, answers: respostas, ...(contato ? { contact: contato } : {}) });
     }
   }
 

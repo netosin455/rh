@@ -30,6 +30,7 @@ const ICONES_TIPO: Record<SurveyType, keyof typeof Ionicons.glyphMap> = {
   scale: 'stats-chart-outline',
   choice: 'list-outline',
   text: 'create-outline',
+  nps: 'speedometer-outline',
 };
 
 type PerguntaCardProps = {
@@ -39,13 +40,15 @@ type PerguntaCardProps = {
   erros?: ErrosPergunta;
   desabilitado?: boolean;
   podeDuplicar: boolean;
+  /** Tipos de pergunta oferecidos (cada área tem os seus). Padrão: todos. */
+  tipos?: readonly SurveyType[];
   onChange: (pergunta: PerguntaRascunho) => void;
   onMover: (delta: -1 | 1) => void;
   onDuplicar: () => void;
   onExcluir: () => void;
 };
 
-export function PerguntaCard({ indice, total, pergunta, erros, desabilitado, podeDuplicar, onChange, onMover, onDuplicar, onExcluir }: PerguntaCardProps) {
+export function PerguntaCard({ indice, total, pergunta, erros, desabilitado, podeDuplicar, tipos, onChange, onMover, onDuplicar, onExcluir }: PerguntaCardProps) {
   const { width } = useWindowDimensions();
   const estreito = width < 640;
   const campos = useRef<(TextInput | null)[]>([]);
@@ -82,7 +85,8 @@ export function PerguntaCard({ indice, total, pergunta, erros, desabilitado, pod
 
       <Text style={styles.rotulo}>Como a pessoa vai responder?</Text>
       <View accessibilityRole="radiogroup" style={[styles.tipos, estreito && styles.tiposEstreito]}>
-        {TIPOS_PERGUNTA.map((t) => {
+        {/* A ordem dos botões segue a ordem da área (no NPS, a nota 0 a 10 vem primeiro). */}
+        {(tipos ? tipos.map((tipo) => TIPOS_PERGUNTA.find((t) => t.tipo === tipo)) : TIPOS_PERGUNTA).flatMap((t) => (t ? [t] : [])).map((t) => {
           const ativo = pergunta.type === t.tipo;
           return (
             <Pressable
@@ -147,6 +151,10 @@ export function PerguntaCard({ indice, total, pergunta, erros, desabilitado, pod
         </View>
       ) : null}
 
+      {pergunta.type === 'nps' ? (
+        <Text style={styles.dica}>A pessoa escolhe uma nota de 0 (nada provável) a 10 (muito provável). O NPS é calculado automaticamente nos resultados.</Text>
+      ) : null}
+
       {pergunta.type === 'text' ? (
         <Text style={styles.dica}>A pessoa poderá escrever até {MAX_TEXTO} caracteres. Avisaremos que a resposta é anônima e para não escrever nomes.</Text>
       ) : null}
@@ -177,9 +185,9 @@ const styles = StyleSheet.create({
   cabecalhoTitulo: { ...tipografia.subtitulo, color: cores.texto.primario, flexBasis: 120, flexGrow: 1 },
   acoes: { flexDirection: 'row' },
   rotulo: { ...tipografia.corpoForte, color: cores.texto.primario },
-  tipos: { flexDirection: 'row', gap: espaco.sm },
+  tipos: { flexDirection: 'row', flexWrap: 'wrap', gap: espaco.sm },
   tiposEstreito: { flexDirection: 'column' },
-  tipo: { alignItems: 'flex-start', backgroundColor: cores.superficie.elevada, borderColor: cores.borda.forte, borderRadius: raio.cartao, borderWidth: borda.fina, flex: 1, gap: espaco.sm, minHeight: tamanho.toqueMinimo + espaco.xxl, padding: espaco.md },
+  tipo: { alignItems: 'flex-start', backgroundColor: cores.superficie.elevada, borderColor: cores.borda.forte, borderRadius: raio.cartao, borderWidth: borda.fina, flex: 1, gap: espaco.sm, minHeight: tamanho.toqueMinimo + espaco.xxl, minWidth: 140, padding: espaco.md },
   tipoEstreito: { alignItems: 'center', flexDirection: 'row', flex: 0 },
   tipoAtivo: { backgroundColor: cores.accent.dourado, borderColor: cores.accent.dourado },
   tipoTexto: { flex: 1, gap: espaco.micro },

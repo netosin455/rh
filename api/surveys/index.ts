@@ -9,13 +9,25 @@
 // ============================================================
 
 import type { Request as VercelRequest, Response as VercelResponse } from 'express';
-import { sql, cors, authenticate, err, CAN_MANAGE_EMPLOYEES, sendPush } from '../_lib';
+import { createHmac } from 'node:crypto';
+import { isIP } from 'node:net';
+import { sql, cors, authenticate, err, CAN_MANAGE_EMPLOYEES, sendPush, JWT_SECRET } from '../_lib';
 
-const SURVEY_TYPES = ['scale', 'choice', 'text'] as const;
+const SURVEY_TYPES = ['scale', 'choice', 'text', 'nps'] as const;
+const SURVEY_AUDIENCES = ['employees', 'customers'] as const;
 const MAX_QUESTIONS = 10;
 const MAX_TEXT_LENGTH = 1000;
+const MAX_PUBLIC_BODY_LENGTH = 12_000;
+const MAX_CONTACT_NAME_LENGTH = 120;
+const MAX_CONTACT_PHONE_LENGTH = 30;
+const MAX_CONTACT_EMAIL_LENGTH = 254;
+const MAX_IP_PARTICIPATIONS_BY_AUDIENCE = {
+  employees: 100,
+  customers: 5,
+} as const;
 
 type SurveyType = typeof SURVEY_TYPES[number];
+type SurveyAudience = typeof SURVEY_AUDIENCES[number];
 type JsonObject = Record<string, unknown>;
 type SurveyQuestion = {
   id: number;
@@ -27,6 +39,19 @@ type SurveyQuestion = {
 };
 type SurveyQuestionInput = Omit<SurveyQuestion, 'id'>;
 type SurveyAnswerInput = { question_id: number; score?: number; choice?: string; text?: string };
+type ContactInput = {
+  name: string;
+  phone: string | null;
+  email: string | null;
+  consent: true;
+};
+type NpsSummary = {
+  promoters: number;
+  passives: number;
+  detractors: number;
+  nps: number | null;
+  poucas_respostas: boolean;
+};
 
 function isObject(value: unknown): value is JsonObject {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -36,9 +61,56 @@ function isSurveyType(value: unknown): value is SurveyType {
   return typeof value === 'string' && (SURVEY_TYPES as readonly string[]).includes(value);
 }
 
+function isSurveyAudience(value: unknown): value is SurveyAudience {
+  return typeof value === 'string' && (SURVEY_AUDIENCES as readonly string[]).includes(value);
+}
+
 function positiveId(value: unknown): number | null {
   const parsed = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : NaN;
   return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+function getSurveyAudience(value: unknown): SurveyAudience {
+  return value === 'customers' ? 'customers' : 'employees';
+}
+
+function publicBodyHasAcceptableSize(body: unknown): boolean {
+  try {
+    return JSON.stringify(body).length <= MAX_PUBLIC_BODY_LENGTH;
+  } catch {
+    return false;
+  }
+}
+
+function trustedRequestIp(req: VercelRequest): string | null {
+  for (const header of [req.headers['x-real-ip'], req.headers['x-vercel-forwarded-for']]) {
+    const rawValue = Array.isArray(header) ? header[0] : header;
+    const ip = typeof rawValue === 'string' ? rawValue.split(',')[0]?.trim() : '';
+    if (ip && isIP(ip)) return ip;
+  }
+  return null;
+}
+
+function surveyIpHash(surveyId: number, ip: string): string {
+  return createHmac('sha256', JWT_SECRET).update(`${surveyId}:${ip}`).digest('hex');
+}
+
+function parseContact(value: unknown): ContactInput | null | string {
+  // Sem consentimento explícito, o objeto inteiro é ignorado para preservar o anonimato.
+  if (!isObject(value) || value.consent !== true) return null;
+
+  const name = typeof value.name === 'string' ? value.name.trim() : '';
+  const phone = typeof value.phone === 'string' ? value.phone.trim() : '';
+  const email = typeof value.email === 'string' ? value.email.trim().toLowerCase() : '';
+  if (!name || name.length > MAX_CONTACT_NAME_LENGTH) return 'Nome de contato inválido';
+  if (value.phone != null && (!phone || phone.length > MAX_CONTACT_PHONE_LENGTH || !/^[0-9+(). -]+$/.test(phone))) {
+    return 'Telefone de contato inválido';
+  }
+  if (value.email != null && (!email || email.length > MAX_CONTACT_EMAIL_LENGTH || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) {
+    return 'Email de contato inválido';
+  }
+  if (!phone && !email) return 'Informe telefone ou email para contato';
+  return { name, phone: phone || null, email: email || null, consent: true };
 }
 
 function parseQuestion(value: unknown, position: number, requireRequired: boolean): SurveyQuestionInput | null {
@@ -110,6 +182,9 @@ function parseAnswers(body: unknown, questions: readonly SurveyQuestion[]): Surv
     if (question.type === 'scale') {
       if (!Number.isInteger(rawAnswer.score) || Number(rawAnswer.score) < 1 || Number(rawAnswer.score) > 5) return 'score deve ser entre 1 e 5';
       answers.push({ question_id: question.id, score: Number(rawAnswer.score) });
+    } else if (question.type === 'nps') {
+      if (!Number.isInteger(rawAnswer.score) || Number(rawAnswer.score) < 0 || Number(rawAnswer.score) > 10) return 'score NPS deve ser um inteiro entre 0 e 10';
+      answers.push({ question_id: question.id, score: Number(rawAnswer.score) });
     } else if (question.type === 'choice') {
       const choice = typeof rawAnswer.choice === 'string' ? rawAnswer.choice.trim() : '';
       if (!choice || !(question.options ?? []).includes(choice)) return 'Opção inválida';
@@ -130,6 +205,20 @@ function isUniqueViolation(error: unknown): boolean {
   return isObject(error) && error.code === '23505';
 }
 
+export function calculateNps(scores: readonly number[]): NpsSummary {
+  const promoters = scores.filter((score) => score >= 9 && score <= 10).length;
+  const passives = scores.filter((score) => score >= 7 && score <= 8).length;
+  const detractors = scores.filter((score) => score >= 0 && score <= 6).length;
+  const total = promoters + passives + detractors;
+  return {
+    promoters,
+    passives,
+    detractors,
+    nps: total ? Math.round(((promoters - detractors) / total) * 100) : null,
+    poucas_respostas: total < 10,
+  };
+}
+
 function resultsByQuestion(questions: readonly SurveyQuestion[], rows: readonly unknown[]) {
   const answers = rows as Array<{ question_id: number; score: number | null; choice: string | null; text: string | null }>;
   return questions.map((question) => {
@@ -140,6 +229,23 @@ function resultsByQuestion(questions: readonly SurveyQuestion[], rows: readonly 
       scores.forEach((score) => { distribution[String(score)] = (distribution[String(score)] ?? 0) + 1; });
       const avg = scores.length ? Math.round((scores.reduce((total, score) => total + score, 0) / scores.length) * 10) / 10 : 0;
       return { question_id: question.id, position: question.position, question: question.question, type: question.type, answered: scores.length, avg, distribution };
+    }
+    if (question.type === 'nps') {
+      const distribution: Record<string, number> = {};
+      for (let score = 0; score <= 10; score += 1) distribution[String(score)] = 0;
+      const scores = answered
+        .map((answer) => Number(answer.score))
+        .filter((score) => Number.isInteger(score) && score >= 0 && score <= 10);
+      scores.forEach((score) => { distribution[String(score)] = (distribution[String(score)] ?? 0) + 1; });
+      return {
+        question_id: question.id,
+        position: question.position,
+        question: question.question,
+        type: question.type,
+        answered: scores.length,
+        distribution,
+        ...calculateNps(scores),
+      };
     }
     if (question.type === 'choice') {
       const distribution: Record<string, number> = {};
@@ -162,11 +268,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // ── POST :id/respond — PÚBLICO (sem autenticação) ─────────
   if (surveyId && req.query.respond === 'true' && req.method === 'POST') {
+    if (!publicBodyHasAcceptableSize(req.body as unknown)) {
+      return err(res, 413, 'O envio da resposta excede o tamanho permitido');
+    }
     const surveyRows = await sql`
-      SELECT id, company_id, question, type, options, expires_at
+      SELECT id, company_id, question, type, options, audience, expires_at
       FROM pulse_surveys WHERE id = ${surveyId}
     `;
-    const survey = surveyRows[0] as { expires_at: string | null; question: string; type: SurveyType; options: string[] | null } | undefined;
+    const survey = surveyRows[0] as {
+      expires_at: string | null;
+      question: string;
+      type: SurveyType;
+      options: string[] | null;
+      audience?: SurveyAudience;
+    } | undefined;
     if (!survey) return err(res, 404, 'Pesquisa não encontrada');
     if (survey.expires_at && new Date(survey.expires_at) < new Date()) return err(res, 410, 'Esta pesquisa já encerrou');
 
@@ -178,6 +293,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const body = isObject(req.body) ? req.body : {};
     if (body.voter_token != null && typeof body.voter_token !== 'string') return err(res, 400, 'voter_token inválido');
     const voterToken = typeof body.voter_token === 'string' && body.voter_token ? body.voter_token : null;
+    if (voterToken && voterToken.length > 200) return err(res, 400, 'voter_token inválido');
     if (voterToken) {
       const already = await sql`
         SELECT 1 FROM survey_submissions WHERE survey_id = ${surveyId} AND voter_token = ${voterToken} LIMIT 1
@@ -185,12 +301,36 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (already[0]) return err(res, 409, 'Você já respondeu esta pesquisa');
     }
 
+    const contact = parseContact(body.contact);
+    if (typeof contact === 'string') return err(res, 400, contact);
+
+    const ip = trustedRequestIp(req);
+    const ipHash = ip ? surveyIpHash(surveyId, ip) : null;
+    if (ipHash) {
+      const recentByIp = await sql`
+        SELECT COUNT(*)::int AS total
+        FROM survey_submissions
+        WHERE survey_id = ${surveyId}
+          AND ip_hash = ${ipHash}
+          AND submitted_at >= now() - INTERVAL '24 hours'
+      `;
+      const totalByIp = Number((recentByIp[0] as { total?: unknown } | undefined)?.total ?? 0);
+      const limit = MAX_IP_PARTICIPATIONS_BY_AUDIENCE[getSurveyAudience(survey.audience)];
+      if (Number.isFinite(totalByIp) && totalByIp >= limit) {
+        return err(res, 429, 'Muitas respostas vieram deste local hoje. Tente novamente mais tarde.');
+      }
+    }
+
     try {
       // A única instrução é atômica: não existe participação sem todas as respostas validadas.
       await sql`
         WITH nova_participacao AS (
-          INSERT INTO survey_submissions (survey_id, voter_token)
-          VALUES (${surveyId}, ${voterToken})
+          INSERT INTO survey_submissions
+            (survey_id, voter_token, contact_name, contact_phone, contact_email, contact_consent, ip_hash)
+          VALUES (
+            ${surveyId}, ${voterToken}, ${contact?.name ?? null}, ${contact?.phone ?? null},
+            ${contact?.email ?? null}, ${contact?.consent ?? null}, ${ipHash}
+          )
           RETURNING id
         )
         INSERT INTO survey_answers (submission_id, question_id, score, choice, text)
@@ -201,7 +341,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       `;
     } catch (error: unknown) {
       if (isUniqueViolation(error)) return err(res, 409, 'Você já respondeu esta pesquisa');
-      console.error(`[${new Date().toISOString()}] [ERROR] resposta de pesquisa:`, error);
+      console.error({
+        level: 'error',
+        event: 'survey_response_submission_failed',
+        survey_id: surveyId,
+        error_name: error instanceof Error ? error.name : 'UnknownError',
+      });
       return err(res, 500, 'Não foi possível registrar a resposta');
     }
 
@@ -211,7 +356,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // ── GET :id — público quando sem token (página de resposta) ──
   if (surveyId && req.method === 'GET' && !req.headers['authorization']) {
     const rows = await sql`
-      SELECT id, title, question, type, options, expires_at
+      SELECT id, title, question, type, options, audience, expires_at
       FROM pulse_surveys WHERE id = ${surveyId}
     `;
     if (!rows[0]) return err(res, 404, 'Pesquisa não encontrada');
@@ -230,6 +375,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // ── GET :id/results ───────────────────────────────────────
   if (surveyId && req.query.results === 'true' && req.method === 'GET') {
+    if (!CAN_MANAGE_EMPLOYEES.includes(ctx.role)) return err(res, 403, 'Sem permissão');
     const surveys = await sql`
       SELECT ps.*, u.name AS created_by_name, d.name AS dept_name
       FROM pulse_surveys ps
@@ -252,11 +398,45 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         WHERE ss.survey_id = ${surveyId}
         ORDER BY ss.submitted_at DESC
       `;
+      const contacts = await sql`
+        SELECT
+          ss.id AS submission_id,
+          ss.contact_name AS name,
+          ss.contact_phone AS phone,
+          ss.contact_email AS email,
+          nps_answer.score,
+          text_answer.text AS comment,
+          ss.submitted_at,
+          ss.contact_resolved_at AS contacted_at
+        FROM survey_submissions ss
+        JOIN pulse_surveys ps ON ps.id = ss.survey_id
+        LEFT JOIN LATERAL (
+          SELECT sa.score
+          FROM survey_answers sa
+          JOIN survey_questions sq ON sq.id = sa.question_id
+          WHERE sa.submission_id = ss.id AND sq.type = 'nps'
+          ORDER BY sq.position
+          LIMIT 1
+        ) nps_answer ON TRUE
+        LEFT JOIN LATERAL (
+          SELECT sa.text
+          FROM survey_answers sa
+          JOIN survey_questions sq ON sq.id = sa.question_id
+          WHERE sa.submission_id = ss.id AND sq.type = 'text'
+          ORDER BY sq.position
+          LIMIT 1
+        ) text_answer ON TRUE
+        WHERE ss.survey_id = ${surveyId}
+          AND ps.company_id = ${ctx.company_id}
+          AND ss.contact_consent IS TRUE
+        ORDER BY ss.submitted_at DESC
+      `;
       const total = Number((totals[0] as { total?: unknown } | undefined)?.total ?? 0);
       return res.json({
         survey: { ...s, questions, question_count: questions.length },
         total_responses: Number.isFinite(total) ? total : 0,
         questions: resultsByQuestion(questions, answers),
+        contacts,
       });
     }
 
@@ -286,7 +466,49 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       results = { distribution: dist };
     }
 
-    return res.json({ survey: s, total_responses: total, results, recent: legacyResponses.slice(0, 5) });
+    return res.json({ survey: s, total_responses: total, results, recent: legacyResponses.slice(0, 5), contacts: [] });
+  }
+
+  // ── PATCH/DELETE :id?contact=:submissionId — acompanhamento e LGPD ──
+  if (surveyId && req.query.contact != null && ['PATCH', 'DELETE'].includes(req.method ?? '')) {
+    if (!CAN_MANAGE_EMPLOYEES.includes(ctx.role)) return err(res, 403, 'Sem permissão');
+    const submissionId = positiveId(req.query.contact);
+    if (!submissionId) return err(res, 400, 'ID de participação inválido');
+
+    if (req.method === 'PATCH') {
+      const body = isObject(req.body) ? req.body : {};
+      if (body.contacted !== true) return err(res, 400, 'contacted deve ser true');
+      const updated = await sql`
+        UPDATE survey_submissions ss
+        SET contact_resolved_at = COALESCE(ss.contact_resolved_at, now())
+        FROM pulse_surveys ps
+        WHERE ss.id = ${submissionId}
+          AND ss.survey_id = ${surveyId}
+          AND ps.id = ss.survey_id
+          AND ps.company_id = ${ctx.company_id}
+          AND ss.contact_consent IS TRUE
+        RETURNING ss.contact_resolved_at
+      `;
+      if (!updated[0]) return err(res, 404, 'Contato não encontrado');
+      return res.json({ contacted_at: updated[0].contact_resolved_at });
+    }
+
+    const deleted = await sql`
+      UPDATE survey_submissions ss
+      SET contact_name = NULL,
+          contact_phone = NULL,
+          contact_email = NULL,
+          contact_consent = NULL,
+          contact_resolved_at = NULL
+      FROM pulse_surveys ps
+      WHERE ss.id = ${submissionId}
+        AND ss.survey_id = ${surveyId}
+        AND ps.id = ss.survey_id
+        AND ps.company_id = ${ctx.company_id}
+      RETURNING ss.id
+    `;
+    if (!deleted[0]) return err(res, 404, 'Participação não encontrada');
+    return res.status(204).end();
   }
 
   // ── GET :id ───────────────────────────────────────────────
@@ -318,6 +540,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // ── GET /api/surveys — listar ─────────────────────────────
   if (!surveyId && req.method === 'GET') {
+    const audience = req.query.audience == null ? 'employees' : req.query.audience;
+    if (!isSurveyAudience(audience)) return err(res, 400, 'audience deve ser employees ou customers');
     const rows = await sql`
       SELECT ps.*, u.name AS created_by_name, d.name AS dept_name,
         (SELECT COUNT(*)::int FROM survey_submissions WHERE survey_id = ps.id) AS response_count,
@@ -325,7 +549,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       FROM pulse_surveys ps
       LEFT JOIN users u ON u.id = ps.created_by
       LEFT JOIN departments d ON d.id = ps.target_dept AND d.company_id = ps.company_id
-      WHERE ps.company_id = ${ctx.company_id}
+      WHERE ps.company_id = ${ctx.company_id} AND ps.audience = ${audience}
       ORDER BY ps.created_at DESC
       LIMIT 50
     `;
@@ -340,8 +564,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const title = typeof body?.title === 'string' ? body.title.trim() : '';
     const questions = parseSurveyQuestions(body);
     if (!title || !questions) return err(res, 400, 'title e questions válidos são obrigatórios');
+    const audience = body?.audience == null ? 'employees' : body.audience;
+    if (!isSurveyAudience(audience)) return err(res, 400, 'audience deve ser employees ou customers');
     const targetDepartmentId = body?.target_dept == null || body.target_dept === '' ? null : positiveId(body.target_dept);
     if (body?.target_dept != null && body.target_dept !== '' && !targetDepartmentId) return err(res, 400, 'target_dept inválido');
+    if (audience === 'customers' && targetDepartmentId != null) return err(res, 400, 'Pesquisa de clientes não aceita target_dept');
+    if (audience === 'customers' && (questions.some((question) => question.type === 'choice') || !questions.some((question) => question.type === 'nps'))) {
+      return err(res, 400, 'Pesquisa de clientes exige ao menos uma pergunta NPS e aceita apenas NPS, escala ou aberta');
+    }
     if (body?.expires_at != null && typeof body.expires_at !== 'string') return err(res, 400, 'expires_at inválido');
     if (targetDepartmentId != null) {
       const department = await sql`
@@ -354,11 +584,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!firstQuestion) return err(res, 400, 'Pesquisa precisa de ao menos uma pergunta');
     const rows = await sql`
       WITH nova_pesquisa AS (
-        INSERT INTO pulse_surveys (company_id, created_by, title, question, type, options, target_dept, expires_at)
+        INSERT INTO pulse_surveys (company_id, created_by, title, question, type, options, target_dept, expires_at, audience)
         VALUES (
           ${ctx.company_id}, ${ctx.sub}, ${title}, ${firstQuestion.question}, ${firstQuestion.type},
           ${firstQuestion.options ? JSON.stringify(firstQuestion.options) : null}, ${targetDepartmentId},
-          ${typeof body?.expires_at === 'string' ? body.expires_at : null}
+          ${typeof body?.expires_at === 'string' ? body.expires_at : null}, ${audience}
         )
         RETURNING *
       ), novas_perguntas AS (
@@ -372,22 +602,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       SELECT * FROM nova_pesquisa
     `;
 
-    // Notificação + push para todos da empresa
-    await sql`
-      INSERT INTO notifications (company_id, user_id, title, body, type, route)
-      VALUES (${ctx.company_id}, NULL, '📊 Nova pesquisa de pulso', ${title}, 'pesquisa', '/pesquisas')
-    `.catch(() => {});
-    const tokens = await sql`
-      SELECT pt.token FROM push_tokens pt
-      JOIN users u ON u.id = pt.user_id
-      WHERE u.company_id = ${ctx.company_id}
-    `.catch(() => []);
-    await sendPush(
-      (tokens as Array<{ token: string }>).map((token) => token.token),
-      '📊 Nova pesquisa de pulso',
-      title,
-      { route: '/pesquisas' },
-    );
+    // Campanhas de clientes usam link externo e jamais devem interromper a operação com push interno.
+    if (audience === 'employees') {
+      try {
+        await sql`
+          INSERT INTO notifications (company_id, user_id, title, body, type, route)
+          VALUES (${ctx.company_id}, NULL, '📊 Nova pesquisa de pulso', ${title}, 'pesquisa', '/pesquisas')
+        `;
+        const tokens = await sql`
+          SELECT pt.token FROM push_tokens pt
+          JOIN users u ON u.id = pt.user_id
+          WHERE u.company_id = ${ctx.company_id}
+        `;
+        await sendPush(
+          (tokens as Array<{ token: string }>).map((token) => token.token),
+          '📊 Nova pesquisa de pulso',
+          title,
+          { route: '/pesquisas' },
+        );
+      } catch (error: unknown) {
+        console.error({
+          level: 'error',
+          event: 'employee_survey_notification_failed',
+          company_id: ctx.company_id,
+          error_name: error instanceof Error ? error.name : 'UnknownError',
+        });
+      }
+    }
 
     return res.status(201).json(rows[0]);
   }

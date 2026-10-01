@@ -222,7 +222,10 @@ export interface OnboardingProcess {
 
 // ── Pulse Surveys ────────────────────────────────────────────
 
-export type SurveyType = 'scale' | 'choice' | 'text';
+export type SurveyType = 'scale' | 'choice' | 'text' | 'nps';
+
+/** Quem responde: colaboradores (padrão) ou clientes do escritório (link/QR público, sem login). */
+export type SurveyAudience = 'employees' | 'customers';
 
 /** Pergunta de uma pesquisa (1 a 10 por pesquisa). */
 export interface SurveyQuestion {
@@ -246,6 +249,7 @@ export interface PulseSurvey {
   options?: string[] | null;
   questions?: SurveyQuestion[];
   question_count?: number;
+  audience?: SurveyAudience;
   target_dept: number | null;
   dept_name?: string | null;
   expires_at?: string | null;
@@ -267,6 +271,26 @@ export interface QuestionResult {
   distribution?: Record<string, number>;
   /** text: respostas anônimas, mais recentes primeiro (teto de 200 no servidor). */
   texts?: string[];
+  /** nps: calculado no SERVIDOR (promotores % − detratores %); null = sem respostas. distribution traz "0".."10". */
+  nps?: number | null;
+  promoters?: number;
+  passives?: number;
+  detractors?: number;
+}
+
+/** Cliente que aceitou ser contatado (consentimento explícito). */
+export interface SurveyContact {
+  submission_id: number;
+  name: string | null;
+  phone: string | null;
+  email: string | null;
+  /** Nota NPS dada por essa pessoa (0 a 10). */
+  score: number | null;
+  /** Texto da pergunta aberta dessa mesma participação, se houver. */
+  comment: string | null;
+  submitted_at: string;
+  /** Quando o RH marcou como contatado (null = ainda não). */
+  contacted_at: string | null;
 }
 
 export interface SurveyResults {
@@ -274,6 +298,8 @@ export interface SurveyResults {
   /** Quantas participações (pessoas que enviaram a pesquisa). */
   total_responses: number;
   questions: QuestionResult[];
+  /** Só em pesquisas de cliente: quem pediu contato. */
+  contacts?: SurveyContact[];
 }
 
 /** Pergunta como o RH envia ao criar. */
@@ -286,6 +312,7 @@ export interface NewSurveyQuestion {
 
 export interface CreateSurveyData {
   title: string;
+  audience?: SurveyAudience;
   target_dept?: number | null;
   expires_at?: string | null;
   questions: NewSurveyQuestion[];
@@ -304,7 +331,16 @@ export interface PublicSurvey {
   id: number;
   title: string;
   expires_at: string | null;
+  audience?: SurveyAudience;
   questions: SurveyQuestion[];
+}
+
+/** Contato opcional do cliente: só é enviado com consentimento explícito. */
+export interface SurveyContactInput {
+  name: string;
+  phone?: string;
+  email?: string;
+  consent: true;
 }
 
 // ── Feedback individual ──────────────────────────────────────

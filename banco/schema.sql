@@ -271,10 +271,12 @@ CREATE TABLE IF NOT EXISTS pulse_surveys (
   title        text NOT NULL,
   question     text NOT NULL,
   type         text NOT NULL DEFAULT 'scale'
-                 CHECK (type IN ('scale', 'choice', 'text')),
+                 CHECK (type IN ('scale', 'choice', 'text', 'nps')),
   options      jsonb,
   target_dept  integer REFERENCES departments(id) ON DELETE SET NULL,
   expires_at   date,
+  audience     text NOT NULL DEFAULT 'employees'
+                 CHECK (audience IN ('employees', 'customers')),
   created_at   timestamptz NOT NULL DEFAULT now()
 );
 
@@ -298,7 +300,7 @@ CREATE TABLE IF NOT EXISTS survey_questions (
   survey_id    integer NOT NULL REFERENCES pulse_surveys(id) ON DELETE CASCADE,
   position     smallint NOT NULL CHECK (position BETWEEN 1 AND 10),
   question     text NOT NULL CHECK (char_length(btrim(question)) > 0),
-  type         text NOT NULL CHECK (type IN ('scale', 'choice', 'text')),
+  type         text NOT NULL CHECK (type IN ('scale', 'choice', 'text', 'nps')),
   options      jsonb,
   required     boolean NOT NULL DEFAULT true,
   created_at   timestamptz NOT NULL DEFAULT now(),
@@ -315,6 +317,21 @@ CREATE TABLE IF NOT EXISTS survey_submissions (
   id           serial PRIMARY KEY,
   survey_id    integer NOT NULL REFERENCES pulse_surveys(id) ON DELETE CASCADE,
   voter_token  text,
+  contact_name text,
+  contact_phone text,
+  contact_email text,
+  contact_consent boolean,
+  contact_resolved_at timestamptz,
+  ip_hash      text,
+  CHECK (
+    contact_consent IS TRUE OR (
+      contact_name IS NULL AND contact_phone IS NULL AND contact_email IS NULL AND contact_resolved_at IS NULL
+    )
+  ),
+  CHECK (contact_name IS NULL OR char_length(btrim(contact_name)) BETWEEN 1 AND 120),
+  CHECK (contact_phone IS NULL OR char_length(btrim(contact_phone)) BETWEEN 1 AND 30),
+  CHECK (contact_email IS NULL OR char_length(btrim(contact_email)) BETWEEN 1 AND 254),
+  CHECK (ip_hash IS NULL OR char_length(ip_hash) = 64),
   submitted_at timestamptz NOT NULL DEFAULT now()
 );
 
@@ -327,7 +344,7 @@ CREATE TABLE IF NOT EXISTS survey_answers (
   text            text,
   UNIQUE (submission_id, question_id),
   CHECK (
-    (score BETWEEN 1 AND 5 AND choice IS NULL AND text IS NULL)
+    (score BETWEEN 0 AND 10 AND choice IS NULL AND text IS NULL)
     OR (score IS NULL AND choice IS NOT NULL AND text IS NULL AND char_length(btrim(choice)) > 0)
     OR (score IS NULL AND choice IS NULL AND text IS NOT NULL AND char_length(btrim(text)) BETWEEN 1 AND 1000)
   )
@@ -336,6 +353,8 @@ CREATE TABLE IF NOT EXISTS survey_answers (
 CREATE UNIQUE INDEX IF NOT EXISTS survey_submissions_survey_voter_idx
   ON survey_submissions (survey_id, voter_token) WHERE voter_token IS NOT NULL;
 CREATE INDEX IF NOT EXISTS survey_submissions_survey_idx ON survey_submissions (survey_id, submitted_at DESC);
+CREATE INDEX IF NOT EXISTS survey_submissions_survey_ip_hash_idx
+  ON survey_submissions (survey_id, ip_hash, submitted_at DESC);
 CREATE INDEX IF NOT EXISTS survey_answers_submission_idx ON survey_answers (submission_id);
 CREATE INDEX IF NOT EXISTS survey_answers_question_idx ON survey_answers (question_id);
 

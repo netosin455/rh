@@ -11,6 +11,9 @@ import type {
   PublicSurvey,
   PulseSurvey,
   QuestionResult,
+  SurveyAudience,
+  SurveyContact,
+  SurveyContactInput,
   SurveyAnswerInput,
   SurveyQuestion,
   SurveyResults,
@@ -27,7 +30,73 @@ export const TIPOS_PERGUNTA: readonly { tipo: SurveyType; titulo: string; explic
   { tipo: 'scale', titulo: 'Escala 1 a 5', explicacao: 'A pessoa dá uma nota de 1 a 5.' },
   { tipo: 'choice', titulo: 'Escolha', explicacao: 'A pessoa escolhe uma opção da lista.' },
   { tipo: 'text', titulo: 'Aberta', explicacao: 'A pessoa escreve com as próprias palavras.' },
+  { tipo: 'nps', titulo: 'Nota NPS (0 a 10)', explicacao: 'De 0 a 10, quanto recomendaria? Calcula o NPS.' },
 ];
+
+// ── Áreas: Pesquisas (colaboradores) e NPS (clientes) ───────
+
+export type AreaPesquisa = 'pesquisas' | 'nps';
+
+/** Tipos de pergunta de cada área: o NPS 0–10 só existe na área NPS; Escolha só em Pesquisas. */
+export const TIPOS_POR_AREA: Record<AreaPesquisa, readonly SurveyType[]> = {
+  pesquisas: ['scale', 'choice', 'text'],
+  nps: ['nps', 'scale', 'text'],
+};
+
+export interface ConfigArea {
+  audience: SurveyAudience;
+  titulo: string;
+  subtitulo: string;
+  botaoNova: string;
+  botaoCriarVazio: string;
+  rotaRaiz: string;
+  rotaNova: string;
+  rotaDetalhe: (id: number) => string;
+  singular: string;
+  plural: string;
+  metrica: string;
+  tituloLista: string;
+  descricaoLista: string;
+  tituloVazio: string;
+  descricaoVazio: string;
+}
+
+export const AREAS_PESQUISA: Record<AreaPesquisa, ConfigArea> = {
+  pesquisas: {
+    audience: 'employees',
+    titulo: 'Pesquisas de pulso',
+    subtitulo: 'Colete feedback da equipe e acompanhe as respostas.',
+    botaoNova: 'Nova pesquisa',
+    botaoCriarVazio: 'Criar pesquisa',
+    rotaRaiz: '/pesquisas',
+    rotaNova: '/pesquisas/nova',
+    rotaDetalhe: (id) => `/pesquisas/${id}`,
+    singular: 'pesquisa',
+    plural: 'pesquisas',
+    metrica: 'Pesquisas ativas',
+    tituloLista: 'Todas as pesquisas',
+    descricaoLista: 'Abra uma pesquisa para consultar os resultados.',
+    tituloVazio: 'Nenhuma pesquisa criada',
+    descricaoVazio: 'Crie uma pesquisa para coletar feedback da equipe.',
+  },
+  nps: {
+    audience: 'customers',
+    titulo: 'NPS — satisfação do cliente',
+    subtitulo: 'Meça se os clientes recomendariam o escritório e retorne o contato de quem não ficou satisfeito.',
+    botaoNova: 'Nova campanha NPS',
+    botaoCriarVazio: 'Criar campanha NPS',
+    rotaRaiz: '/nps',
+    rotaNova: '/nps/nova',
+    rotaDetalhe: (id) => `/nps/${id}`,
+    singular: 'campanha',
+    plural: 'campanhas',
+    metrica: 'Campanhas ativas',
+    tituloLista: 'Todas as campanhas',
+    descricaoLista: 'Abra uma campanha para ver o NPS e retornar contatos.',
+    tituloVazio: 'Nenhuma campanha NPS',
+    descricaoVazio: 'Crie uma campanha, copie o link ou mostre o QR code para os clientes responderem.',
+  },
+};
 
 // ── Editor do RH ────────────────────────────────────────────
 
@@ -154,7 +223,7 @@ export function validarPesquisa(titulo: string, validadeBr: string, perguntas: r
 }
 
 /** Monta o corpo do POST /api/surveys (só chame depois de validarPesquisa ok). */
-export function montarPesquisa(titulo: string, validadeBr: string, perguntas: readonly PerguntaRascunho[]): CreateSurveyData {
+export function montarPesquisa(titulo: string, validadeBr: string, perguntas: readonly PerguntaRascunho[], audience: SurveyAudience = 'employees'): CreateSurveyData {
   const validade = lerValidade(validadeBr);
   const questions: NewSurveyQuestion[] = perguntas.map((p) => ({
     question: p.question.trim(),
@@ -162,13 +231,15 @@ export function montarPesquisa(titulo: string, validadeBr: string, perguntas: re
     ...(p.type === 'choice' ? { options: p.options.map((o) => o.trim()).filter((o) => o !== '') } : {}),
     required: p.required,
   }));
-  return { title: titulo.trim(), expires_at: validade.ok ? validade.iso : null, questions };
+  // Só envia `audience` para clientes: pesquisas de colaborador seguem com o corpo de sempre.
+  return { title: titulo.trim(), expires_at: validade.ok ? validade.iso : null, ...(audience === 'customers' ? { audience } : {}), questions };
 }
 
 /** Pesquisa de mentira para a prévia "Ver como o colaborador vai ver" (nada é gravado). */
-export function previaPublica(titulo: string, perguntas: readonly PerguntaRascunho[]): PublicSurvey {
+export function previaPublica(titulo: string, perguntas: readonly PerguntaRascunho[], audience: SurveyAudience = 'employees'): PublicSurvey {
   return {
     id: 0,
+    audience,
     title: titulo.trim() || 'Título da pesquisa',
     expires_at: null,
     questions: perguntas.map((p, i) => ({
@@ -196,6 +267,7 @@ export type RespostasLocais = Record<number, RespostaLocal>;
 export function estaRespondida(pergunta: SurveyQuestion, resposta: RespostaLocal | undefined): boolean {
   if (!resposta) return false;
   if (pergunta.type === 'scale') return typeof resposta.score === 'number' && resposta.score >= 1 && resposta.score <= 5;
+  if (pergunta.type === 'nps') return Number.isInteger(resposta.score) && (resposta.score as number) >= 0 && (resposta.score as number) <= 10;
   if (pergunta.type === 'choice') return typeof resposta.choice === 'string' && (pergunta.options ?? []).includes(resposta.choice);
   return typeof resposta.text === 'string' && resposta.text.trim() !== '';
 }
@@ -205,6 +277,7 @@ export function bloqueioDeAvanco(pergunta: SurveyQuestion, resposta: RespostaLoc
   if (pergunta.type === 'text' && (resposta?.text ?? '').length > MAX_TEXTO) return `Use no máximo ${MAX_TEXTO} caracteres.`;
   if (!pergunta.required || estaRespondida(pergunta, resposta)) return null;
   if (pergunta.type === 'text') return 'Escreva sua resposta para continuar.';
+  if (pergunta.type === 'nps') return 'Escolha uma nota de 0 a 10 para continuar.';
   return 'Escolha uma resposta para continuar.';
 }
 
@@ -214,7 +287,7 @@ export function montarRespostas(perguntas: readonly SurveyQuestion[], respostas:
   for (const p of perguntas) {
     const r = respostas[p.id];
     if (!estaRespondida(p, r)) continue;
-    if (p.type === 'scale') out.push({ question_id: p.id, score: r?.score });
+    if (p.type === 'scale' || p.type === 'nps') out.push({ question_id: p.id, score: r?.score });
     else if (p.type === 'choice') out.push({ question_id: p.id, choice: r?.choice });
     else out.push({ question_id: p.id, text: (r?.text ?? '').trim() });
   }
@@ -245,8 +318,8 @@ function perguntasDe(bruto: { questions?: SurveyQuestion[] } & PesquisaLegada): 
   return [];
 }
 
-export function normalizarPesquisaPublica(bruto: { id: number; title: string; expires_at?: string | null; questions?: SurveyQuestion[] } & PesquisaLegada): PublicSurvey {
-  return { id: bruto.id, title: bruto.title, expires_at: bruto.expires_at ?? null, questions: perguntasDe(bruto) };
+export function normalizarPesquisaPublica(bruto: { id: number; title: string; expires_at?: string | null; audience?: SurveyAudience; questions?: SurveyQuestion[] } & PesquisaLegada): PublicSurvey {
+  return { id: bruto.id, title: bruto.title, expires_at: bruto.expires_at ?? null, audience: bruto.audience === 'customers' ? 'customers' : 'employees', questions: perguntasDe(bruto) };
 }
 
 /** Pesquisa do formato antigo (sem `questions`): o envio usa o corpo antigo {score|choice}. */
@@ -258,13 +331,14 @@ export interface ResultadosBrutos {
   survey: PulseSurvey;
   total_responses: number;
   questions?: QuestionResult[];
+  contacts?: SurveyContact[];
   /** Formato antigo: um único bloco de resultados. */
   results?: { avg?: number; distribution?: Record<string, number> };
 }
 
 export function normalizarResultados(bruto: ResultadosBrutos): SurveyResults {
   if (Array.isArray(bruto.questions)) {
-    return { survey: bruto.survey, total_responses: bruto.total_responses, questions: [...bruto.questions].sort((a, b) => a.position - b.position) };
+    return { survey: bruto.survey, total_responses: bruto.total_responses, questions: [...bruto.questions].sort((a, b) => a.position - b.position), ...(bruto.contacts ? { contacts: bruto.contacts } : {}) };
   }
   const p = perguntasDe(bruto.survey)[0];
   const questions: QuestionResult[] = p
@@ -274,5 +348,152 @@ export function normalizarResultados(bruto: ResultadosBrutos): SurveyResults {
 }
 
 export function rotuloTipo(tipo: SurveyType): string {
-  return tipo === 'scale' ? 'Escala 1 a 5' : tipo === 'choice' ? 'Escolha' : 'Aberta';
+  return tipo === 'scale' ? 'Escala 1 a 5' : tipo === 'choice' ? 'Escolha' : tipo === 'nps' ? 'Nota NPS (0 a 10)' : 'Aberta';
+}
+
+// ── Pesquisa de CLIENTE: modelo pronto ──────────────────────
+
+export const TITULO_MODELO_CLIENTE = 'Satisfação do cliente';
+
+/**
+ * Modelo "Satisfação do cliente": 4 perguntas, todas editáveis.
+ * Só o NPS é obrigatório; o resto é opcional para não cansar o cliente.
+ */
+export function modeloSatisfacaoCliente(): PerguntaRascunho[] {
+  const nps = { ...perguntaNova('nps'), question: 'De 0 a 10, quanto você recomendaria nosso escritório a um amigo ou colega?', required: true };
+  const motivo = { ...perguntaNova('text'), question: 'Qual o principal motivo da sua nota?', required: false };
+  const atendimento = { ...perguntaNova('scale'), question: 'Como você avalia o atendimento?', required: false };
+  const clareza = { ...perguntaNova('scale'), question: 'Como você avalia a clareza das informações sobre o seu processo?', required: false };
+  return [nps, motivo, atendimento, clareza];
+}
+
+// ── Contato opcional do cliente (LGPD) ──────────────────────
+
+export const MAX_NOME_CONTATO = 100;
+export const MAX_TELEFONE_CONTATO = 30;
+export const MAX_EMAIL_CONTATO = 120;
+export const TEXTO_CONSENTIMENTO = 'Usaremos seu contato apenas para falar sobre esta avaliação.';
+
+export interface ContatoRascunho {
+  consentimento: boolean;
+  nome: string;
+  telefone: string;
+  email: string;
+}
+
+export const CONTATO_VAZIO: ContatoRascunho = { consentimento: false, nome: '', telefone: '', email: '' };
+
+export interface ErrosContato {
+  nome?: string;
+  contato?: string;
+  email?: string;
+  telefone?: string;
+}
+
+const REGEX_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/**
+ * Sem consentimento o contato é ignorado por completo (ok, sem erros): nada de dado pessoal é enviado.
+ * Com consentimento: nome + (telefone ou e-mail) válidos.
+ */
+export function validarContato(c: ContatoRascunho): { ok: boolean; erros: ErrosContato } {
+  if (!c.consentimento) return { ok: true, erros: {} };
+  const erros: ErrosContato = {};
+  const nome = c.nome.trim();
+  const telefone = c.telefone.trim();
+  const email = c.email.trim();
+  if (nome.length < 2) erros.nome = 'Como podemos te chamar?';
+  if (!telefone && !email) erros.contato = 'Informe um telefone ou um e-mail.';
+  if (telefone) {
+    const digitos = telefone.replace(/\D/g, '');
+    if (digitos.length < 8 || digitos.length > 15 || telefone.length > MAX_TELEFONE_CONTATO) erros.telefone = 'Confira o telefone (com DDD).';
+  }
+  if (email && (!REGEX_EMAIL.test(email) || email.length > MAX_EMAIL_CONTATO)) erros.email = 'Confira o e-mail.';
+  return { ok: Object.keys(erros).length === 0, erros };
+}
+
+/** Contato para enviar à API, ou null (sem consentimento nada vai). Só chame com validarContato ok. */
+export function montarContato(c: ContatoRascunho): SurveyContactInput | null {
+  if (!c.consentimento) return null;
+  const telefone = c.telefone.trim();
+  const email = c.email.trim();
+  return {
+    name: c.nome.trim().slice(0, MAX_NOME_CONTATO),
+    ...(telefone ? { phone: telefone } : {}),
+    ...(email ? { email } : {}),
+    consent: true,
+  };
+}
+
+// ── NPS ─────────────────────────────────────────────────────
+
+export type GrupoNps = 'promotor' | 'neutro' | 'detrator';
+
+/** 9 e 10 promotores; 7 e 8 neutros; 0 a 6 detratores. */
+export function grupoDoNps(nota: number): GrupoNps {
+  if (nota >= 9) return 'promotor';
+  if (nota >= 7) return 'neutro';
+  return 'detrator';
+}
+
+export interface ContagemNps {
+  promoters: number;
+  passives: number;
+  detractors: number;
+}
+
+export const POUCAS_RESPOSTAS_NPS = 10;
+
+export function totalNps(c: ContagemNps): number {
+  return c.promoters + c.passives + c.detractors;
+}
+
+/**
+ * NPS = % promotores − % detratores, inteiro de −100 a +100; null sem respostas (nunca 0).
+ * O servidor é a fonte oficial; isto serve de conferência e de reserva quando o campo não vier.
+ */
+export function calcularNps(c: ContagemNps): number | null {
+  const total = totalNps(c);
+  if (total <= 0) return null;
+  return Math.round(((c.promoters - c.detractors) * 100) / total);
+}
+
+/** "+42", "−15", "0" ou "Sem dados". */
+export function formatarNps(nps: number | null | undefined): string {
+  if (nps == null) return 'Sem dados';
+  if (nps > 0) return `+${nps}`;
+  if (nps < 0) return `−${Math.abs(nps)}`;
+  return '0';
+}
+
+export function poucasRespostasNps(total: number): boolean {
+  return total > 0 && total < POUCAS_RESPOSTAS_NPS;
+}
+
+/** Percentuais (0 a 100) de cada grupo; tudo 0 sem respostas. */
+export function percentuaisNps(c: ContagemNps): { promotores: number; neutros: number; detratores: number } {
+  const total = totalNps(c);
+  if (total <= 0) return { promotores: 0, neutros: 0, detratores: 0 };
+  return { promotores: (c.promoters / total) * 100, neutros: (c.passives / total) * 100, detratores: (c.detractors / total) * 100 };
+}
+
+/** Contagem por nota de 0 a 10 (sempre 11 posições). */
+export function distribuicaoNps(distribuicao: Record<string, number> | undefined): number[] {
+  return Array.from({ length: 11 }, (_, nota) => distribuicao?.[String(nota)] ?? 0);
+}
+
+/** Contagem dos grupos: usa os campos do servidor e, se faltarem, soma a distribuição. */
+export function contagemDoResultado(r: QuestionResult): ContagemNps {
+  if (r.promoters != null && r.passives != null && r.detractors != null) return { promoters: r.promoters, passives: r.passives, detractors: r.detractors };
+  const d = distribuicaoNps(r.distribution);
+  return { detractors: d.slice(0, 7).reduce((t, n) => t + n, 0), passives: (d[7] ?? 0) + (d[8] ?? 0), promoters: (d[9] ?? 0) + (d[10] ?? 0) };
+}
+
+/** Quem pediu contato, separado: detratores (a retornar) e os demais. Pendentes primeiro, notas mais baixas antes. */
+export function separarContatos(contatos: readonly SurveyContact[] | undefined): { aRetornar: SurveyContact[]; outros: SurveyContact[] } {
+  const lista = [...(contatos ?? [])];
+  const ordem = (a: SurveyContact, b: SurveyContact) =>
+    Number(a.contacted_at != null) - Number(b.contacted_at != null) || (a.score ?? 11) - (b.score ?? 11) || b.submitted_at.localeCompare(a.submitted_at);
+  const detrator = (c: SurveyContact) => c.score != null && grupoDoNps(c.score) === 'detrator';
+  return { aRetornar: lista.filter(detrator).sort(ordem), outros: lista.filter((c) => !detrator(c)).sort(ordem) };
 }
