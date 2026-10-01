@@ -1,0 +1,41 @@
+# CI do SuperRH: typecheck + testes + build web em todo PR e push na main.
+# Gate de qualidade; o deploy continua sendo feito pela Vercel.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "reports/**"
+      - "docs/**"
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: TypeScript
+        run: npm run typecheck
+
+      - name: Testes
+        run: npm run test:ci
+
+      - name: Build web
+        run: npm run build:web
+        env:
+          EXPO_PUBLIC_API_URL: https://example.invalid

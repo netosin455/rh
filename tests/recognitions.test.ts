@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mockSql = vi.fn();
 const mockAuthenticate = vi.fn();
@@ -29,8 +29,18 @@ function makeRes() {
 const rhCtx = { sub: 1, company_id: 10, role: 'rh', name: 'RH', email: 'rh@empresa.com' };
 
 describe('POST /api/recognitions', () => {
+  // O primeiro import do handler compila TypeScript e, sob carga (CI ou vários processos),
+  // passava dos 5 s do teste. Importar uma vez aqui, com folga, deixa os testes instantâneos.
+  beforeAll(async () => {
+    await import('../api/recognitions/index');
+  }, 60_000);
+
   beforeEach(() => {
     vi.clearAllMocks();
+    // clearAllMocks não esvazia a fila de mockResolvedValueOnce: um teste que falha deixaria
+    // respostas sobrando e derrubaria o seguinte em cascata.
+    mockSql.mockReset();
+    mockSendEmail.mockReset();
     mockAuthenticate.mockReturnValue(rhCtx);
   });
 
