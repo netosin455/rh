@@ -1,5 +1,20 @@
 # Changelog — SuperRH
 
+## [2026-10-05] — Testes E2E, verificador de schema, seletores de data e hora
+
+### Adicionado
+- **Testes E2E com Playwright** (`e2e/`, `playwright.config.ts`, `npm run e2e`): 12 testes em 9 fluxos (login errado e certo, logout, Equipe com sidebar ativa, Lançar falta e folga, aprovar férias, Agenda, risco médio no Analytics, NPS do início ao fim, 401 no meio do uso). O app web compilado roda contra uma API 100% SIMULADA com estado (`e2e/apiSimulada.ts`); qualquer requisição fora de `127.0.0.1:4173`, endpoint sem simulação ou erro de JavaScript derruba o teste. Novo job `e2e` no CI do GitHub. Localmente usa o Chrome instalado; no CI, o Chromium do Playwright.
+- **Verificador de schema** (`npm run db:verify`, `banco/verificar_schema.mjs`): compara `schema.sql` e as migrations com o banco real, somente leitura. Item novo no `RELEASE_CHECKLIST`.
+- **Seletor de data e hora** (`DateField`, `TimeField`): Agenda (com "Dia inteiro"), Lançar, cadastro e perfil do colaborador, Férias, Avisos, NPS e Pesquisas; `Input` com "obrigatório", dica de formato e erro anunciável; `EmployeePicker` com busca sem acento.
+
+### Corrigido
+- **`push_tokens` nunca existiu em produção** (migration `008_push_tokens.sql` nunca rodou): fixar aviso dava erro 500 e o app nativo não conseguia registrar o aparelho para push. Achado pelo `db:verify`; migration 008 executada.
+- **Busca da Equipe diferenciava acento** ("juridico" não achava "Jurídico"); achado pelo E2E, corrigido com `normalizarTexto` (mesmo do seletor do Lançar) e o teste virou regressão.
+
+### Limites conhecidos
+- O E2E prova o front contra o contrato da API, não a API nem o banco reais; não cobre app nativo, tela estreita, Safari/Firefox nem as telas de Avisos, Kudos, Feedbacks, Onboarding, Admin e IA.
+- 4 itens existem no banco sem descrição no SQL do repositório: `_migrations`, `employee_documents`, `login_attempts` e a view `vw_employee_analytics`.
+
 ## [2026-10-01] — Fase 1 de estabilização, CI, NPS de clientes e risco de saída clicável
 
 ### Corrigido

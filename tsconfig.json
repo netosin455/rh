@@ -22,6 +22,8 @@
     "helpers/**/*",
     "contextos/**/*",
     "tipos/**/*",
+    "e2e/**/*.ts",
+    "playwright.config.ts",
     ".expo/types/**/*.ts",
     "expo-env.d.ts"
   ],

@@ -17,6 +17,11 @@ backend/node_modules/
 .expo/
 dist/
 
+# Testes E2E (Playwright): build separado e relatórios
+dist-e2e/
+test-results/
+playwright-report/
+
 # Vercel
 .vercel/
 

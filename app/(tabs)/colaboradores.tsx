@@ -12,6 +12,7 @@ import { cores } from '../../estilo/cores';
 import { FiltroEquipe, ROTULO_FILTRO_TEMPORARIO, combinaComFiltroEquipe, lerFiltroEquipe } from '../../helpers/filtros';
 import { borda, espaco, raio, tamanho } from '../../estilo/espaco';
 import { tipografia } from '../../estilo/tipografia';
+import { normalizarTexto } from '../../helpers/buscaColaborador';
 import { isoParaBr } from '../../helpers/camposData';
 import { brToIso, getTodayString, todayBr } from '../../helpers/datas';
 import { maskCPF, maskPhone } from '../../helpers/validacoes';
@@ -139,10 +140,11 @@ export default function ColaboradoresScreen() {
   }
 
   const filtered = useMemo(() => {
-    const q = search.toLowerCase();
+    // Sem diferenciar acento nem maiúscula: "juridico" acha "Jurídico" (igual ao seletor do Lançar).
+    const q = normalizarTexto(search);
     return employees.filter(e => {
       const matchStatus = combinaComFiltroEquipe(e.status, filter);
-      const matchSearch = !q || e.name.toLowerCase().includes(q) || e.role_title.toLowerCase().includes(q);
+      const matchSearch = !q || normalizarTexto(e.name).includes(q) || normalizarTexto(e.role_title ?? '').includes(q);
       return matchStatus && matchSearch;
     });
   }, [employees, filter, search]);

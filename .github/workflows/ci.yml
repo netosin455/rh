@@ -39,3 +39,35 @@ jobs:
         run: npm run build:web
         env:
           EXPO_PUBLIC_API_URL: https://example.invalid
+
+  # Fluxos de ponta a ponta no navegador (login, equipe, lançar, férias, agenda, analytics, NPS, sessão).
+  # O app web compilado roda contra uma API 100% simulada: nenhuma requisição toca produção ou banco.
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Instalar o Chromium do Playwright
+        run: npx playwright install --with-deps chromium
+
+      - name: Testes E2E
+        run: npm run e2e
+
+      - name: Guardar relatório quando falhar
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: relatorio-e2e
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
