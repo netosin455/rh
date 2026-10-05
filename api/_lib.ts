@@ -413,3 +413,217 @@ export async function resolveAbsenceApproval(
 
   return { ok: true, status: 200, absence: rows[0] };
 }
+
+export type ApprovedAbsenceRecord = {
+  id: number;
+  employee_id: number;
+  type: string;
+  days_count: number;
+  hours: number | null;
+};
+
+export type ApprovedAbsenceUpdate = {
+  start_date: string;
+  end_date: string;
+  reason: string | null;
+  hours: number | null;
+};
+
+type ApprovedAbsenceUpdateFailure = {
+  ok: false;
+  status: 409 | 422;
+  error: string;
+};
+
+const APPROVED_ABSENCE_CHANGED_ERROR = 'Nao foi possivel editar: o lancamento mudou ou nao existe mais. Recarregue.';
+
+function isPostgresErrorWithCode(error: unknown, code: string): boolean {
+  return typeof error === 'object'
+    && error !== null
+    && 'code' in error
+    && (error as { code?: unknown }).code === code;
+}
+
+async function approvedAbsenceUpdateFailure(
+  ctx: JWTPayload,
+  absence: ApprovedAbsenceRecord,
+  nextDays: number,
+  nextHours: number,
+): Promise<ApprovedAbsenceUpdateFailure> {
+  if (absence.type === 'folga') {
+    const rows = await sql`
+      SELECT e.folga_hours + COALESCE(a.hours, 0) >= ${nextHours} AS saldo_suficiente
+      FROM absences a
+      JOIN employees e ON e.id = a.employee_id AND e.company_id = ${ctx.company_id}
+      WHERE a.id = ${absence.id} AND a.company_id = ${ctx.company_id}
+        AND a.status = 'aprovado' AND a.type = 'folga'
+    `;
+    const current = rows[0] as { saldo_suficiente?: unknown } | undefined;
+    if (!current) return { ok: false, status: 409, error: APPROVED_ABSENCE_CHANGED_ERROR };
+    const sufficient = current.saldo_suficiente === true;
+    return sufficient
+      ? { ok: false, status: 409, error: APPROVED_ABSENCE_CHANGED_ERROR }
+      : { ok: false, status: 422, error: 'Saldo de banco de horas insuficiente para aumentar as horas da folga.' };
+  }
+
+  if (absence.type === 'ferias') {
+    const rows = await sql`
+      SELECT e.vacation_days + a.days_count >= ${nextDays} AS saldo_suficiente
+      FROM absences a
+      JOIN employees e ON e.id = a.employee_id AND e.company_id = ${ctx.company_id}
+      WHERE a.id = ${absence.id} AND a.company_id = ${ctx.company_id}
+        AND a.status = 'aprovado' AND a.type = 'ferias'
+    `;
+    const current = rows[0] as { saldo_suficiente?: unknown } | undefined;
+    if (!current) return { ok: false, status: 409, error: APPROVED_ABSENCE_CHANGED_ERROR };
+    const sufficient = current.saldo_suficiente === true;
+    return sufficient
+      ? { ok: false, status: 409, error: APPROVED_ABSENCE_CHANGED_ERROR }
+      : { ok: false, status: 422, error: 'Saldo de férias insuficiente para aumentar os dias da ausência.' };
+  }
+
+  return { ok: false, status: 409, error: APPROVED_ABSENCE_CHANGED_ERROR };
+}
+
+/**
+ * Edita uma ausência já aprovada e ajusta o saldo no mesmo comando SQL.
+ * A ausência é alterada antes do saldo; a verificação final desfaz ambas em caso de corrida.
+ */
+export async function updateApprovedAbsenceRecord(
+  ctx: JWTPayload,
+  absence: ApprovedAbsenceRecord,
+  update: ApprovedAbsenceUpdate,
+): Promise<{ ok: true; absence: unknown } | ApprovedAbsenceUpdateFailure> {
+  const nextDays = calendarDaysInclusive(update.start_date, update.end_date);
+  const nextHours = Number(update.hours ?? 0);
+  let rows: unknown[];
+
+  try {
+    if (absence.type === 'folga') {
+      rows = await sql`
+        WITH antiga AS (
+          SELECT a.id, a.employee_id, a.hours, e.folga_hours
+          FROM absences a
+          JOIN employees e ON e.id = a.employee_id AND e.company_id = ${ctx.company_id}
+          WHERE a.id = ${absence.id} AND a.company_id = ${ctx.company_id}
+            AND a.status = 'aprovado' AND a.type = 'folga'
+          FOR UPDATE OF a, e
+        ), ausencia_atualizada AS (
+          UPDATE absences a
+          SET start_date = ${update.start_date}, end_date = ${update.end_date},
+            reason = ${update.reason}, hours = ${update.hours}
+          FROM antiga
+          WHERE a.id = antiga.id AND a.company_id = ${ctx.company_id}
+            AND a.status = 'aprovado' AND a.type = 'folga'
+            AND antiga.folga_hours + COALESCE(antiga.hours, 0) - ${nextHours} >= 0
+          RETURNING a.*
+        ), saldo_ajustado AS (
+          UPDATE employees e
+          SET folga_hours = e.folga_hours + COALESCE(antiga.hours, 0) - ${nextHours}
+          FROM ausencia_atualizada atualizada
+          JOIN antiga ON antiga.id = atualizada.id
+          WHERE e.id = antiga.employee_id AND e.company_id = ${ctx.company_id}
+          RETURNING e.id
+        ), verificacao AS (
+          SELECT 1 / (CASE WHEN
+            (SELECT COUNT(*) FROM ausencia_atualizada) = 1
+            AND (SELECT COUNT(*) FROM saldo_ajustado) = 1
+          THEN 1 ELSE 0 END) AS confirmado
+        )
+        SELECT atualizada.*
+        FROM verificacao
+        JOIN ausencia_atualizada atualizada ON TRUE
+      `;
+    } else if (absence.type === 'ferias') {
+      rows = await sql`
+        WITH antiga AS (
+          SELECT a.id, a.employee_id, a.days_count, e.vacation_days
+          FROM absences a
+          JOIN employees e ON e.id = a.employee_id AND e.company_id = ${ctx.company_id}
+          WHERE a.id = ${absence.id} AND a.company_id = ${ctx.company_id}
+            AND a.status = 'aprovado' AND a.type = 'ferias'
+          FOR UPDATE OF a, e
+        ), ausencia_atualizada AS (
+          UPDATE absences a
+          SET start_date = ${update.start_date}, end_date = ${update.end_date},
+            reason = ${update.reason}, hours = ${update.hours}
+          FROM antiga
+          WHERE a.id = antiga.id AND a.company_id = ${ctx.company_id}
+            AND a.status = 'aprovado' AND a.type = 'ferias'
+            AND antiga.vacation_days + antiga.days_count - ${nextDays} >= 0
+          RETURNING a.*
+        ), saldo_ajustado AS (
+          UPDATE employees e
+          SET vacation_days = e.vacation_days + antiga.days_count - ${nextDays}
+          FROM ausencia_atualizada atualizada
+          JOIN antiga ON antiga.id = atualizada.id
+          WHERE e.id = antiga.employee_id AND e.company_id = ${ctx.company_id}
+          RETURNING e.id
+        ), verificacao AS (
+          SELECT 1 / (CASE WHEN
+            (SELECT COUNT(*) FROM ausencia_atualizada) = 1
+            AND (SELECT COUNT(*) FROM saldo_ajustado) = 1
+          THEN 1 ELSE 0 END) AS confirmado
+        )
+        SELECT atualizada.*
+        FROM verificacao
+        JOIN ausencia_atualizada atualizada ON TRUE
+      `;
+    } else {
+      rows = await sql`
+        UPDATE absences SET start_date = ${update.start_date}, end_date = ${update.end_date},
+          reason = ${update.reason}, hours = ${update.hours}
+        WHERE id = ${absence.id} AND company_id = ${ctx.company_id} AND status = 'aprovado'
+        RETURNING *
+      `;
+    }
+  } catch (error) {
+    if (!isPostgresErrorWithCode(error, '22012')) throw error;
+    return approvedAbsenceUpdateFailure(ctx, absence, nextDays, nextHours);
+  }
+
+  if (!rows[0]) return approvedAbsenceUpdateFailure(ctx, absence, nextDays, nextHours);
+  return { ok: true, absence: rows[0] };
+}
+
+/** Restaura o saldo debitado por uma ausência aprovada antes de removê-la. */
+export async function deleteApprovedAbsenceRecord(
+  ctx: JWTPayload,
+  absence: ApprovedAbsenceRecord,
+): Promise<boolean> {
+  let rows: unknown[];
+  if (absence.type === 'folga' && absence.hours != null) {
+    rows = await sql`
+      WITH excluida AS (
+        DELETE FROM absences
+        WHERE id = ${absence.id} AND company_id = ${ctx.company_id}
+          AND status = 'aprovado' AND type = 'folga'
+        RETURNING employee_id, hours
+      )
+      UPDATE employees e SET folga_hours = e.folga_hours + excluida.hours
+      FROM excluida
+      WHERE e.id = excluida.employee_id AND e.company_id = ${ctx.company_id}
+      RETURNING e.id
+    `;
+  } else if (absence.type === 'ferias') {
+    rows = await sql`
+      WITH excluida AS (
+        DELETE FROM absences
+        WHERE id = ${absence.id} AND company_id = ${ctx.company_id}
+          AND status = 'aprovado' AND type = 'ferias'
+        RETURNING employee_id, days_count
+      )
+      UPDATE employees e SET vacation_days = e.vacation_days + excluida.days_count
+      FROM excluida
+      WHERE e.id = excluida.employee_id AND e.company_id = ${ctx.company_id}
+      RETURNING e.id
+    `;
+  } else {
+    rows = await sql`
+      DELETE FROM absences
+      WHERE id = ${absence.id} AND company_id = ${ctx.company_id} AND status = 'aprovado'
+      RETURNING id
+    `;
+  }
+  return Boolean(rows[0]);
+}

@@ -35,6 +35,11 @@ export async function updateFeedback(id: number, data: CreateFeedbackData): Prom
   return apiFetch<Feedback>(`/api/feedbacks/${id}`, { method: 'PUT', body: JSON.stringify(data) });
 }
 
+/** Exclui o feedback (qualquer status). A API responde 204. */
+export async function deleteFeedback(id: number): Promise<void> {
+  return apiFetch(`/api/feedbacks/${id}`, { method: 'DELETE' });
+}
+
 export async function publishFeedback(id: number): Promise<Feedback> {
   return apiFetch<Feedback>(`/api/feedbacks/${id}/publish`, { method: 'POST' });
 }

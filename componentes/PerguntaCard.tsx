@@ -16,8 +16,11 @@ import {
   MAX_TEXTO,
   PerguntaRascunho,
   TIPOS_PERGUNTA,
+  SEM_RESTRICAO,
+  RestricaoPergunta,
   adicionarOpcao,
   editarOpcao,
+  opcaoEditavel,
   podeAdicionarOpcao,
   removerOpcao,
   trocarTipo,
@@ -40,6 +43,11 @@ type PerguntaCardProps = {
   erros?: ErrosPergunta;
   desabilitado?: boolean;
   podeDuplicar: boolean;
+  /** Edição de pesquisa com respostas: o que o servidor bloquearia fica desabilitado, com explicação. */
+  restricao?: RestricaoPergunta;
+  /** Posição permitida para subir/descer (padrão: só os limites da lista). */
+  podeSubir?: boolean;
+  podeDescer?: boolean;
   /** Tipos de pergunta oferecidos (cada área tem os seus). Padrão: todos. */
   tipos?: readonly SurveyType[];
   onChange: (pergunta: PerguntaRascunho) => void;
@@ -48,7 +56,7 @@ type PerguntaCardProps = {
   onExcluir: () => void;
 };
 
-export function PerguntaCard({ indice, total, pergunta, erros, desabilitado, podeDuplicar, tipos, onChange, onMover, onDuplicar, onExcluir }: PerguntaCardProps) {
+export function PerguntaCard({ indice, total, pergunta, erros, desabilitado, podeDuplicar, restricao = SEM_RESTRICAO, podeSubir = true, podeDescer = true, tipos, onChange, onMover, onDuplicar, onExcluir }: PerguntaCardProps) {
   const { width } = useWindowDimensions();
   const estreito = width < 640;
   const campos = useRef<(TextInput | null)[]>([]);
@@ -76,12 +84,14 @@ export function PerguntaCard({ indice, total, pergunta, erros, desabilitado, pod
         <View style={styles.numero}><Text style={styles.numeroTexto}>{indice + 1}</Text></View>
         <Text style={styles.cabecalhoTitulo}>Pergunta {indice + 1}</Text>
         <View style={styles.acoes}>
-          <Button accessibilityLabel={`Subir pergunta ${indice + 1}`} disabled={desabilitado || indice === 0} icon="arrow-up-outline" onPress={() => onMover(-1)} variant="ghost" />
-          <Button accessibilityLabel={`Descer pergunta ${indice + 1}`} disabled={desabilitado || indice === total - 1} icon="arrow-down-outline" onPress={() => onMover(1)} variant="ghost" />
-          <Button accessibilityLabel={`Duplicar pergunta ${indice + 1}`} disabled={desabilitado || !podeDuplicar} icon="copy-outline" onPress={onDuplicar} variant="ghost" />
-          <Button accessibilityLabel={`Excluir pergunta ${indice + 1}`} disabled={desabilitado || total <= 1} icon="trash-outline" onPress={onExcluir} variant="ghost" />
+          <Button accessibilityLabel={`Subir pergunta ${indice + 1}`} disabled={desabilitado || indice === 0 || !podeSubir} icon="arrow-up-outline" onPress={() => onMover(-1)} variant="ghost" />
+          <Button accessibilityLabel={`Descer pergunta ${indice + 1}`} disabled={desabilitado || indice === total - 1 || !podeDescer} icon="arrow-down-outline" onPress={() => onMover(1)} variant="ghost" />
+          <Button accessibilityLabel={`Duplicar pergunta ${indice + 1}`} disabled={desabilitado || !podeDuplicar || restricao.duplicar} icon="copy-outline" onPress={onDuplicar} variant="ghost" />
+          <Button accessibilityLabel={`Excluir pergunta ${indice + 1}`} disabled={desabilitado || total <= 1 || restricao.remover} icon="trash-outline" onPress={onExcluir} variant="ghost" />
         </View>
       </View>
+
+      {restricao.motivo ? <Text style={styles.motivo}>{restricao.motivo}</Text> : null}
 
       <Text style={styles.rotulo}>Como a pessoa vai responder?</Text>
       <View accessibilityRole="radiogroup" style={[styles.tipos, estreito && styles.tiposEstreito]}>
@@ -92,9 +102,9 @@ export function PerguntaCard({ indice, total, pergunta, erros, desabilitado, pod
             <Pressable
               accessibilityLabel={t.titulo}
               accessibilityRole="radio"
-              accessibilityState={{ checked: ativo, disabled: desabilitado }}
+              accessibilityState={{ checked: ativo, disabled: desabilitado || restricao.tipo }}
               aria-checked={ativo}
-              disabled={desabilitado}
+              disabled={desabilitado || restricao.tipo}
               key={t.tipo}
               onPress={() => onChange(trocarTipo(pergunta, t.tipo))}
               style={[styles.tipo, estreito && styles.tipoEstreito, ativo && styles.tipoAtivo]}
@@ -131,7 +141,7 @@ export function PerguntaCard({ indice, total, pergunta, erros, desabilitado, pod
                 accessibilityLabel={`Opção ${i + 1} da pergunta ${indice + 1}`}
                 blurOnSubmit={false}
                 containerStyle={styles.opcaoCampo}
-                editable={!desabilitado}
+                editable={!desabilitado && opcaoEditavel(restricao, i)}
                 error={erros?.opcao?.[i]}
                 label={`Opção ${i + 1}`}
                 onChangeText={(v) => onChange(editarOpcao(pergunta, i, v))}
@@ -141,7 +151,7 @@ export function PerguntaCard({ indice, total, pergunta, erros, desabilitado, pod
                 returnKeyType="next"
                 value={opcao}
               />
-              <Button accessibilityLabel={`Remover opção ${i + 1}`} disabled={desabilitado || pergunta.options.length <= 2} icon="close-outline" onPress={() => onChange(removerOpcao(pergunta, i))} style={styles.opcaoRemover} variant="ghost" />
+              <Button accessibilityLabel={`Remover opção ${i + 1}`} disabled={desabilitado || pergunta.options.length <= 2 || !opcaoEditavel(restricao, i)} icon="close-outline" onPress={() => onChange(removerOpcao(pergunta, i))} style={styles.opcaoRemover} variant="ghost" />
             </View>
           ))}
           {erros?.opcoes ? <Text accessibilityRole="alert" style={styles.erro}>{erros.opcoes}</Text> : null}
@@ -166,7 +176,7 @@ export function PerguntaCard({ indice, total, pergunta, erros, desabilitado, pod
         </View>
         <Switch
           accessibilityLabel={`Pergunta ${indice + 1} obrigatória`}
-          disabled={desabilitado}
+          disabled={desabilitado || (restricao.obrigatoria && !pergunta.required)}
           onValueChange={(v) => onChange({ ...pergunta, required: v })}
           trackColor={{ false: cores.borda.forte, true: cores.accent.dourado }}
           value={pergunta.required}
@@ -202,6 +212,7 @@ const styles = StyleSheet.create({
   opcaoRemover: { marginTop: espaco.xl },
   adicionarOpcao: { alignSelf: 'flex-start' },
   erro: { ...tipografia.legenda, color: cores.status.erro.forte },
+  motivo: { ...tipografia.legenda, backgroundColor: cores.accent.superficie, borderRadius: raio.controle, color: cores.texto.secundario, padding: espaco.sm },
   dica: { ...tipografia.legenda, color: cores.texto.discreto },
   obrigatoria: { alignItems: 'center', borderTopColor: cores.borda.sutil, borderTopWidth: borda.fina, flexDirection: 'row', gap: espaco.md, paddingTop: espaco.md },
   obrigatoriaTexto: { flex: 1, gap: espaco.micro },

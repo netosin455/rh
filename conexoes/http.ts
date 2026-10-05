@@ -19,10 +19,18 @@ export class ApiError extends Error {
   constructor(
     public status: number,
     message: string,
+    /** Mensagens detalhadas do servidor (ex.: edição bloqueada, 409 `bloqueios`). */
+    public bloqueios: string[] = [],
   ) {
     super(message);
     this.name = 'ApiError';
   }
+}
+
+/** Lê `bloqueios` do corpo de erro, aceitando só lista de textos. */
+function lerBloqueios(body: { bloqueios?: unknown } | null | undefined): string[] {
+  const lista = body?.bloqueios;
+  return Array.isArray(lista) ? lista.filter((m): m is string => typeof m === 'string') : [];
 }
 
 /**
@@ -105,8 +113,8 @@ export async function apiFetch<T = unknown>(
     }
 
     if (!res.ok) {
-      const body: { error?: string } = await res.json().catch(() => ({}));
-      throw new ApiError(res.status, body?.error || `Erro ${res.status}`);
+      const body: { error?: string; bloqueios?: unknown } = await res.json().catch(() => ({}));
+      throw new ApiError(res.status, body?.error || `Erro ${res.status}`, lerBloqueios(body));
     }
 
     if (res.status === 204) return undefined as T;

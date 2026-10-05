@@ -38,6 +38,13 @@ type SurveyQuestion = {
   required: boolean;
 };
 type SurveyQuestionInput = Omit<SurveyQuestion, 'id'>;
+type SurveyQuestionUpdateInput = SurveyQuestionInput & { id: number | null };
+type SurveyUpdateBody = {
+  title?: unknown;
+  expires_at?: unknown;
+  questions?: unknown;
+  audience?: unknown;
+};
 type SurveyAnswerInput = { question_id: number; score?: number; choice?: string; text?: string };
 type ContactInput = {
   name: string;
@@ -136,6 +143,60 @@ function parseSurveyQuestions(body: unknown): SurveyQuestionInput[] | null {
   if (rawQuestions.length < 1 || rawQuestions.length > MAX_QUESTIONS) return null;
   const questions = rawQuestions.map((question, index) => parseQuestion(question, index + 1, isNewFormat));
   return questions.every((question): question is SurveyQuestionInput => question !== null) ? questions : null;
+}
+
+function parseSurveyQuestionUpdates(value: unknown): SurveyQuestionUpdateInput[] | null {
+  if (!Array.isArray(value) || value.length < 1 || value.length > MAX_QUESTIONS) return null;
+  const questions = value.map((rawQuestion, index) => {
+    const question = parseQuestion(rawQuestion, index + 1, true);
+    if (!question || !isObject(rawQuestion)) return null;
+    if (rawQuestion.id === undefined) return { ...question, id: null };
+    const id = positiveId(rawQuestion.id);
+    return id ? { ...question, id } : null;
+  });
+  return questions.every((question): question is SurveyQuestionUpdateInput => question !== null) ? questions : null;
+}
+
+function audienceQuestionError(audience: SurveyAudience, questions: readonly SurveyQuestionInput[]): string | null {
+  if (audience !== 'customers') return null;
+  if (questions.some((question) => question.type === 'choice') || !questions.some((question) => question.type === 'nps')) {
+    return 'Pesquisa de clientes exige ao menos uma pergunta NPS e aceita apenas NPS, escala ou aberta';
+  }
+  return null;
+}
+
+function blockedQuestionChanges(
+  current: readonly SurveyQuestion[],
+  requested: readonly SurveyQuestionUpdateInput[],
+): string[] {
+  const blockers: string[] = [];
+  const currentIds = current.map((question) => question.id);
+  const requestedExistingIds = requested.filter((question) => question.id !== null).map((question) => question.id as number);
+  if (requestedExistingIds.length !== currentIds.length) blockers.push('Não é permitido remover perguntas após receber respostas.');
+  if (current.some((question, index) => requested[index]?.id !== question.id)) blockers.push('Não é permitido reordenar perguntas após receber respostas.');
+
+  const currentById = new Map(current.map((question) => [question.id, question]));
+  for (const question of requested) {
+    if (question.id === null) {
+      if (question.required) blockers.push('Perguntas adicionadas após receber respostas devem ser opcionais.');
+      continue;
+    }
+    const previous = currentById.get(question.id);
+    if (!previous) {
+      blockers.push('A pergunta informada não pertence a esta pesquisa.');
+      continue;
+    }
+    if (previous.type !== question.type) blockers.push('Não é permitido alterar o tipo da pergunta após receber respostas.');
+    if (!previous.required && question.required) blockers.push('Não é permitido tornar uma pergunta obrigatória após receber respostas.');
+    if (previous.type === 'choice' && question.type === 'choice') {
+      const previousOptions = previous.options ?? [];
+      const requestedOptions = question.options ?? [];
+      if (requestedOptions.length < previousOptions.length || previousOptions.some((option, index) => requestedOptions[index] !== option)) {
+        blockers.push('Não é permitido remover, renomear ou reordenar opções após receber respostas.');
+      }
+    }
+  }
+  return [...new Set(blockers)];
 }
 
 function normalizeQuestions(rows: readonly unknown[]): SurveyQuestion[] {
@@ -258,6 +319,172 @@ function resultsByQuestion(questions: readonly SurveyQuestion[], rows: readonly 
     const texts = answered.map((answer) => answer.text).filter((text): text is string => typeof text === 'string').slice(0, 200);
     return { question_id: question.id, position: question.position, question: question.question, type: question.type, answered: texts.length, texts };
   });
+}
+
+type StoredSurvey = {
+  id: number;
+  title: string;
+  expires_at: string | null;
+  audience: SurveyAudience;
+  response_count: number;
+};
+
+function parseSurveyUpdate(body: unknown): SurveyUpdateBody | null {
+  return isObject(body) ? body : null;
+}
+
+async function commitSurveyQuestions(
+  surveyId: number,
+  companyId: number,
+  title: string,
+  expiresAt: string | null,
+  questions: readonly SurveyQuestionUpdateInput[],
+  replaceAll: boolean,
+): Promise<boolean> {
+  const serializedQuestions = JSON.stringify(questions);
+  const statements = replaceAll
+    ? [
+      sql`
+        SELECT id FROM pulse_surveys ps
+        WHERE ps.id = ${surveyId} AND ps.company_id = ${companyId}
+          AND NOT EXISTS (SELECT 1 FROM survey_submissions ss WHERE ss.survey_id = ps.id)
+        FOR UPDATE
+      `,
+      sql`
+        DELETE FROM survey_questions
+        WHERE survey_id = ${surveyId}
+          AND NOT EXISTS (SELECT 1 FROM survey_submissions WHERE survey_id = ${surveyId})
+      `,
+      sql`
+        INSERT INTO survey_questions (survey_id, position, question, type, options, required)
+        SELECT ${surveyId}, data.position, data.question, data.type, data.options, data.required
+        FROM jsonb_to_recordset(${serializedQuestions}::jsonb)
+          AS data(id integer, position smallint, question text, type text, options jsonb, required boolean)
+        WHERE NOT EXISTS (SELECT 1 FROM survey_submissions WHERE survey_id = ${surveyId})
+      `,
+      sql`
+        UPDATE pulse_surveys ps SET
+          title = ${title}, expires_at = ${expiresAt},
+          question = first_question.question, type = first_question.type, options = first_question.options
+        FROM jsonb_to_recordset(${serializedQuestions}::jsonb)
+          AS first_question(id integer, position smallint, question text, type text, options jsonb, required boolean)
+        WHERE ps.id = ${surveyId} AND ps.company_id = ${companyId} AND first_question.position = 1
+          AND NOT EXISTS (SELECT 1 FROM survey_submissions WHERE survey_id = ${surveyId})
+      `,
+      sql`
+        SELECT 1 / (CASE WHEN
+          (SELECT COUNT(*) FROM survey_questions WHERE survey_id = ${surveyId}) = ${questions.length}
+          AND NOT EXISTS (SELECT 1 FROM survey_submissions WHERE survey_id = ${surveyId})
+        THEN 1 ELSE 0 END) AS verificacao
+      `,
+    ]
+    : [
+      sql`
+        UPDATE survey_questions sq SET
+          question = data.question, options = data.options, required = data.required
+        FROM jsonb_to_recordset(${serializedQuestions}::jsonb)
+          AS data(id integer, position smallint, question text, type text, options jsonb, required boolean)
+        WHERE sq.survey_id = ${surveyId} AND sq.id = data.id AND data.id IS NOT NULL
+      `,
+      sql`
+        INSERT INTO survey_questions (survey_id, position, question, type, options, required)
+        SELECT ${surveyId}, data.position, data.question, data.type, data.options, data.required
+        FROM jsonb_to_recordset(${serializedQuestions}::jsonb)
+          AS data(id integer, position smallint, question text, type text, options jsonb, required boolean)
+        WHERE data.id IS NULL
+      `,
+      sql`
+        UPDATE pulse_surveys ps SET
+          title = ${title}, expires_at = ${expiresAt},
+          question = first_question.question, type = first_question.type, options = first_question.options
+        FROM jsonb_to_recordset(${serializedQuestions}::jsonb)
+          AS first_question(id integer, position smallint, question text, type text, options jsonb, required boolean)
+        WHERE ps.id = ${surveyId} AND ps.company_id = ${companyId} AND first_question.position = 1
+      `,
+  ];
+  await sql.transaction(statements);
+  return true;
+}
+
+function isDivisionByZero(error: unknown): boolean {
+  return typeof error === 'object'
+    && error !== null
+    && 'code' in error
+    && (error as { code?: unknown }).code === '22012';
+}
+
+function surveyEditRaceResponse(res: VercelResponse) {
+  return res.status(409).json({
+    error: 'Edição bloqueada após receber respostas.',
+    codigo: 'edicao_bloqueada',
+    bloqueios: ['A pesquisa recebeu respostas enquanto você editava. Recarregue e edite de novo.'],
+  });
+}
+
+async function updateSurvey(req: VercelRequest, res: VercelResponse, ctx: ReturnType<typeof authenticate>, surveyId: number) {
+  const body = parseSurveyUpdate(req.body);
+  if (!body) return err(res, 400, 'Corpo da edição inválido');
+  if (body.audience !== undefined) return err(res, 400, 'audience não pode ser alterado');
+  if (body.questions === undefined && body.title === undefined && body.expires_at === undefined) {
+    return err(res, 400, 'Informe title, expires_at ou questions para editar');
+  }
+  if (body.title !== undefined && (typeof body.title !== 'string' || !body.title.trim())) return err(res, 400, 'title inválido');
+  if (body.expires_at !== undefined && body.expires_at !== null && typeof body.expires_at !== 'string') return err(res, 400, 'expires_at inválido');
+
+  const surveys = await sql`
+    SELECT ps.id, ps.title, ps.expires_at, ps.audience,
+      (SELECT COUNT(*)::int FROM survey_submissions ss WHERE ss.survey_id = ps.id) AS response_count
+    FROM pulse_surveys ps
+    WHERE ps.id = ${surveyId} AND ps.company_id = ${ctx.company_id}
+  `;
+  const survey = surveys[0] as StoredSurvey | undefined;
+  if (!survey) return err(res, 404, 'Pesquisa não encontrada');
+  const title = body.title === undefined ? survey.title : body.title.trim();
+  const expiresAt = body.expires_at === undefined ? survey.expires_at : body.expires_at;
+
+  if (body.questions === undefined) {
+    const rows = await sql`
+      UPDATE pulse_surveys SET title = ${title}, expires_at = ${expiresAt}
+      WHERE id = ${surveyId} AND company_id = ${ctx.company_id}
+      RETURNING *
+    `;
+    return res.json(rows[0]);
+  }
+
+  const questions = parseSurveyQuestionUpdates(body.questions);
+  if (!questions) return err(res, 400, 'questions deve conter de 1 a 10 perguntas válidas');
+  const audienceError = audienceQuestionError(getSurveyAudience(survey.audience), questions);
+  if (audienceError) return err(res, 400, audienceError);
+  const currentQuestions = await findQuestions(surveyId);
+
+  if (Number(survey.response_count) > 0) {
+    const blockers = blockedQuestionChanges(currentQuestions, questions);
+    if (blockers.length) return res.status(409).json({ error: 'Edição bloqueada após receber respostas.', codigo: 'edicao_bloqueada', bloqueios: blockers });
+    await commitSurveyQuestions(surveyId, ctx.company_id, title, expiresAt, questions, false);
+  } else {
+    const ids = new Set(currentQuestions.map((question) => question.id));
+    if (questions.some((question) => question.id !== null && !ids.has(question.id))) return err(res, 400, 'A pergunta informada não pertence a esta pesquisa');
+    if (new Set(questions.filter((question) => question.id !== null).map((question) => question.id)).size !== questions.filter((question) => question.id !== null).length) {
+      return err(res, 400, 'Uma pergunta não pode aparecer mais de uma vez');
+    }
+    try {
+      await commitSurveyQuestions(surveyId, ctx.company_id, title, expiresAt, questions, true);
+    } catch (error) {
+      // A verificação final aborta toda a transação se uma resposta chegar durante a edição.
+      if (isDivisionByZero(error)) return surveyEditRaceResponse(res);
+      throw error;
+    }
+  }
+
+  const rows = await sql`
+    SELECT ps.*, (SELECT COUNT(*)::int FROM survey_submissions ss WHERE ss.survey_id = ps.id) AS response_count
+    FROM pulse_surveys ps WHERE ps.id = ${surveyId} AND ps.company_id = ${ctx.company_id}
+  `;
+  const updatedSurvey = rows[0];
+  if (!updatedSurvey) return err(res, 404, 'Pesquisa não encontrada');
+  // Sem participações as perguntas são recriadas, portanto os identificadores anteriores deixam de valer.
+  const updatedQuestions = await findQuestions(surveyId);
+  return res.json({ ...updatedSurvey, questions: updatedQuestions });
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -525,6 +752,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!rows[0]) return err(res, 404, 'Pesquisa não encontrada');
     const questions = await findQuestions(surveyId);
     return res.json({ ...rows[0], questions, question_count: questions.length });
+  }
+
+  // ── PUT :id ───────────────────────────────────────────────
+  if (surveyId && req.method === 'PUT') {
+    if (!CAN_MANAGE_EMPLOYEES.includes(ctx.role)) return err(res, 403, 'Sem permissão');
+    return updateSurvey(req, res, ctx, surveyId);
   }
 
   // ── DELETE :id ────────────────────────────────────────────

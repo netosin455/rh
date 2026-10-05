@@ -18,8 +18,9 @@ import type {
   SurveyQuestion,
   SurveyResults,
   SurveyType,
+  UpdateSurveyData,
 } from '../tipos/modelos';
-import { brToIso, isValidIsoDate } from './datas';
+import { brToIso, isoToBr, isValidIsoDate } from './datas';
 
 export const MAX_PERGUNTAS = 10;
 export const MIN_OPCOES = 2;
@@ -52,6 +53,7 @@ export interface ConfigArea {
   rotaRaiz: string;
   rotaNova: string;
   rotaDetalhe: (id: number) => string;
+  rotaEditar: (id: number) => string;
   singular: string;
   plural: string;
   metrica: string;
@@ -71,6 +73,7 @@ export const AREAS_PESQUISA: Record<AreaPesquisa, ConfigArea> = {
     rotaRaiz: '/pesquisas',
     rotaNova: '/pesquisas/nova',
     rotaDetalhe: (id) => `/pesquisas/${id}`,
+    rotaEditar: (id) => `/pesquisas/editar/${id}`,
     singular: 'pesquisa',
     plural: 'pesquisas',
     metrica: 'Pesquisas ativas',
@@ -88,6 +91,7 @@ export const AREAS_PESQUISA: Record<AreaPesquisa, ConfigArea> = {
     rotaRaiz: '/nps',
     rotaNova: '/nps/nova',
     rotaDetalhe: (id) => `/nps/${id}`,
+    rotaEditar: (id) => `/nps/editar/${id}`,
     singular: 'campanha',
     plural: 'campanhas',
     metrica: 'Campanhas ativas',
@@ -107,6 +111,10 @@ export interface PerguntaRascunho {
   type: SurveyType;
   options: string[];
   required: boolean;
+  /** Só na edição: id da pergunta que já existe na API (sem id = pergunta nova). */
+  id?: number;
+  /** Só na edição: como a pergunta estava ao abrir (base das regras de bloqueio). */
+  original?: { required: boolean; options: number };
 }
 
 let contadorChave = 0;
@@ -123,15 +131,19 @@ export function podeAdicionarPergunta(perguntas: readonly PerguntaRascunho[]): b
   return perguntas.length < MAX_PERGUNTAS;
 }
 
-export function adicionarPergunta(perguntas: readonly PerguntaRascunho[]): PerguntaRascunho[] {
-  return podeAdicionarPergunta(perguntas) ? [...perguntas, perguntaNova()] : [...perguntas];
+/** `opcional`: pesquisa com respostas — a pergunta nova nasce opcional (regra do servidor). */
+export function adicionarPergunta(perguntas: readonly PerguntaRascunho[], opcional = false): PerguntaRascunho[] {
+  if (!podeAdicionarPergunta(perguntas)) return [...perguntas];
+  const nova = perguntaNova();
+  return [...perguntas, opcional ? { ...nova, required: false } : nova];
 }
 
-/** Duplica logo abaixo da original; respeita o limite de 10. */
-export function duplicarPergunta(perguntas: readonly PerguntaRascunho[], indice: number): PerguntaRascunho[] {
+/** Duplica logo abaixo da original; respeita o limite de 10. A cópia é sempre uma pergunta NOVA (sem id). */
+export function duplicarPergunta(perguntas: readonly PerguntaRascunho[], indice: number, opcional = false): PerguntaRascunho[] {
   const original = perguntas[indice];
   if (!original || !podeAdicionarPergunta(perguntas)) return [...perguntas];
-  const copia: PerguntaRascunho = { ...original, chave: novaChave(), options: [...original.options] };
+  const { id: _id, original: _snapshot, ...base } = original;
+  const copia: PerguntaRascunho = { ...base, chave: novaChave(), options: [...original.options], ...(opcional ? { required: false } : {}) };
   return [...perguntas.slice(0, indice + 1), copia, ...perguntas.slice(indice + 1)];
 }
 
@@ -233,6 +245,132 @@ export function montarPesquisa(titulo: string, validadeBr: string, perguntas: re
   }));
   // Só envia `audience` para clientes: pesquisas de colaborador seguem com o corpo de sempre.
   return { title: titulo.trim(), expires_at: validade.ok ? validade.iso : null, ...(audience === 'customers' ? { audience } : {}), questions };
+}
+
+// ── Edição, cópia e exclusão ────────────────────────────────
+
+function ordenadas(s: Pick<PulseSurvey, 'questions'>): SurveyQuestion[] {
+  return [...(s.questions ?? [])].sort((a, b) => a.position - b.position);
+}
+
+/** Pesquisa vinda da API vira rascunho do editor (cada pergunta guarda o id e o estado original). */
+export function rascunhoDaPesquisa(s: Pick<PulseSurvey, 'questions'>): PerguntaRascunho[] {
+  return ordenadas(s).map((q) => ({
+    chave: novaChave(),
+    id: q.id,
+    question: q.question,
+    type: q.type,
+    options: [...(q.options ?? [])],
+    required: q.required !== false,
+    original: { required: q.required !== false, options: (q.options ?? []).length },
+  }));
+}
+
+/** Prazo da API ("2026-10-05" ou timestamp) para o campo de data (DD/MM/AAAA). Sem prazo => "". */
+export function validadeDoCampo(expiresAt: string | null | undefined): string {
+  return expiresAt ? isoToBr(expiresAt.slice(0, 10)) : '';
+}
+
+/** Corpo do PUT /api/surveys/:id (só chame depois de validarPesquisa ok). Perguntas existentes levam o `id`. */
+export function montarEdicao(titulo: string, validadeBr: string, perguntas: readonly PerguntaRascunho[]): UpdateSurveyData {
+  const validade = lerValidade(validadeBr);
+  return {
+    title: titulo.trim(),
+    expires_at: validade.ok ? validade.iso : null,
+    questions: perguntas.map((p) => ({
+      ...(p.id !== undefined ? { id: p.id } : {}),
+      question: p.question.trim(),
+      type: p.type,
+      ...(p.type === 'choice' ? { options: p.options.map((o) => o.trim()).filter((o) => o !== '') } : {}),
+      required: p.required,
+    })),
+  };
+}
+
+/** Corpo do POST para a CÓPIA de uma pesquisa: "Cópia de ...", sem prazo, mesmas perguntas (sem ids). */
+export function montarCopia(s: Pick<PulseSurvey, 'title' | 'audience' | 'questions'>): CreateSurveyData {
+  return {
+    title: `Cópia de ${s.title}`,
+    expires_at: null,
+    ...(s.audience === 'customers' ? { audience: 'customers' as const } : {}),
+    questions: ordenadas(s).map((q) => ({
+      question: q.question,
+      type: q.type,
+      ...(q.type === 'choice' ? { options: [...(q.options ?? [])] } : {}),
+      required: q.required !== false,
+    })),
+  };
+}
+
+/**
+ * Restrições de UMA pergunta quando a pesquisa já tem respostas. ESPELHA a regra do servidor
+ * (PUT /api/surveys/:id): com respostas só se pode mudar título, prazo, TEXTO das perguntas,
+ * obrigatória de sim para não, ACRESCENTAR opções ao fim e ACRESCENTAR perguntas novas ao fim (opcionais).
+ * O servidor continua sendo a autoridade: se discordar, responde 409 com os bloqueios.
+ */
+export interface RestricaoPergunta {
+  /** Não pode trocar o tipo. */
+  tipo: boolean;
+  /** Não pode remover. */
+  remover: boolean;
+  /** Não pode mudar de posição. */
+  mover: boolean;
+  /** Não pode duplicar. */
+  duplicar: boolean;
+  /** Não pode ficar obrigatória (nova pergunta, ou já era opcional). */
+  obrigatoria: boolean;
+  /** As primeiras N opções (as que já existiam) ficam fixas; só dá para acrescentar ao fim. */
+  opcoesFixas: number;
+  /** Explicação para mostrar no cartão (null = sem restrição). */
+  motivo: string | null;
+}
+
+export const SEM_RESTRICAO: RestricaoPergunta = { tipo: false, remover: false, mover: false, duplicar: false, obrigatoria: false, opcoesFixas: 0, motivo: null };
+
+export const MOTIVO_PERGUNTA_EXISTENTE = 'Esta pergunta já tem respostas: o tipo, a posição e as opções que já existem ficam fixos. Você pode editar o texto, acrescentar opções ao fim e deixá-la opcional.';
+export const MOTIVO_PERGUNTA_NOVA = 'Pergunta nova: como a pesquisa já tem respostas, ela nasce opcional e fica no fim.';
+
+export function restricaoDaPergunta(p: PerguntaRascunho, comRespostas: boolean): RestricaoPergunta {
+  if (!comRespostas) return SEM_RESTRICAO;
+  if (p.id === undefined) {
+    // Nova: pode tudo, menos ser obrigatória (o servidor exige required=false).
+    return { ...SEM_RESTRICAO, obrigatoria: true, motivo: MOTIVO_PERGUNTA_NOVA };
+  }
+  return {
+    tipo: true,
+    remover: true,
+    mover: true,
+    duplicar: true,
+    // Só dá para tornar opcional: se já era opcional, não volta a ser obrigatória.
+    obrigatoria: p.original?.required === false,
+    opcoesFixas: p.type === 'choice' ? (p.original?.options ?? 0) : 0,
+    motivo: MOTIVO_PERGUNTA_EXISTENTE,
+  };
+}
+
+/** Subir/descer: com respostas, só vale entre perguntas NOVAS (as existentes não mudam de posição e as novas ficam no fim). */
+export function podeMoverPergunta(perguntas: readonly PerguntaRascunho[], indice: number, delta: -1 | 1, comRespostas: boolean): boolean {
+  const destino = indice + delta;
+  if (destino < 0 || destino >= perguntas.length) return false;
+  if (!comRespostas) return true;
+  return perguntas[indice].id === undefined && perguntas[destino].id === undefined;
+}
+
+/** Remover/duplicar opção: as opções que já existiam não saem do lugar nem do texto. */
+export function opcaoEditavel(restricao: RestricaoPergunta, indiceOpcao: number): boolean {
+  return indiceOpcao >= restricao.opcoesFixas;
+}
+
+/** "Esta pesquisa já tem 21 respostas, por isso algumas alterações estão bloqueadas." */
+export function textoBannerRespostas(quantidade: number, substantivo: 'pesquisa' | 'campanha' = 'pesquisa'): string {
+  const esta = substantivo === 'campanha' ? 'Esta campanha' : 'Esta pesquisa';
+  return `${esta} já tem ${quantidade} ${quantidade === 1 ? 'resposta' : 'respostas'}, por isso algumas alterações estão bloqueadas.`;
+}
+
+/** Aviso da exclusão com a consequência: "Isso apaga a pesquisa e as 21 respostas. Não dá para desfazer." */
+export function textoExclusaoPesquisa(quantidade: number, substantivo: 'pesquisa' | 'campanha' = 'pesquisa'): string {
+  const respostas = quantidade <= 0 ? '' : quantidade === 1 ? ' e a resposta' : ` e as ${quantidade} respostas`;
+  return `Isso apaga a ${substantivo}${respostas}. Não dá para desfazer.`;
 }
 
 /** Pesquisa de mentira para a prévia "Ver como o colaborador vai ver" (nada é gravado). */

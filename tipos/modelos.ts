@@ -318,6 +318,22 @@ export interface CreateSurveyData {
   questions: NewSurveyQuestion[];
 }
 
+/** Pergunta na edição: com `id` é uma pergunta já existente; sem `id`, uma nova (vai ao fim). */
+export interface UpdateSurveyQuestion {
+  id?: number;
+  question: string;
+  type: SurveyType;
+  options?: string[];
+  required: boolean;
+}
+
+/** Corpo do PUT /api/surveys/:id. Campos ausentes não mudam. */
+export interface UpdateSurveyData {
+  title?: string;
+  expires_at?: string | null;
+  questions?: UpdateSurveyQuestion[];
+}
+
 /** Uma resposta enviada pelo colaborador (só um dos três campos, conforme o tipo). */
 export interface SurveyAnswerInput {
   question_id: number;

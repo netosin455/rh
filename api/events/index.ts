@@ -51,10 +51,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (!existing[0]) return err(res, 404, 'Evento não encontrado');
       if (!isAdmin && existing[0].user_id !== ctx.sub) return err(res, 403, 'Sem permissão');
 
+      const body = (req.body ?? {}) as Record<string, unknown>;
       const {
         title, description, date, start_time, end_time,
         color, category, case_id, location, is_all_day,
-      } = req.body ?? {};
+      } = body;
+      const startTimeProvided = Object.prototype.hasOwnProperty.call(body, 'start_time');
+      const endTimeProvided = Object.prototype.hasOwnProperty.call(body, 'end_time');
+      const isAllDay = is_all_day === true;
 
       const caseError = await validarCasoEvento(ctx.company_id, case_id);
       if (caseError) return err(res, 422, caseError);
@@ -64,8 +68,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           title       = COALESCE(${title       ?? null}, title),
           description = COALESCE(${description ?? null}, description),
           date        = COALESCE(${date        ?? null}, date),
-          start_time  = COALESCE(${start_time  ?? null}, start_time),
-          end_time    = COALESCE(${end_time    ?? null}, end_time),
+          start_time  = CASE
+            WHEN ${isAllDay}::boolean THEN NULL
+            WHEN ${startTimeProvided}::boolean THEN ${start_time ?? null}
+            ELSE start_time
+          END,
+          end_time    = CASE
+            WHEN ${isAllDay}::boolean THEN NULL
+            WHEN ${endTimeProvided}::boolean THEN ${end_time ?? null}
+            ELSE end_time
+          END,
           color       = COALESCE(${color       ?? null}, color),
           category    = COALESCE(${category    ?? null}, category),
           case_id     = COALESCE(${case_id     ?? null}, case_id),

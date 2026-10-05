@@ -124,6 +124,24 @@ async function revoke(res: VercelResponse, ctx: JWTPayload, id: number) {
   return res.json(rows[0]);
 }
 
+async function deleteFeedback(res: VercelResponse, ctx: JWTPayload, id: number) {
+  const deleted = await sql`
+    DELETE FROM feedbacks
+    WHERE id = ${id} AND company_id = ${ctx.company_id}
+    RETURNING id, company_id, status
+  `;
+  const feedback = deleted[0] as { id: number; company_id: number; status: FeedbackStatus } | undefined;
+  if (!feedback) return err(res, 404, 'Feedback não encontrado');
+  console.info({
+    level: 'info',
+    event: 'feedback_deleted',
+    feedback_id: feedback.id,
+    company_id: feedback.company_id,
+    previous_status: feedback.status,
+  });
+  return res.status(204).end();
+}
+
 /** Compartilhado por `api/recognitions/index.ts` para não exceder o limite de funções no Hobby. */
 export async function handleFeedbackAdmin(req: VercelRequest, res: VercelResponse) {
   let ctx: JWTPayload;
@@ -135,6 +153,7 @@ export async function handleFeedbackAdmin(req: VercelRequest, res: VercelRespons
   if (!id && req.method === 'POST') return createFeedback(req, res, ctx);
   if (id && req.method === 'GET') { const feedback = await findManagedFeedback(id, ctx.company_id); return feedback ? res.json(feedback) : err(res, 404, 'Feedback não encontrado'); }
   if (id && req.method === 'PUT') return updateFeedback(req, res, ctx, id);
+  if (id && req.method === 'DELETE') return deleteFeedback(res, ctx, id);
   if (id && req.method === 'POST' && req.query.action === 'publish') return publish(res, ctx, id);
   if (id && req.method === 'POST' && req.query.action === 'revoke') return revoke(res, ctx, id);
   return err(res, 405, 'Método não permitido');

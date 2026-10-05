@@ -20,6 +20,7 @@ import { ErroComRetry } from './ErroComRetry';
 import { MetricCard } from './MetricCard';
 import { ProgressBar } from './ProgressBar';
 import { QrCodeModal } from './QrCodeModal';
+import { useAcoesPesquisa } from './useAcoesPesquisa';
 import { ScreenHeader } from './ScreenHeader';
 import { Skeleton } from './Skeleton';
 import { StatusPill } from './StatusPill';
@@ -235,6 +236,7 @@ export function TelaResultados({ area }: { area: AreaPesquisa }) {
   }, [id]);
 
   useEffect(() => { carregar(); }, [carregar]);
+  const { editar, duplicar, encerrarAgora } = useAcoesPesquisa(area, carregar);
 
   // Cada campanha só abre na sua área: link de campanha de cliente em /pesquisas (ou o contrário) é redirecionado.
   useEffect(() => {
@@ -325,6 +327,9 @@ export function TelaResultados({ area }: { area: AreaPesquisa }) {
           action={(
             <View style={styles.acoes}>
               <Button accessibilityLabel={cliente ? 'Voltar para NPS' : 'Voltar para pesquisas'} icon="arrow-back-outline" onPress={() => router.replace(cfg.rotaRaiz as never)} variant="ghost" />
+              <Button accessibilityLabel={`Editar ${cfg.singular}`} icon="create-outline" label="Editar" onPress={() => editar(survey)} variant="ghost" />
+              <Button accessibilityLabel={`Duplicar ${cfg.singular}`} icon="duplicate-outline" label="Duplicar" onPress={() => { void duplicar(survey); }} variant="ghost" />
+              {!encerrada ? <Button accessibilityLabel={`Encerrar ${cfg.singular} agora`} icon="stop-circle-outline" label="Encerrar agora" onPress={() => encerrarAgora(survey)} variant="ghost" /> : null}
               {cliente ? (
                 <>
                   <Button accessibilityLabel="Copiar link da campanha" icon="copy-outline" onPress={() => { void copiarLink(); }} variant="ghost" />
@@ -380,7 +385,7 @@ const styles = StyleSheet.create({
   pagina: { gap: espaco.xl, maxWidth: 760, width: '100%' },
   centrado: { alignItems: 'center', backgroundColor: cores.superficie.pagina, flex: 1, gap: espaco.md, justifyContent: 'center', padding: espaco.xl },
   carregando: { backgroundColor: cores.superficie.pagina, flex: 1, gap: espaco.lg, padding: espaco.xl },
-  acoes: { flexDirection: 'row', gap: espaco.xs },
+  acoes: { flexDirection: 'row', flexWrap: 'wrap', gap: espaco.xs, justifyContent: 'flex-end' },
   resumo: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: espaco.md },
   metrica: { flexBasis: 160, flexGrow: 1 },
   pergunta: { gap: espaco.lg },

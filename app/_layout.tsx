@@ -83,6 +83,8 @@ function AuthGuard() {
       <Stack.Screen name="pesquisas/index" options={{ headerShown: false }} />
       <Stack.Screen name="pesquisas/nova" options={{ headerShown: false }} />
       <Stack.Screen name="pesquisas/[id]" options={{ headerShown: false }} />
+      <Stack.Screen name="pesquisas/editar/[id]" options={{ headerShown: false }} />
+      <Stack.Screen name="nps/editar/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="nps/index" options={{ headerShown: false }} />
       <Stack.Screen name="nps/nova" options={{ headerShown: false }} />
       <Stack.Screen name="nps/[id]" options={{ headerShown: false }} />

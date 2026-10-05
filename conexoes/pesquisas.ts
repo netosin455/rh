@@ -1,6 +1,6 @@
 import { apiFetch, publicFetch } from './http';
-import { normalizarPesquisaPublica, normalizarResultados, ResultadosBrutos } from '../helpers/pesquisa';
-import type { CreateSurveyData, PublicSurvey, PulseSurvey, SurveyAnswerInput, SurveyAudience, SurveyContactInput, SurveyResults } from '../tipos/modelos';
+import { montarCopia, normalizarPesquisaPublica, normalizarResultados, ResultadosBrutos } from '../helpers/pesquisa';
+import type { CreateSurveyData, PublicSurvey, PulseSurvey, SurveyAnswerInput, SurveyAudience, SurveyContactInput, SurveyResults, UpdateSurveyData } from '../tipos/modelos';
 
 /** Lista por público: employees (Pesquisas) ou customers (NPS). A API sem o parâmetro devolve employees. */
 export async function getSurveys(audience: SurveyAudience = 'employees'): Promise<PulseSurvey[]> {
@@ -18,6 +18,21 @@ export async function getSurveyResults(id: number): Promise<SurveyResults> {
 
 export async function createSurvey(data: CreateSurveyData): Promise<PulseSurvey> {
   return apiFetch<PulseSurvey>('/api/surveys', { method: 'POST', body: JSON.stringify(data) });
+}
+
+/** Edita a pesquisa. Com respostas o servidor só aceita parte das mudanças (409 `edicao_bloqueada` com `bloqueios`). */
+export async function updateSurvey(id: number, data: UpdateSurveyData): Promise<PulseSurvey> {
+  return apiFetch<PulseSurvey>(`/api/surveys/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+}
+
+/** Cria uma COPIA (título "Cópia de ...", sem respostas e sem prazo) e devolve a nova pesquisa. */
+export async function duplicarPesquisa(id: number): Promise<PulseSurvey> {
+  return createSurvey(montarCopia(await getSurvey(id)));
+}
+
+/** Encerra agora: o prazo vira o dia de hoje (AAAA-MM-DD). */
+export async function encerrarPesquisaAgora(id: number, hojeIso: string): Promise<PulseSurvey> {
+  return updateSurvey(id, { expires_at: hojeIso });
 }
 
 export async function deleteSurvey(id: number): Promise<void> {

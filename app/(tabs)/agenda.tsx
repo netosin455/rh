@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, RefreshControl, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { getEventsByMonth, createEvent } from '../../conexoes/eventos';
+import { getEventsByMonth, createEvent, updateEvent, deleteEvent } from '../../conexoes/eventos';
+import { confirmAction } from '../../helpers/confirm';
 import { getEmployees } from '../../conexoes/colaboradores';
 import { Event, EventCategory, EVENT_CATEGORY_COLORS, CreateEventData, Employee } from '../../tipos/modelos';
 import { cores } from '../../estilo/cores';
@@ -86,6 +87,8 @@ export default function AgendaScreen() {
   const [showModal,  setShowModal]  = useState(false);
   const [saving,     setSaving]     = useState(false);
   const [formError,  setFormError]  = useState('');
+  // Id do evento em edição (null = criando um novo).
+  const [editId,     setEditId]     = useState<string | null>(null);
   // Erros no PRÓPRIO campo (título, data, início, fim), em vez de uma mensagem genérica.
   const [erros,      setErros]      = useState<{ titulo?: string; data?: string; inicio?: string; fim?: string }>({});
   const emAndamento = useRef(false);
@@ -171,10 +174,41 @@ export default function AgendaScreen() {
 
   // Abrir pelo calendário: o dia tocado já vem preenchido.
   function openModal() {
-    setForm(f => ({ ...f, date: selected }));
+    setEditId(null);
+    setForm({ title: '', date: selected, start_time: '', end_time: '', category: 'outro', location: '', description: '', is_all_day: false });
     setFormError('');
     setErros({});
     setShowModal(true);
+  }
+
+  // Editar reaproveita o mesmo formulário, já preenchido com o evento.
+  function openEdit(event: Event) {
+    setEditId(event.id);
+    setForm({
+      title: event.title,
+      date: event.date.slice(0, 10),
+      start_time: event.start_time?.slice(0, 5) ?? '',
+      end_time: event.end_time?.slice(0, 5) ?? '',
+      category: event.category,
+      location: event.location ?? '',
+      description: event.description ?? '',
+      is_all_day: event.is_all_day,
+    });
+    setFormError('');
+    setErros({});
+    setShowModal(true);
+  }
+
+  function handleDelete(event: Event) {
+    confirmAction('Excluir evento', `Excluir o evento "${event.title}"? Não dá para desfazer.`, async () => {
+      try {
+        await deleteEvent(event.id);
+        setEvents(prev => prev.filter(e => e.id !== event.id));
+        toast.success('Evento excluído.');
+      } catch (e: unknown) {
+        toast.error(e instanceof Error && e.message ? e.message : 'Não foi possível excluir o evento.');
+      }
+    });
   }
 
   async function handleSave() {
@@ -205,6 +239,16 @@ export default function AgendaScreen() {
         description: form.description.trim() || undefined,
         is_all_day:  form.is_all_day,
       };
+      if (editId) {
+        const atualizado = await updateEvent(editId, data);
+        // A data pode ter mudado de mês: recarrega o mês aberto em vez de mexer na lista na mão.
+        setEvents(prev => prev.map(e => (e.id === editId ? { ...e, ...atualizado } : e)));
+        setShowModal(false);
+        toast.success('Evento atualizado!');
+        setEditId(null);
+        void load();
+        return;
+      }
       const created = await createEvent(data);
       setEvents(prev => [...prev, created]);
       setShowModal(false);
@@ -242,10 +286,10 @@ export default function AgendaScreen() {
         <Section title={selected === today ? 'Hoje' : formatDateDisplay(selected)} description={`${selectedEvents.length} evento${selectedEvents.length === 1 ? '' : 's'}${selectedBirthdays.length ? ` e ${selectedBirthdays.length} aniversário${selectedBirthdays.length === 1 ? '' : 's'}` : ''}.`} action={Platform.OS === 'web' && events.length > 0 ? <Button label="Exportar calendário" icon="download-outline" variant="ghost" onPress={() => { downloadICS(events, `agenda-${monthKey}.ics`); window.alert('Arquivo .ics baixado!\n\nPara importar no Google Calendar:\n1. Abra calendar.google.com\n2. Configurações → Importar e exportar\n3. Clique em Importar e selecione o arquivo baixado'); }} /> : undefined}>
           {selectedBirthdays.length > 0 ? <Card padded={false}>{selectedBirthdays.map((employee) => <ListRow key={employee.id} title={employee.name} description={`${employee.role_title} · Aniversário`} leading={<Avatar name={employee.name} size="small" />} trailing={<Badge label="Aniversário" tone="gold" />} />)}</Card> : null}
           {selectedEvents.length === 0 && selectedBirthdays.length === 0 && !loadError ? <Card><EmptyState icon="calendar-outline" title="Nenhum evento neste dia" description="Adicione um evento para organizar este prazo." action={<Button label="Adicionar evento" icon="add" onPress={openModal} />} /></Card> : null}
-          {selectedEvents.length > 0 ? <Card padded={false}>{selectedEvents.sort((a, b) => (a.start_time ?? '').localeCompare(b.start_time ?? '')).map((event) => <ListRow key={event.id} title={event.title} description={[event.start_time ? `${event.start_time}${event.end_time ? ` – ${event.end_time}` : ''}` : '', event.location, event.description].filter(Boolean).join(' · ')} leading={<View style={styles.eventIcon}><Ionicons name="calendar-outline" size={tamanho.iconeMedio} color={cores.status.informacao.forte} /></View>} trailing={<Badge label={CATEGORY_LABELS[event.category] || event.category} tone={categoryTone[event.category]} />} />)}</Card> : null}
+          {selectedEvents.length > 0 ? <Card padded={false}>{[...selectedEvents].sort((a, b) => (a.start_time ?? '').localeCompare(b.start_time ?? '')).map((event) => <View key={event.id}><ListRow title={event.title} description={[event.start_time ? `${event.start_time}${event.end_time ? ` – ${event.end_time}` : ''}` : '', event.location, event.description].filter(Boolean).join(' · ')} leading={<View style={styles.eventIcon}><Ionicons name="calendar-outline" size={tamanho.iconeMedio} color={cores.status.informacao.forte} /></View>} trailing={<Badge label={CATEGORY_LABELS[event.category] || event.category} tone={categoryTone[event.category]} />} /><View style={styles.eventActions}><Button accessibilityLabel={`Editar evento ${event.title}`} icon="pencil-outline" label="Editar" onPress={() => openEdit(event)} variant="ghost" /><Button accessibilityLabel={`Excluir evento ${event.title}`} icon="trash-outline" label="Excluir" onPress={() => handleDelete(event)} variant="danger" /></View></View>)}</Card> : null}
         </Section>
       </ScrollView>
-      <Modal visible={showModal} title="Novo evento" subtitle="Audiência, reunião, prazo ou outro." onClose={() => setShowModal(false)} footer={<View style={styles.modalActions}><Button label="Cancelar" variant="secondary" onPress={() => setShowModal(false)} style={styles.actionButton} /><Button label="Salvar evento" loading={saving} onPress={handleSave} style={styles.actionButton} /></View>}>
+      <Modal visible={showModal} title={editId ? 'Editar evento' : 'Novo evento'} subtitle={editId ? 'Altere os dados do evento.' : 'Audiência, reunião, prazo ou outro.'} onClose={() => setShowModal(false)} footer={<View style={styles.modalActions}><Button label="Cancelar" variant="secondary" onPress={() => setShowModal(false)} style={styles.actionButton} /><Button label={editId ? 'Salvar alterações' : 'Salvar evento'} accessibilityLabel={editId ? 'Salvar alterações do evento' : 'Salvar evento'} loading={saving} onPress={handleSave} style={styles.actionButton} /></View>}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}><ScrollView style={styles.modalScroll} contentContainerStyle={styles.formContent} keyboardShouldPersistTaps="handled">
           <Input label="Título" required placeholder="Ex.: Audiência — Processo 0012847" value={form.title} onChangeText={(value) => setF('title', value)} error={erros.titulo} />
           <DateField label="Data" required value={form.date} onChange={(iso) => setF('date', iso)} error={erros.data} />
@@ -286,6 +330,7 @@ const styles = StyleSheet.create({
   todayButton: { backgroundColor: cores.accent.superficie, borderColor: cores.accent.borda, borderWidth: borda.fina },
   dotRow: { marginTop: espaco.micro },
   dot: { borderRadius: raio.pill, height: tamanho.indicador, width: tamanho.indicador },
+  eventActions: { borderTopColor: cores.borda.sutil, borderTopWidth: borda.fina, flexDirection: 'row', gap: espaco.xs, justifyContent: 'flex-end', padding: espaco.sm },
   eventIcon: { alignItems: 'center', backgroundColor: cores.status.informacao.superficie, borderRadius: raio.pill, height: tamanho.avatarPequeno, justifyContent: 'center', width: tamanho.avatarPequeno },
   modalScroll: { maxHeight: largura.leitura },
   formContent: { gap: espaco.xxl },

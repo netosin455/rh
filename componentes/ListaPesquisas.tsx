@@ -11,13 +11,12 @@ import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { RefreshControl, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
-import { deleteSurvey, getSurveys, linkPublicoPesquisa } from '../conexoes/pesquisas';
+import { getSurveys, linkPublicoPesquisa } from '../conexoes/pesquisas';
 import { useToast } from '../contextos/Toast';
 import { cores } from '../estilo/cores';
 import { espaco } from '../estilo/espaco';
 import { useMotion } from '../estilo/movimento';
 import { tipografia } from '../estilo/tipografia';
-import { confirmAction } from '../helpers/confirm';
 import { AREAS_PESQUISA, AreaPesquisa } from '../helpers/pesquisa';
 import type { PulseSurvey } from '../tipos/modelos';
 import { Badge } from './Badge';
@@ -27,6 +26,7 @@ import { EmptyState } from './EmptyState';
 import { ListRow } from './ListRow';
 import { MetricCard } from './MetricCard';
 import { QrCodeModal } from './QrCodeModal';
+import { useAcoesPesquisa } from './useAcoesPesquisa';
 import { ScreenHeader } from './ScreenHeader';
 import { Section } from './Section';
 import { Skeleton } from './Skeleton';
@@ -80,16 +80,7 @@ export function ListaPesquisas({ area }: { area: AreaPesquisa }) {
 
   const onRefresh = () => { setRefreshing(true); void load(); };
 
-  function excluir(s: PulseSurvey) {
-    confirmAction('Excluir', `Excluir "${s.title}"?`, async () => {
-      try {
-        await deleteSurvey(s.id);
-        void load();
-      } catch (e: unknown) {
-        toast.error(e instanceof Error && e.message ? e.message : `Erro ao excluir ${cfg.singular}`);
-      }
-    });
-  }
+  const { editar, duplicar, encerrarAgora, excluir } = useAcoesPesquisa(area, () => { void load(); });
 
   async function copiarLink(s: PulseSurvey) {
     await Clipboard.setStringAsync(linkPublicoPesquisa(s.id));
@@ -174,6 +165,9 @@ export function ListaPesquisas({ area }: { area: AreaPesquisa }) {
                           <Button icon="share-social-outline" label="Compartilhar" onPress={() => compartilhar(survey)} style={styles.actionButton} variant="ghost" />
                         )}
                         <Button icon="bar-chart-outline" label="Ver resultados" onPress={() => router.push(cfg.rotaDetalhe(survey.id) as never)} style={styles.actionButton} variant="ghost" />
+                        <Button accessibilityLabel={`Editar ${survey.title}`} icon="create-outline" label="Editar" onPress={() => editar(survey)} style={styles.actionButton} variant="ghost" />
+                        <Button accessibilityLabel={`Duplicar ${survey.title}`} icon="duplicate-outline" label="Duplicar" onPress={() => { void duplicar(survey); }} style={styles.actionButton} variant="ghost" />
+                        {!expired ? <Button accessibilityLabel={`Encerrar agora ${survey.title}`} icon="stop-circle-outline" label="Encerrar agora" onPress={() => encerrarAgora(survey)} style={styles.actionButton} variant="ghost" /> : null}
                         <Button accessibilityLabel={`Excluir ${survey.title}`} icon="trash-outline" onPress={() => excluir(survey)} variant="danger" />
                       </View>
                     </Card>
@@ -200,6 +194,6 @@ const styles = StyleSheet.create({
   rowBadges: { alignItems: 'flex-end', gap: espaco.xs },
   metaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: espaco.md, paddingHorizontal: espaco.lg, paddingVertical: espaco.sm },
   metaText: { ...tipografia.legenda, color: cores.texto.discreto },
-  actions: { borderTopColor: cores.borda.sutil, borderTopWidth: 1, flexDirection: 'row', gap: espaco.xs, padding: espaco.sm },
+  actions: { borderTopColor: cores.borda.sutil, borderTopWidth: 1, flexDirection: 'row', flexWrap: 'wrap', gap: espaco.xs, padding: espaco.sm },
   actionButton: { flex: 1 },
 });

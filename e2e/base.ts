@@ -79,3 +79,16 @@ export async function itemAtivoDaSidebar(page: Page): Promise<string[]> {
   }
   return ativos;
 }
+
+/**
+ * Responde às confirmações (window.confirm) do app e guarda o texto de cada uma.
+ * `controle.aceitar` decide o clique seguinte (false = Cancelar); troque entre um passo e outro do teste.
+ */
+export function controlarConfirmacoes(page: Page): { aceitar: boolean; mensagens: string[] } {
+  const controle = { aceitar: false, mensagens: [] as string[] };
+  page.on('dialog', (dialogo) => {
+    controle.mensagens.push(dialogo.message());
+    void (controle.aceitar ? dialogo.accept() : dialogo.dismiss());
+  });
+  return controle;
+}

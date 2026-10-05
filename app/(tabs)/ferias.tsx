@@ -11,6 +11,7 @@ import { lerAbaFerias } from '../../helpers/filtros';
 import { isoParaBr, validarPeriodo } from '../../helpers/camposData';
 import { formatDateShort, brToIso, isoToBr } from '../../helpers/datas';
 import { confirmAction } from '../../helpers/confirm';
+import { efeitoDaExclusao } from '../../helpers/saldoAusencia';
 import { exportAbsencesPDF } from '../../helpers/pdf';
 import { useToast } from '../../contextos/Toast';
 import { useAuth } from '../../contextos/Autenticacao';
@@ -235,7 +236,9 @@ export default function FeriasScreen() {
       await deleteAbsence(id);
       setAbsences(prev => prev.filter(a => a.id !== id));
       setPendentes(prev => prev.filter(a => a.id !== id));
-      toast.success('Solicitação excluída.');
+      toast.success('Lançamento excluído.');
+      // Lançamento aprovado devolve saldo: recarrega colaboradores e lista.
+      void load();
     } catch (e: any) {
       toast.error(e.message || 'Erro ao excluir.');
     }
@@ -288,6 +291,8 @@ export default function FeriasScreen() {
         });
         setAbsences(prev => prev.map(a => a.id === editId ? { ...a, ...updated } : a));
         toast.success('Lançamento atualizado!');
+        // Editar horas/dias de um lançamento aprovado ajusta o saldo: recarrega para mostrar os números novos.
+        void load();
       } else {
         const data: CreateAbsenceData = {
           employee_id: form.employee_id,
@@ -365,7 +370,7 @@ export default function FeriasScreen() {
             {canApprove ? <MetricCard label="Pendentes" value={pendentes.length} detail="Aguardando decisão" indicator={pendentes.length > 0 ? <AbsenceStatusBadge status="pendente" /> : undefined} /> : null}
           </View>
         </Section>
-        <Section title="Registros" description="Filtre por tipo de afastamento para consultar ou editar solicitações pendentes." action={Platform.OS === 'web' && filtered.length > 0 ? <Button label="Exportar PDF" icon="download-outline" variant="ghost" onPress={() => exportAbsencesPDF(filtered as any)} /> : undefined}>
+        <Section title="Registros" description="Filtre por tipo de afastamento para consultar, editar ou excluir lançamentos pendentes e aprovados." action={Platform.OS === 'web' && filtered.length > 0 ? <Button label="Exportar PDF" icon="download-outline" variant="ghost" onPress={() => exportAbsencesPDF(filtered as any)} /> : undefined}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterTabs}>
             {FILTER_TABS.map((tab) => <Button key={tab.key} label={tab.label} variant={activeTab === tab.key ? 'primary' : 'secondary'} accessibilityLabel={`Filtrar por ${tab.label}`} onPress={() => escolherAba(tab.key)} />)}
           </ScrollView>
@@ -375,12 +380,12 @@ export default function FeriasScreen() {
             <View style={styles.recordList}>
               {filtered.map((absence) => {
                 const employeeName = empNames[absence.employee_id] || absence.employee_name || `Colaborador #${absence.employee_id}`;
-                const isEditable = absence.status === 'pendente' && canManage;
+                const isEditable = (absence.status === 'pendente' || absence.status === 'aprovado') && canManage;
                 return (
                   <Card key={absence.id} padded={false}>
                     <ListRow title={employeeName} description={absencePeriod(absence)} onPress={isEditable ? () => openModal(absence) : undefined} accessibilityLabel={isEditable ? `Editar ${ABSENCE_TYPE_LABELS[absence.type]} de ${employeeName}` : `${ABSENCE_TYPE_LABELS[absence.type]} de ${employeeName}`} leading={<Avatar name={employeeName} size="small" />} trailing={<View style={styles.rowTrailing}><Badge label={ABSENCE_TYPE_LABELS[absence.type]} tone={absenceTone[absence.type]} /><Text style={styles.duration}>{absenceDuration(absence)}</Text><AbsenceStatusBadge status={absence.status} /></View>} />
                     {absence.reason ? <Text numberOfLines={2} style={styles.recordReason}>{absence.reason}</Text> : null}
-                    {isEditable ? <View style={styles.recordActions}><Button label="Editar" icon="pencil-outline" variant="ghost" onPress={() => openModal(absence)} /><Button label="Excluir" icon="trash-outline" variant="danger" onPress={() => confirmAction('Excluir', `Excluir esta solicitação de ${ABSENCE_TYPE_LABELS[absence.type]}?`, () => handleDeleteAbsence(absence.id))} /></View> : null}
+                    {isEditable ? <View style={styles.recordActions}><Button label="Editar" icon="pencil-outline" variant="ghost" onPress={() => openModal(absence)} /><Button label="Excluir" icon="trash-outline" variant="danger" onPress={() => confirmAction('Excluir lançamento', `Excluir ${ABSENCE_TYPE_LABELS[absence.type]} de ${employeeName}? ${efeitoDaExclusao(absence, employees.find((e) => e.id === absence.employee_id))}`, () => handleDeleteAbsence(absence.id))} /></View> : null}
                   </Card>
                 );
               })}

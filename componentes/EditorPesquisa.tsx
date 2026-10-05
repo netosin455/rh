@@ -8,9 +8,10 @@
 
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { LayoutChangeEvent, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { createSurvey } from '../conexoes/pesquisas';
+import { ApiError } from '../conexoes/http';
+import { createSurvey, getSurvey, updateSurvey } from '../conexoes/pesquisas';
 import { useToast } from '../contextos/Toast';
 import { cores } from '../estilo/cores';
 import { borda, espaco, raio, tamanho } from '../estilo/espaco';
@@ -28,12 +29,18 @@ import {
   adicionarPergunta,
   duplicarPergunta,
   modeloSatisfacaoCliente,
+  montarEdicao,
   montarPesquisa,
   moverPergunta,
   perguntaNova,
   podeAdicionarPergunta,
+  podeMoverPergunta,
   previaPublica,
+  rascunhoDaPesquisa,
   removerPergunta,
+  restricaoDaPergunta,
+  textoBannerRespostas,
+  validadeDoCampo,
   validarPesquisa,
 } from '../helpers/pesquisa';
 import { Button } from './Button';
@@ -43,9 +50,11 @@ import { Modal } from './Modal';
 import { PerguntaCard } from './PerguntaCard';
 import { ResponderPesquisa } from './ResponderPesquisa';
 
-type EditorPesquisaProps = { area: AreaPesquisa };
+/** Sem `pesquisaId`: criar. Com `pesquisaId`: editar a pesquisa existente (modo edição). */
+type EditorPesquisaProps = { area: AreaPesquisa; pesquisaId?: number };
 
-export function EditorPesquisa({ area }: EditorPesquisaProps) {
+export function EditorPesquisa({ area, pesquisaId }: EditorPesquisaProps) {
+  const edicao = pesquisaId !== undefined;
   const cfg = AREAS_PESQUISA[area];
   const cliente = area === 'nps';
   const router = useRouter();
@@ -57,9 +66,31 @@ export function EditorPesquisa({ area }: EditorPesquisaProps) {
   const [mostrarErros, setMostrarErros] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const [previaAberta, setPreviaAberta] = useState(false);
+  // Modo edição: carregamento, quantas respostas a pesquisa já tem e bloqueios devolvidos pelo servidor (409).
+  const [carregando, setCarregando] = useState(edicao);
+  const [erroCarga, setErroCarga] = useState('');
+  const [respostas, setRespostas] = useState(0);
+  const [bloqueiosServidor, setBloqueiosServidor] = useState<string[]>([]);
+  const comRespostas = respostas > 0;
   const emAndamento = useRef(false);
   const rolagem = useRef<ScrollView>(null);
   const posicoes = useRef<Record<string, number>>({});
+
+  useEffect(() => {
+    if (pesquisaId === undefined) return;
+    let ativo = true;
+    getSurvey(pesquisaId)
+      .then((p) => {
+        if (!ativo) return;
+        setTitulo(p.title);
+        setValidade(validadeDoCampo(p.expires_at));
+        setPerguntas(rascunhoDaPesquisa(p));
+        setRespostas(p.response_count ?? 0);
+      })
+      .catch((e: unknown) => { if (ativo) setErroCarga(e instanceof Error && e.message ? e.message : 'Não foi possível abrir a pesquisa.'); })
+      .finally(() => { if (ativo) setCarregando(false); });
+    return () => { ativo = false; };
+  }, [pesquisaId]);
 
   const validacao = validarPesquisa(titulo, validade, perguntas);
   const erros = mostrarErros ? validacao.erros : null;
@@ -102,10 +133,19 @@ export function EditorPesquisa({ area }: EditorPesquisaProps) {
     setSalvando(true);
     try {
       // Escrita nunca é repetida sozinha: se falhar, a pessoa vê o erro e decide.
+      if (pesquisaId !== undefined) {
+        setBloqueiosServidor([]);
+        await updateSurvey(pesquisaId, montarEdicao(titulo, validade, perguntas));
+        toast.success(cliente ? 'Campanha atualizada.' : 'Pesquisa atualizada.');
+        router.replace(cfg.rotaDetalhe(pesquisaId) as never);
+        return;
+      }
       await createSurvey(montarPesquisa(titulo, validade, perguntas, cfg.audience));
       toast.success(cliente ? 'Campanha criada. Na lista, copie o link ou mostre o QR code.' : 'Pesquisa criada. Já dá para compartilhar o link.');
       router.replace(cfg.rotaRaiz as never);
     } catch (e: unknown) {
+      // O servidor é a autoridade: se bloqueou a edição, mostra o motivo de cada bloqueio.
+      if (e instanceof ApiError && e.status === 409 && e.bloqueios.length > 0) setBloqueiosServidor(e.bloqueios);
       toast.error(e instanceof Error && e.message ? e.message : `Não foi possível criar ${cliente ? 'a campanha' : 'a pesquisa'}.`);
     } finally {
       emAndamento.current = false;
@@ -114,15 +154,31 @@ export function EditorPesquisa({ area }: EditorPesquisaProps) {
   }
 
   const quem = cliente ? 'o cliente' : 'o colaborador';
+  const substantivo = cliente ? 'campanha' : 'pesquisa';
+  const voltarPara = edicao && pesquisaId !== undefined ? cfg.rotaDetalhe(pesquisaId) : cfg.rotaRaiz;
+
+  if (carregando) {
+    return <View style={styles.tela}><View style={styles.conteudo}><Text accessibilityLiveRegion="polite" style={styles.subtitulo}>Carregando {substantivo}…</Text></View></View>;
+  }
+  if (erroCarga) {
+    return (
+      <View style={styles.tela}>
+        <View style={styles.conteudo}>
+          <Text accessibilityRole="alert" style={styles.errosResumo}>{erroCarga}</Text>
+          <Button icon="arrow-back-outline" label={cliente ? 'Voltar para NPS' : 'Voltar para pesquisas'} onPress={() => router.replace(cfg.rotaRaiz as never)} variant="ghost" />
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.tela}>
       <ScrollView contentContainerStyle={styles.conteudo} keyboardShouldPersistTaps="handled" ref={rolagem}>
         <View style={styles.coluna}>
           <View style={styles.topo}>
-            <Button accessibilityLabel={`Voltar para ${cliente ? 'NPS' : 'pesquisas'}`} disabled={salvando} icon="arrow-back-outline" onPress={() => router.replace(cfg.rotaRaiz as never)} variant="ghost" />
+            <Button accessibilityLabel={`Voltar para ${cliente ? 'NPS' : 'pesquisas'}`} disabled={salvando} icon="arrow-back-outline" onPress={() => router.replace(voltarPara as never)} variant="ghost" />
             <View style={styles.topoTexto}>
-              <Text accessibilityRole="header" style={styles.titulo}>{cliente ? 'Nova campanha NPS' : 'Nova pesquisa'}</Text>
+              <Text accessibilityRole="header" style={styles.titulo}>{edicao ? (cliente ? 'Editar campanha NPS' : 'Editar pesquisa') : cliente ? 'Nova campanha NPS' : 'Nova pesquisa'}</Text>
               <Text style={styles.subtitulo}>
                 {cliente
                   ? 'Clientes respondem pelo link ou QR code, sem login. A resposta é anônima; o contato só é guardado se o cliente aceitar.'
@@ -131,7 +187,19 @@ export function EditorPesquisa({ area }: EditorPesquisaProps) {
             </View>
           </View>
 
-          {cliente ? (
+          {comRespostas ? (
+            <View accessibilityRole="alert" style={styles.bloqueio}>
+              <Text style={styles.bloqueioTexto}>{textoBannerRespostas(respostas, substantivo)}</Text>
+            </View>
+          ) : null}
+          {bloqueiosServidor.length > 0 ? (
+            <View accessibilityRole="alert" style={styles.bloqueio}>
+              <Text style={styles.bloqueioTitulo}>O servidor não permitiu esta alteração:</Text>
+              {bloqueiosServidor.map((m, i) => <Text key={i} style={styles.bloqueioTexto}>• {m}</Text>)}
+            </View>
+          ) : null}
+
+          {cliente && !edicao ? (
             <View style={styles.modelo}>
               <View style={styles.modeloTopo}>
                 <Ionicons color={cores.accent.douradoProfundo} name="sparkles-outline" size={tamanho.iconeMedio} />
@@ -171,11 +239,14 @@ export function EditorPesquisa({ area }: EditorPesquisaProps) {
                 erros={erros?.perguntas[p.chave]}
                 indice={i}
                 onChange={(nova) => atualizar(i, nova)}
-                onDuplicar={() => setPerguntas((atual) => duplicarPergunta(atual, i))}
+                onDuplicar={() => setPerguntas((atual) => duplicarPergunta(atual, i, comRespostas))}
                 onExcluir={() => excluir(i)}
                 onMover={(delta) => setPerguntas((atual) => moverPergunta(atual, i, delta))}
                 pergunta={p}
+                podeDescer={podeMoverPergunta(perguntas, i, 1, comRespostas)}
                 podeDuplicar={!limite}
+                podeSubir={podeMoverPergunta(perguntas, i, -1, comRespostas)}
+                restricao={restricaoDaPergunta(p, comRespostas)}
                 tipos={TIPOS_POR_AREA[area]}
                 total={perguntas.length}
               />
@@ -184,7 +255,7 @@ export function EditorPesquisa({ area }: EditorPesquisaProps) {
 
           <View style={styles.adicionar}>
             <Text accessibilityLiveRegion="polite" style={styles.contador}>{perguntas.length} de {MAX_PERGUNTAS} perguntas</Text>
-            <Button accessibilityLabel="Adicionar pergunta" disabled={salvando || limite} icon="add-outline" label="Adicionar pergunta" onPress={() => setPerguntas((atual) => adicionarPergunta(atual))} variant="secondary" />
+            <Button accessibilityLabel="Adicionar pergunta" disabled={salvando || limite} icon="add-outline" label="Adicionar pergunta" onPress={() => setPerguntas((atual) => adicionarPergunta(atual, comRespostas))} variant="secondary" />
             {limite ? <Text style={styles.limite}>Limite de {MAX_PERGUNTAS} perguntas atingido.</Text> : null}
           </View>
         </View>
@@ -195,7 +266,7 @@ export function EditorPesquisa({ area }: EditorPesquisaProps) {
           {mostrarErros && !validacao.ok ? <Text accessibilityRole="alert" style={styles.errosResumo}>Corrija {validacao.totalErros} campo{validacao.totalErros === 1 ? '' : 's'} marcado{validacao.totalErros === 1 ? '' : 's'}.</Text> : null}
           <View style={styles.rodapeBotoes}>
             <Button accessibilityLabel={`Ver como ${quem} vai ver`} disabled={salvando} icon="eye-outline" label={`Ver como ${quem} vai ver`} onPress={() => setPreviaAberta(true)} style={styles.botaoRodape} variant="secondary" />
-            <Button accessibilityLabel={cliente ? 'Criar campanha' : 'Criar pesquisa'} disabled={salvando} icon="checkmark-outline" label={cliente ? 'Criar campanha' : 'Criar pesquisa'} loading={salvando} onPress={criar} style={styles.botaoRodape} />
+            <Button accessibilityLabel={edicao ? 'Salvar alterações' : cliente ? 'Criar campanha' : 'Criar pesquisa'} disabled={salvando} icon="checkmark-outline" label={edicao ? 'Salvar alterações' : cliente ? 'Criar campanha' : 'Criar pesquisa'} loading={salvando} onPress={criar} style={styles.botaoRodape} />
           </View>
         </View>
       </View>
@@ -224,6 +295,9 @@ const styles = StyleSheet.create({
   topoTexto: { flex: 1, gap: espaco.micro },
   titulo: { ...tipografia.titulo, color: cores.texto.primario },
   subtitulo: { ...tipografia.corpo, color: cores.texto.discreto },
+  bloqueio: { backgroundColor: cores.status.pendente.superficie, borderColor: cores.status.pendente.borda, borderRadius: raio.controle, borderWidth: borda.fina, gap: espaco.xs, padding: espaco.md },
+  bloqueioTitulo: { ...tipografia.corpoForte, color: cores.texto.primario },
+  bloqueioTexto: { ...tipografia.corpo, color: cores.texto.primario },
   modelo: { backgroundColor: cores.accent.superficie, borderRadius: raio.cartao, gap: espaco.sm, padding: espaco.md },
   modeloTopo: { alignItems: 'center', flexDirection: 'row', gap: espaco.sm },
   modeloTitulo: { ...tipografia.corpoForte, color: cores.texto.primario },

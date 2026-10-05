@@ -114,6 +114,8 @@ export class ApiSimulada {
   ];
   /** Usuário devolvido pelo login simulado. */
   usuarioLogado: User = USUARIO_RH;
+  /** Se preenchido, o PUT de pesquisa responde 409 edicao_bloqueada com estas mensagens (o servidor discordando do front). */
+  forcarBloqueios: string[] | null = null;
   /** true => POST /api/chat responde 502 (IA fora do ar). */
   chatIndisponivel = false;
   /** Toda requisição que chegou à API simulada ("GET /api/employees?page=1..."). */
@@ -182,6 +184,27 @@ export class ApiSimulada {
     return nova;
   }
 
+  /** Lançamento já APROVADO (como os que o RH cria pela tela Lançar). Não mexe no saldo: ajuste o colaborador no teste. */
+  semearAusencia(dados: { employee_id: number; type: Absence['type']; start_date?: string; end_date?: string; hours?: number; days_count?: number }): Absence {
+    const emp = this.employees.find((e) => e.id === dados.employee_id) ?? this.employees[0];
+    const inicio = dados.start_date ?? hojeIso(-3);
+    const fim = dados.end_date ?? inicio;
+    const a: Absence = {
+      id: this.proximoIdAusencia++, company_id: 1, employee_id: emp.id, employee_name: emp.name, role_title: emp.role_title, type: dados.type,
+      start_date: inicio, end_date: fim, days_count: dados.days_count ?? diasEntre(inicio, fim), status: 'aprovado', created_at: agoraIso(),
+      ...(dados.hours !== undefined ? { hours: dados.hours } : {}),
+    };
+    this.absences.push(a);
+    return a;
+  }
+
+  /** Evento já existente na agenda. */
+  semearEvento(dados: { title: string; date: string; start_time?: string; end_time?: string; category?: Event['category']; is_all_day?: boolean }): Event {
+    const e = { id: `ev-${this.proximoIdEvento++}`, company_id: 1, user_id: 1, color: '#8A887F', category: 'outro', is_all_day: false, created_at: agoraIso(), updated_at: agoraIso(), ...dados } as Event;
+    this.events.push(e);
+    return e;
+  }
+
   /** Cliente que aceitou ser contatado numa campanha NPS. */
   semearContato(pesquisaId: number, contato: { name: string; phone?: string; email?: string; score: number; comment?: string }): SurveyContact {
     const c: SurveyContact = {
@@ -218,6 +241,28 @@ export class ApiSimulada {
       created_by_role: f.created_by_role ?? null, status: f.status === 'acknowledged' ? 'acknowledged' : 'published',
       published_at: f.published_at ?? agoraIso(), acknowledged_at: f.acknowledged_at, acknowledgment_note: f.acknowledgment_note ?? null,
     };
+  }
+
+  /** Regra do contrato do PUT /api/surveys/:id: com respostas só se pode o que o front libera. */
+  private bloqueiosDaEdicao(s: PulseSurvey, corpo: CorpoJson): string[] {
+    if ((s.response_count ?? 0) === 0 || !Array.isArray(corpo.questions)) return [];
+    const originais = [...(s.questions ?? [])].sort((a, b) => a.position - b.position);
+    const novas = corpo.questions as CorpoJson[];
+    const bloqueios: string[] = [];
+    originais.forEach((o, i) => {
+      const q = novas[i];
+      if (!q || q.id !== o.id) { bloqueios.push(`A pergunta ${i + 1} não pode ser removida nem mudar de posição.`); return; }
+      if (q.type !== o.type) bloqueios.push(`A pergunta ${i + 1} não pode mudar de tipo.`);
+      if (q.required === true && !o.required) bloqueios.push(`A pergunta ${i + 1} não pode voltar a ser obrigatória.`);
+      const antigas = o.options ?? [];
+      const atuais = Array.isArray(q.options) ? (q.options as string[]) : [];
+      if (o.type === 'choice' && antigas.some((op, k) => atuais[k] !== op)) bloqueios.push(`As opções que já existem na pergunta ${i + 1} não podem mudar.`);
+    });
+    novas.slice(originais.length).forEach((q, k) => {
+      if (q.id !== undefined) bloqueios.push(`A pergunta ${originais.length + k + 1} não existe na pesquisa.`);
+      if (q.required !== false) bloqueios.push(`A pergunta nova ${originais.length + k + 1} precisa ser opcional.`);
+    });
+    return bloqueios;
   }
 
   /** Resultados por pergunta, calculados com as respostas realmente recebidas. */
@@ -394,18 +439,32 @@ export class ApiSimulada {
         ...(typeof corpo.reason === 'string' ? { reason: corpo.reason } : {}),
       };
       this.absences.unshift(nova);
+      if (emp && nova.type === 'folga' && nova.hours) emp.folga_hours = Number(emp.folga_hours) - nova.hours;
+      if (emp && nova.type === 'ferias') emp.vacation_days -= nova.days_count;
       return responder(201, nova);
     }
     const mAus = caminho.match(/^\/api\/absences\/(\d+)$/);
     if (mAus) {
       const a = this.absences.find((x) => x.id === Number(mAus[1]));
       if (!a) return erro(404, 'Ausência não encontrada');
+      const dono = this.employees.find((e) => e.id === a.employee_id);
       if (metodo === 'PATCH') {
-        if (typeof corpo.approved === 'boolean') a.status = corpo.approved ? 'aprovado' : 'recusado';
-        else Object.assign(a, corpo);
+        if (typeof corpo.approved === 'boolean') { a.status = corpo.approved ? 'aprovado' : 'recusado'; return responder(200, a); }
+        // Editar horas de folga APROVADA ajusta a diferença no banco de horas; acima do saldo => 422.
+        if (a.status === 'aprovado' && dono && a.type === 'folga' && typeof corpo.hours === 'number') {
+          const diferenca = corpo.hours - (a.hours ?? 0);
+          if (diferenca > Number(dono.folga_hours)) return erro(422, `Saldo insuficiente: ${dono.name} tem ${dono.folga_hours}h disponíveis.`);
+          dono.folga_hours = Number(dono.folga_hours) - diferenca;
+        }
+        Object.assign(a, corpo);
         return responder(200, a);
       }
       if (metodo === 'DELETE') {
+        // Excluir lançamento APROVADO devolve o saldo.
+        if (a.status === 'aprovado' && dono) {
+          if (a.type === 'folga' && a.hours) dono.folga_hours = Number(dono.folga_hours) + a.hours;
+          if (a.type === 'ferias') dono.vacation_days += a.days_count;
+        }
         this.absences = this.absences.filter((x) => x.id !== a.id);
         return responder(204);
       }
@@ -425,6 +484,14 @@ export class ApiSimulada {
       const novo = { id: `ev-${this.proximoIdEvento++}`, company_id: 1, user_id: 1, created_at: agoraIso(), updated_at: agoraIso(), ...corpo } as Event;
       this.events.push(novo);
       return responder(201, novo);
+    }
+
+    const mEvento = caminho.match(/^\/api\/events\/([^/]+)$/);
+    if (mEvento) {
+      const e = this.events.find((x) => x.id === mEvento[1]);
+      if (!e) return erro(404, 'Evento não encontrado');
+      if (metodo === 'PUT') { Object.assign(e, corpo); return responder(200, e); }
+      if (metodo === 'DELETE') { this.events = this.events.filter((x) => x.id !== e.id); return responder(204); }
     }
 
     // Avisos, notificações, push, holerites, analytics
@@ -487,6 +554,7 @@ export class ApiSimulada {
       if (!f) return erro(404, 'Feedback não encontrado');
       if (!mFeedback[2] && metodo === 'GET') return responder(200, f);
       if (!mFeedback[2] && metodo === 'PUT') { Object.assign(f, corpo); return responder(200, f); }
+      if (!mFeedback[2] && metodo === 'DELETE') { this.feedbacks = this.feedbacks.filter((x) => x.id !== f.id); return responder(204); }
       if (mFeedback[2] === 'publish' && metodo === 'POST') {
         if (f.status !== 'draft') return erro(409, 'Feedback já foi publicado ou encerrado');
         f.status = 'published';
@@ -556,6 +624,21 @@ export class ApiSimulada {
       if (!c) return erro(404, 'Contato não encontrado');
       if (metodo === 'PATCH') { c.contacted_at = agoraIso(); return responder(200, { contacted_at: c.contacted_at }); }
       if (metodo === 'DELETE') { this.contatosPorPesquisa.set(Number(mPesquisa[1]), contatos.filter((x) => x !== c)); return responder(204); }
+    }
+    if (mPesquisa && metodo === 'PUT') {
+      const s = this.surveys.find((x) => x.id === Number(mPesquisa[1]));
+      if (!s) return erro(404, 'Pesquisa não encontrada');
+      const bloqueios = this.forcarBloqueios ?? this.bloqueiosDaEdicao(s, corpo);
+      if (bloqueios.length > 0) return responder(409, { error: 'Edição bloqueada: a pesquisa já tem respostas', codigo: 'edicao_bloqueada', bloqueios });
+      if (typeof corpo.title === 'string') s.title = corpo.title;
+      if ('expires_at' in corpo) s.expires_at = (corpo.expires_at as string | null) ?? null;
+      if (Array.isArray(corpo.questions)) {
+        s.questions = (corpo.questions as CorpoJson[]).map((q, i) => ({
+          id: typeof q.id === 'number' ? q.id : this.proximoIdPergunta++, position: i + 1, question: String(q.question), type: q.type as SurveyQuestion['type'],
+          options: Array.isArray(q.options) ? (q.options as string[]) : null, required: q.required !== false,
+        }));
+      }
+      return responder(200, s);
     }
     if (mPesquisa && metodo === 'DELETE') {
       this.surveys = this.surveys.filter((s) => s.id !== Number(mPesquisa[1]));

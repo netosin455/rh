@@ -6,7 +6,7 @@ import type { Request as VercelRequest, Response as VercelResponse } from 'expre
 import {
   sql, cors, authenticate, err, CAN_MANAGE_EMPLOYEES, CAN_APPROVE_ABSENCES,
   parsePagination, createAbsenceRecord, resolveAbsenceApproval,
-  ABSENCE_VALID_TYPES,
+  ABSENCE_VALID_TYPES, updateApprovedAbsenceRecord, deleteApprovedAbsenceRecord,
 } from '../_lib';
 import { isValidIsoDate } from '../../helpers/datas';
 
@@ -27,16 +27,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       // Se for uma atualização de dados (não aprovação)
       if (approved === undefined && (type || start_date || end_date || reason !== undefined || hours !== undefined)) {
-        if (!CAN_MANAGE_EMPLOYEES.includes(ctx.role)) {
+        if (!CAN_MANAGE_EMPLOYEES.includes(ctx.role) && !CAN_APPROVE_ABSENCES.includes(ctx.role)) {
           return err(res, 403, 'Sem permissão para editar ausências');
         }
         const existing = await sql`
-          SELECT employee_id, type, start_date, end_date, reason, hours, status
+          SELECT employee_id, type, start_date, end_date, reason, hours, days_count, status
           FROM absences WHERE id = ${id} AND company_id = ${ctx.company_id}
         `;
         if (!existing[0]) return err(res, 404, 'Ausência não encontrada');
-        if (existing[0].status !== 'pendente') {
-          return err(res, 409, 'Somente solicitações pendentes podem ser editadas');
+        if (!['pendente', 'aprovado'].includes(existing[0].status)) {
+          return err(res, 409, 'Somente solicitações pendentes ou aprovadas podem ser editadas');
+        }
+        if (existing[0].status === 'aprovado' && !CAN_APPROVE_ABSENCES.includes(ctx.role)) {
+          return err(res, 403, 'Sem permissão para editar ausência aprovada');
         }
 
         const current = existing[0] as {
@@ -46,7 +49,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           end_date: string;
           reason: string | null;
           hours: number | null;
+          days_count: number;
+          status: string;
         };
+        if (current.status === 'aprovado' && type !== undefined && String(type) !== current.type) {
+          return err(res, 409, 'O tipo de uma ausência aprovada não pode ser alterado');
+        }
         const nextType = type === undefined ? current.type : String(type);
         const nextStartDate = start_date === undefined ? current.start_date : String(start_date);
         const nextEndDate = end_date === undefined ? current.end_date : String(end_date);
@@ -70,6 +78,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         `;
         if (overlap[0]) return err(res, 409, 'O colaborador já possui uma ausência registrada neste período.');
 
+        if (current.status === 'aprovado') {
+          const result = await updateApprovedAbsenceRecord(ctx, {
+            id,
+            employee_id: Number(current.employee_id),
+            type: current.type,
+            days_count: Number(current.days_count),
+            hours: current.hours == null ? null : Number(current.hours),
+          }, {
+            start_date: nextStartDate,
+            end_date: nextEndDate,
+            reason: reason === undefined ? current.reason : (reason == null ? null : String(reason)),
+            hours: nextHours,
+          });
+          if (!result.ok) return err(res, result.status, result.error);
+          return res.json(result.absence);
+        }
+
         const rows = await sql`
           UPDATE absences SET
             type       = ${nextType},
@@ -92,16 +117,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (req.method === 'DELETE') {
-      if (!CAN_MANAGE_EMPLOYEES.includes(ctx.role)) return err(res, 403, 'Sem permissão');
       const existing = await sql`
-        SELECT status FROM absences WHERE id = ${id} AND company_id = ${ctx.company_id}
+        SELECT employee_id, type, days_count, hours, status
+        FROM absences WHERE id = ${id} AND company_id = ${ctx.company_id}
       `;
       if (!existing[0]) return err(res, 404, 'Ausência não encontrada');
-      if (existing[0].status !== 'pendente') {
-        return err(res, 409, 'Somente solicitações pendentes podem ser excluídas');
+      if (existing[0].status === 'pendente') {
+        if (!CAN_MANAGE_EMPLOYEES.includes(ctx.role)) return err(res, 403, 'Sem permissão');
+        await sql`DELETE FROM absences WHERE id = ${id} AND company_id = ${ctx.company_id} AND status = 'pendente'`;
+        return res.status(204).end();
       }
-      await sql`DELETE FROM absences WHERE id = ${id} AND company_id = ${ctx.company_id}`;
-      return res.status(204).end();
+      if (existing[0].status === 'aprovado') {
+        if (!CAN_APPROVE_ABSENCES.includes(ctx.role)) return err(res, 403, 'Sem permissão para excluir ausência aprovada');
+        const deleted = await deleteApprovedAbsenceRecord(ctx, {
+          id,
+          employee_id: Number(existing[0].employee_id),
+          type: String(existing[0].type),
+          days_count: Number(existing[0].days_count),
+          hours: existing[0].hours == null ? null : Number(existing[0].hours),
+        });
+        if (!deleted) return err(res, 404, 'Ausência não encontrada');
+        return res.status(204).end();
+      }
+      return err(res, 409, 'Somente solicitações pendentes ou aprovadas podem ser excluídas');
     }
 
     return err(res, 405, 'Método não permitido');

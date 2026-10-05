@@ -7,7 +7,8 @@ import { Button } from '../../componentes/Button';
 import { EmptyState } from '../../componentes/EmptyState';
 import { FeedbackForm } from '../../componentes/FeedbackForm';
 import { Skeleton } from '../../componentes/Skeleton';
-import { feedbackPdfUrl, feedbackPublicUrl, getFeedback, publishFeedback, revokeFeedback, updateFeedback } from '../../conexoes/feedbacks';
+import { deleteFeedback, feedbackPdfUrl, feedbackPublicUrl, getFeedback, publishFeedback, revokeFeedback, updateFeedback } from '../../conexoes/feedbacks';
+import { textoExclusaoFeedback } from '../../helpers/feedback';
 import { confirmAction } from '../../helpers/confirm';
 import { useToast } from '../../contextos/Toast';
 import type { CreateFeedbackData, Feedback } from '../../tipos/modelos';
@@ -99,6 +100,19 @@ export default function FeedbackDetailScreen() {
     });
   }
 
+  function remove() {
+    if (!id || !feedback) return;
+    const aviso = textoExclusaoFeedback(feedback.status);
+    confirmAction(aviso.titulo, aviso.mensagem, async () => {
+      setSaving(true);
+      try {
+        await deleteFeedback(id);
+        toast.success('Feedback excluído.');
+        router.replace('/feedbacks' as never);
+      } catch (reason: any) { toast.error(reason?.message ?? 'Não foi possível excluir o feedback.'); setSaving(false); }
+    });
+  }
+
   async function copyLink(token: string) {
     await Clipboard.setStringAsync(feedbackPublicUrl(token));
     toast.success('Link copiado.');
@@ -124,6 +138,7 @@ export default function FeedbackDetailScreen() {
             <View style={styles.intro}><Text accessibilityRole="header" style={styles.heading}>Revisar rascunho</Text><Text style={styles.subtitle}>O colaborador só terá acesso após a publicação.</Text></View>
             <View style={styles.formArea}><FeedbackForm disabled={saving} onChange={setForm} value={form} /></View>
             <View style={[styles.draftActions, narrow && styles.draftActionsNarrow]}>
+              <Button accessibilityLabel="Excluir rascunho" disabled={saving} icon="trash-outline" label="Excluir rascunho" onPress={remove} style={narrow ? styles.fullAction : undefined} variant="danger" />
               <Button disabled={saving} label="Salvar rascunho" loading={saving} onPress={saveDraft} style={narrow ? styles.fullAction : undefined} variant="secondary" />
               <Button disabled={saving} icon="send-outline" label="Publicar feedback" loading={saving} onPress={publish} style={narrow ? styles.fullAction : undefined} />
             </View>
@@ -138,7 +153,8 @@ export default function FeedbackDetailScreen() {
             <Text style={styles.body}>{feedback.content}</Text>
             <View style={styles.rule} />
             <View style={styles.author}><Text style={styles.authorName}>{feedback.created_by_name || 'Recursos Humanos'}</Text><Text style={styles.authorMeta}>Publicado em {dateTime(feedback.published_at)}</Text></View>
-            {activeToken ? <><View style={styles.sectionRule} /><Text style={styles.sectionLabel}>Link do colaborador</Text><Text selectable numberOfLines={1} style={styles.link}>{feedbackPublicUrl(activeToken)}</Text><View style={[styles.linkActions, narrow && styles.linkActionsNarrow]}><Button icon="copy-outline" label="Copiar link" onPress={() => copyLink(activeToken)} style={narrow ? styles.fullAction : undefined} variant="secondary" /><Button icon="eye-outline" label="Abrir como colaborador" onPress={() => openUrl(feedbackPublicUrl(activeToken))} style={narrow ? styles.fullAction : undefined} variant="ghost" /></View><View style={styles.documentRow}><View><Text style={styles.documentTitle}>Documento</Text><Text style={styles.documentHint}>Versão para download e arquivo.</Text></View><Button icon="download-outline" label="Baixar PDF" onPress={() => openUrl(feedbackPdfUrl(activeToken))} variant="secondary" /></View><View style={styles.moreWrap}><Pressable accessibilityRole="button" accessibilityState={{ expanded: moreOpen }} onPress={() => setMoreOpen((open) => !open)} style={styles.moreButton}><Ionicons color={cores.texto.secundario} name="ellipsis-horizontal" size={tamanho.iconeMedio} /><Text style={styles.moreText}>Mais ações</Text></Pressable>{moreOpen ? <View style={styles.moreMenu}><Pressable accessibilityRole="button" disabled={saving} onPress={revoke} style={styles.revokeAction}><Text style={styles.revokeActionText}>Revogar acesso</Text></Pressable></View> : null}</View></> : null}
+            {activeToken ? <><View style={styles.sectionRule} /><Text style={styles.sectionLabel}>Link do colaborador</Text><Text selectable numberOfLines={1} style={styles.link}>{feedbackPublicUrl(activeToken)}</Text><View style={[styles.linkActions, narrow && styles.linkActionsNarrow]}><Button icon="copy-outline" label="Copiar link" onPress={() => copyLink(activeToken)} style={narrow ? styles.fullAction : undefined} variant="secondary" /><Button icon="eye-outline" label="Abrir como colaborador" onPress={() => openUrl(feedbackPublicUrl(activeToken))} style={narrow ? styles.fullAction : undefined} variant="ghost" /></View><View style={styles.documentRow}><View><Text style={styles.documentTitle}>Documento</Text><Text style={styles.documentHint}>Versão para download e arquivo.</Text></View><Button icon="download-outline" label="Baixar PDF" onPress={() => openUrl(feedbackPdfUrl(activeToken))} variant="secondary" /></View></> : null}
+            <View style={styles.moreWrap}><Pressable accessibilityRole="button" accessibilityState={{ expanded: moreOpen }} onPress={() => setMoreOpen((open) => !open)} style={styles.moreButton}><Ionicons color={cores.texto.secundario} name="ellipsis-horizontal" size={tamanho.iconeMedio} /><Text style={styles.moreText}>Mais ações</Text></Pressable>{moreOpen ? <View style={styles.moreMenu}>{activeToken ? <Pressable accessibilityRole="button" disabled={saving} onPress={revoke} style={styles.revokeAction}><Text style={styles.revokeActionText}>Revogar acesso</Text></Pressable> : null}<Pressable accessibilityRole="button" disabled={saving} onPress={remove} style={styles.revokeAction}><Text style={styles.revokeActionText}>Excluir feedback</Text></Pressable></View> : null}</View>
           </>
         )}
       </View>

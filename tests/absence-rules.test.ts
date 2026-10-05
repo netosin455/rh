@@ -10,7 +10,7 @@ vi.mock('@neondatabase/serverless', () => ({
   neon: () => (...args: unknown[]) => mockSql(...args),
 }));
 
-import { createAbsenceRecord, resolveAbsenceApproval } from '../api/_lib';
+import { createAbsenceRecord, deleteApprovedAbsenceRecord, resolveAbsenceApproval, updateApprovedAbsenceRecord } from '../api/_lib';
 
 const employeeCtx = { sub: 1, company_id: 10, role: 'colaborador', name: 'Ana', email: 'ana@empresa.com' };
 const rhCtx = { sub: 2, company_id: 10, role: 'rh', name: 'RH', email: 'rh@empresa.com' };
@@ -90,6 +90,56 @@ describe('regras críticas de ausências', () => {
     const mutation = String(mockSql.mock.calls[1][0]);
     expect(mutation).toContain('WITH debited');
     expect(mutation).toContain("status = 'pendente'");
+  });
+
+  it('edita folga aprovada com saldo dependente da própria ausência travada', async () => {
+    mockSql.mockResolvedValueOnce([{ id: 40, hours: 4 }]);
+
+    const result = await updateApprovedAbsenceRecord(rhCtx, {
+      id: 40, employee_id: 9, type: 'folga', days_count: 1, hours: null,
+    }, {
+      start_date: '2026-08-01', end_date: '2026-08-01', reason: null, hours: 4,
+    });
+
+    expect(result).toMatchObject({ ok: true });
+    const mutation = String(mockSql.mock.calls[0][0]);
+    expect(mutation).toContain('FOR UPDATE OF a, e');
+    expect(mutation).toContain('COALESCE(antiga.hours, 0)');
+    expect(mutation).toContain('FROM ausencia_atualizada atualizada');
+    expect(mutation).toContain('AND (SELECT COUNT(*) FROM saldo_ajustado) = 1');
+    expect(mutation).not.toContain('UPDATE employees e SET folga_hours = e.folga_hours + antiga.hours');
+  });
+
+  it('não confirma edição concorrente quando a CTE não encontra mais a ausência', async () => {
+    mockSql.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+
+    const result = await updateApprovedAbsenceRecord(rhCtx, {
+      id: 40, employee_id: 9, type: 'folga', days_count: 1, hours: 2,
+    }, {
+      start_date: '2026-08-01', end_date: '2026-08-01', reason: null, hours: 4,
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      status: 409,
+      error: 'Nao foi possivel editar: o lancamento mudou ou nao existe mais. Recarregue.',
+    });
+    expect(String(mockSql.mock.calls[0][0])).toContain('WITH antiga AS');
+  });
+
+  it('não restaura saldo no segundo delete quando a CTE não exclui mais a folga', async () => {
+    mockSql.mockResolvedValueOnce([]);
+
+    const deleted = await deleteApprovedAbsenceRecord(rhCtx, {
+      id: 40, employee_id: 9, type: 'folga', days_count: 1, hours: 2,
+    });
+
+    expect(deleted).toBe(false);
+    const mutation = String(mockSql.mock.calls[0][0]);
+    expect(mutation).toContain('WITH excluida AS');
+    expect(mutation).toContain('DELETE FROM absences');
+    expect(mutation).toContain('FROM excluida');
+    expect(mutation).not.toContain('UPDATE employees e SET folga_hours = e.folga_hours + 2');
   });
 
   it.each([
