@@ -14,7 +14,8 @@ import { useToast } from '../contextos/Toast';
 import { cores } from '../estilo/cores';
 import { borda, espaco, raio, tamanho } from '../estilo/espaco';
 import { tipografia } from '../estilo/tipografia';
-import { getTodayString, maskDate } from '../helpers/datas';
+import { isoParaBr, validarPeriodo } from '../helpers/camposData';
+import { brToIso, getTodayString } from '../helpers/datas';
 import {
   EntradaLancamento,
   SUBTIPOS_LICENCA,
@@ -38,6 +39,8 @@ import type { Employee } from '../tipos/modelos';
 import { Avatar } from './Avatar';
 import { Button } from './Button';
 import { Card } from './Card';
+import { EmployeePicker } from './EmployeePicker';
+import { DateField } from './DateField';
 import { Input } from './Input';
 import { ListRow } from './ListRow';
 import { Modal } from './Modal';
@@ -99,7 +102,6 @@ export function LancarAusencia({ visible, onClose, employees, employeeId, onLanc
   const { height } = useWindowDimensions();
   const [entrada, setEntrada] = useState<EntradaLancamento>(entradaInicial);
   const [escolhidoId, setEscolhidoId] = useState<number | null>(null);
-  const [busca, setBusca] = useState('');
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState('');
   // Trava síncrona: dois cliques rápidos podem chegar antes do re-render do "salvando".
@@ -110,18 +112,12 @@ export function LancarAusencia({ visible, onClose, employees, employeeId, onLanc
     if (!visible) return;
     setEntrada(entradaInicial());
     setEscolhidoId(employeeId ?? null);
-    setBusca('');
     setErro('');
     setSalvando(false);
     emAndamento.current = false;
   }, [visible, employeeId]);
 
   const colaborador = useMemo(() => employees.find((e) => e.id === escolhidoId) ?? null, [employees, escolhidoId]);
-  const resultados = useMemo(() => {
-    const q = busca.trim().toLowerCase();
-    if (!q) return [];
-    return employees.filter((e) => e.status !== 'desligado' && e.name.toLowerCase().includes(q)).slice(0, 6);
-  }, [employees, busca]);
 
   const saldo = { vacation_days: colaborador?.vacation_days ?? 0, folga_hours: Number(colaborador?.folga_hours ?? 0) };
   const nome = colaborador?.name ?? '';
@@ -179,29 +175,7 @@ export function LancarAusencia({ visible, onClose, employees, employeeId, onLanc
       <ScrollView contentContainerStyle={styles.conteudo} showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" style={{ maxHeight: Math.min(520, height * 0.55) }}>
         <View style={styles.bloco}>
           <Rotulo>Lançar para:</Rotulo>
-          {colaborador ? (
-            <View style={styles.pessoa}>
-              <Avatar name={colaborador.name} size="small" />
-              <View style={styles.pessoaTexto}>
-                <Text style={styles.pessoaNome}>{colaborador.name}</Text>
-                <Text style={styles.dica}>{colaborador.role_title}</Text>
-              </View>
-              <Button accessibilityLabel="Trocar colaborador" disabled={salvando} label="Trocar" onPress={() => { setEscolhidoId(null); setBusca(''); }} variant="ghost" />
-            </View>
-          ) : (
-            <>
-              <Input label="Buscar colaborador" onChangeText={setBusca} placeholder="Digite o nome" value={busca} />
-              {busca.trim() !== '' ? (
-                resultados.length > 0 ? (
-                  <Card padded={false}>
-                    {resultados.map((e) => (
-                      <ListRow accessibilityLabel={`Escolher ${e.name}`} description={e.role_title} key={e.id} leading={<Avatar name={e.name} size="small" />} onPress={() => { setEscolhidoId(e.id); setBusca(''); }} title={e.name} />
-                    ))}
-                  </Card>
-                ) : <Text style={styles.dica}>Ninguém encontrado com esse nome.</Text>
-              ) : null}
-            </>
-          )}
+          <EmployeePicker disabled={salvando} employees={employees} onClear={() => setEscolhidoId(null)} onSelect={(e) => setEscolhidoId(e.id)} required selectedId={escolhidoId} />
         </View>
 
         <View style={styles.bloco}>
@@ -225,8 +199,9 @@ export function LancarAusencia({ visible, onClose, employees, employeeId, onLanc
           <View style={styles.bloco}>
             <Rotulo>Quando?</Rotulo>
             <View style={styles.duasColunas}>
-              <Input containerStyle={styles.coluna} keyboardType="numeric" label="De" maxLength={10} onChangeText={(v) => mudar({ inicio: maskDate(v) })} placeholder="DD/MM/AAAA" value={entrada.inicio} />
-              <Input containerStyle={styles.coluna} keyboardType="numeric" label="Até" maxLength={10} onChangeText={(v) => mudar({ fim: maskDate(v) })} placeholder="DD/MM/AAAA" value={entrada.fim} />
+              {/* O estado da tela continua em DD/MM/AAAA (a lógica de lancamento.ts lê assim); o campo fala ISO. */}
+              <DateField containerStyle={styles.coluna} disabled={salvando} label="De" onChange={(iso) => mudar({ inicio: isoParaBr(iso) })} required value={brToIso(entrada.inicio)} />
+              <DateField containerStyle={styles.coluna} disabled={salvando} error={validarPeriodo(brToIso(entrada.inicio), brToIso(entrada.fim)) ?? undefined} label="Até" min={brToIso(entrada.inicio) || undefined} onChange={(iso) => mudar({ fim: isoParaBr(iso) })} required value={brToIso(entrada.fim)} />
             </View>
             {periodoDias != null ? <Text style={styles.dica}>{periodoDias} dia{periodoDias === 1 ? '' : 's'} no período.</Text> : null}
           </View>
@@ -239,7 +214,7 @@ export function LancarAusencia({ visible, onClose, employees, employeeId, onLanc
               <Chip label="Outro dia" onPress={() => mudar({ atalhoData: 'outro' })} selecionado={entrada.atalhoData === 'outro'} />
             </View>
             {entrada.atalhoData === 'outro' ? (
-              <Input keyboardType="numeric" label="Dia" maxLength={10} onChangeText={(v) => mudar({ outroDia: maskDate(v) })} placeholder="DD/MM/AAAA" value={entrada.outroDia} />
+              <DateField disabled={salvando} label="Dia" onChange={(iso) => mudar({ outroDia: isoParaBr(iso) })} required value={brToIso(entrada.outroDia)} />
             ) : null}
           </View>
         ) : null}

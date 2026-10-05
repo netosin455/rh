@@ -14,6 +14,7 @@ import { confirmAction } from '../../helpers/confirm';
 import { Badge } from '../../componentes/Badge';
 import { Button } from '../../componentes/Button';
 import { Card } from '../../componentes/Card';
+import { DateField } from '../../componentes/DateField';
 import { EmptyState } from '../../componentes/EmptyState';
 import { ErroComRetry } from '../../componentes/ErroComRetry';
 import { Input } from '../../componentes/Input';
@@ -198,7 +199,7 @@ export default function AvisosScreen() {
           <Input label="Conteúdo" placeholder="Escreva o aviso aqui" value={form.body} onChangeText={(value) => setF('body', value)} multiline numberOfLines={4} inputStyle={styles.textarea} error={formError && !form.body.trim() ? formError : undefined} />
           <Section title="Prioridade"><View style={styles.optionGroup}>{PRIORITY_OPTIONS.map((option) => <Button key={option.key} label={option.label} icon={PRIORITY_ICONS[option.key]} variant={form.priority === option.key ? 'primary' : 'secondary'} accessibilityLabel={`Prioridade ${option.label}`} onPress={() => setF('priority', option.key)} />)}</View></Section>
           <Section title="Opções"><Button label={form.pinned ? 'Fixado no topo' : 'Fixar no topo'} icon={form.pinned ? 'pin' : 'pin-outline'} variant={form.pinned ? 'primary' : 'secondary'} onPress={() => setF('pinned', !form.pinned)} /></Section>
-          <Input label="Válido até (AAAA-MM-DD)" placeholder="Deixe em branco para não expirar" value={form.expires_at} onChangeText={(value) => setF('expires_at', value)} keyboardType="numeric" maxLength={10} />
+          <DateField hint="Deixe em branco para o aviso não expirar." label="Válido até" onChange={(iso) => setF('expires_at', iso)} value={form.expires_at} />
           {formError ? <Card style={styles.errorCard}><View style={styles.errorContent}><Ionicons name="alert-circle-outline" size={tamanho.iconeMedio} color={cores.status.erro.forte} /><Text style={styles.errorText}>{formError}</Text></View></Card> : null}
         </ScrollView></KeyboardAvoidingView>
       </Modal>

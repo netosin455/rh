@@ -12,11 +12,13 @@ import { cores } from '../../estilo/cores';
 import { FiltroEquipe, ROTULO_FILTRO_TEMPORARIO, combinaComFiltroEquipe, lerFiltroEquipe } from '../../helpers/filtros';
 import { borda, espaco, raio, tamanho } from '../../estilo/espaco';
 import { tipografia } from '../../estilo/tipografia';
-import { brToIso, maskDate, todayBr } from '../../helpers/datas';
+import { isoParaBr } from '../../helpers/camposData';
+import { brToIso, getTodayString, todayBr } from '../../helpers/datas';
 import { maskCPF, maskPhone } from '../../helpers/validacoes';
 import { exportEmployeesPDF } from '../../helpers/pdf';
 import { Avatar } from '../../componentes/Avatar';
 import { Button } from '../../componentes/Button';
+import { DateField } from '../../componentes/DateField';
 import { EmptyState } from '../../componentes/EmptyState';
 import { LancarAusencia } from '../../componentes/LancarAusencia';
 import { ErroComRetry } from '../../componentes/ErroComRetry';
@@ -318,7 +320,7 @@ export default function ColaboradoresScreen() {
         <ScrollView keyboardShouldPersistTaps="handled" style={styles.modalBody}>
           <Input accessibilityLabel="Nome completo" label="Nome *" onChangeText={v => setF('name', v)} placeholder="Nome completo" value={form.name} />
           <Input containerStyle={styles.field} label="Cargo *" onChangeText={v => setF('role_title', v)} placeholder="Ex: Advogado Pleno, Estagiário" value={form.role_title} />
-          <Input containerStyle={styles.field} keyboardType="numeric" label="Data de admissão * (DD/MM/AAAA)" maxLength={10} onChangeText={v => setF('hire_date', maskDate(v))} placeholder="07/05/2024" value={form.hire_date} />
+          <DateField containerStyle={styles.field} label="Data de admissão" onChange={(iso) => setF('hire_date', isoParaBr(iso))} required value={brToIso(form.hire_date)} />
 
           <Text style={styles.label}>Status</Text>
           <View style={styles.chipGroup}>
@@ -337,7 +339,7 @@ export default function ColaboradoresScreen() {
           <Input containerStyle={styles.field} label="Número OAB" onChangeText={v => setF('oab_number', v)} placeholder="Ex: SP 123456" value={form.oab_number} />
           <Input containerStyle={styles.field} keyboardType="phone-pad" label="Telefone" onChangeText={v => setF('phone', maskPhone(v))} placeholder="(11) 99999-9999" value={form.phone} />
           <Input accessibilityLabel="Email do colaborador" autoCapitalize="none" autoComplete="email" autoCorrect={false} containerStyle={styles.field} keyboardType="email-address" label="Email (para avisos, ex.: reconhecimentos)" onChangeText={v => setF('email', v)} placeholder="nome@empresa.com" value={form.email} />
-          <Input containerStyle={styles.field} keyboardType="numeric" label="Data de nascimento (DD/MM/AAAA)" maxLength={10} onChangeText={v => setF('birth_date', maskDate(v))} placeholder="07/05/1990" value={form.birth_date} />
+          <DateField containerStyle={styles.field} label="Data de nascimento" max={getTodayString()} onChange={(iso) => setF('birth_date', isoParaBr(iso))} value={brToIso(form.birth_date)} />
           <Input containerStyle={styles.field} keyboardType="numeric" label="CPF" onChangeText={v => setF('cpf', maskCPF(v))} placeholder="000.000.000-00" value={form.cpf} />
 
           {formError ? (

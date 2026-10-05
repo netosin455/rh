@@ -17,6 +17,7 @@ import { Avatar } from '../../componentes/Avatar';
 import { Badge } from '../../componentes/Badge';
 import { Button } from '../../componentes/Button';
 import { Card } from '../../componentes/Card';
+import { EmployeePicker } from '../../componentes/EmployeePicker';
 import { EmptyState } from '../../componentes/EmptyState';
 import { ErroComRetry } from '../../componentes/ErroComRetry';
 import { Input } from '../../componentes/Input';
@@ -56,7 +57,6 @@ export default function RecognitionsScreen() {
   // Modal state
   const [modalOpen,   setModalOpen]   = useState(false);
   const [employees,   setEmployees]   = useState<Employee[]>([]);
-  const [empSearch,   setEmpSearch]   = useState('');
   const [selectedEmp, setSelectedEmp] = useState<Employee | null>(null);
   const [category,    setCategory]    = useState<RecognitionCategory>('resultado');
   const [message,     setMessage]     = useState('');
@@ -129,7 +129,6 @@ export default function RecognitionsScreen() {
     }
     setStep('pick');
     setSelectedEmp(null);
-    setEmpSearch('');
     setCategory('resultado');
     setMessage('');
     setModalOpen(true);
@@ -159,11 +158,6 @@ export default function RecognitionsScreen() {
       catch (e: any) { toast.error(e?.message ?? 'Não foi possível remover'); }
     });
   }
-
-  const filteredEmps = employees.filter(e =>
-    e.name.toLowerCase().includes(empSearch.toLowerCase()) ||
-    e.role_title.toLowerCase().includes(empSearch.toLowerCase())
-  );
 
   if (loading) {
     return <View style={styles.container}><View style={styles.loadingContent}><Skeleton height={espaco.tela} /><Skeleton height={espaco.tela} /><Skeleton height={espaco.tela} /></View></View>;
@@ -206,7 +200,7 @@ export default function RecognitionsScreen() {
 
       <Modal visible={modalOpen} title={step === 'pick' ? 'Quem você quer reconhecer?' : `Reconhecer ${selectedEmp?.name.split(' ')[0]}`} subtitle={step === 'pick' ? 'Escolha uma pessoa da equipe.' : 'Escreva uma mensagem objetiva e específica.'} onClose={() => setModalOpen(false)} footer={step === 'write' ? <View style={styles.modalActions}><Button label="Escolher outra pessoa" variant="secondary" onPress={() => setStep('pick')} style={styles.actionButton} /><Button label="Publicar reconhecimento" icon="trophy-outline" loading={saving} disabled={!message.trim()} onPress={handleSave} style={styles.actionButton} /></View> : undefined}>
         <KeyboardAvoidingView behavior="padding"><ScrollView style={styles.modalScroll} contentContainerStyle={styles.formContent} keyboardShouldPersistTaps="handled">
-          {step === 'pick' ? <><Input label="Buscar colaborador" placeholder="Nome ou cargo" value={empSearch} onChangeText={setEmpSearch} autoFocus />{filteredEmps.length === 0 ? <EmptyState icon="people-outline" title="Nenhum colaborador encontrado" description="Tente outro nome ou cargo." /> : <Card padded={false}>{filteredEmps.map((employee) => <ListRow key={employee.id} title={employee.name} description={employee.role_title} leading={<Avatar name={employee.name} size="small" />} trailing={<Ionicons name="chevron-forward" size={tamanho.iconeMedio} color={cores.texto.discreto} />} onPress={() => { setSelectedEmp(employee); setStep('write'); }} accessibilityLabel={`Reconhecer ${employee.name}`} />)}</Card>}</> : <>{selectedEmp && !selectedEmp.email ? <View style={styles.emailWarning}><Ionicons name="mail-unread-outline" size={tamanho.iconePequeno} color={cores.status.pendente.forte} /><Text style={styles.emailWarningText}>{selectedEmp.name.split(' ')[0]} não tem email cadastrado — o aviso só aparece pra ele(a) quando acessar o SuperRH.</Text></View> : null}<Section title="Categoria"><View style={styles.categoryOptions}>{CATEGORIES.map(([key, value]) => <Button key={key} label={value.label} icon={value.icon as keyof typeof Ionicons.glyphMap} variant={category === key ? 'primary' : 'secondary'} onPress={() => setCategory(key)} />)}</View></Section><Input label="Mensagem" placeholder={`Escreva o que ${selectedEmp?.name.split(' ')[0]} fez de especial`} value={message} onChangeText={setMessage} multiline maxLength={500} numberOfLines={4} inputStyle={styles.messageInput} autoFocus /><Text style={styles.characterCount}>{message.length}/500</Text></>}
+          {step === 'pick' ? <><EmployeePicker autoFocus employees={employees} listarSemBusca maxResultados={50} onSelect={(employee) => { setSelectedEmp(employee); setStep('write'); }} placeholder="Nome ou cargo" /></> : <>{selectedEmp && !selectedEmp.email ? <View style={styles.emailWarning}><Ionicons name="mail-unread-outline" size={tamanho.iconePequeno} color={cores.status.pendente.forte} /><Text style={styles.emailWarningText}>{selectedEmp.name.split(' ')[0]} não tem email cadastrado — o aviso só aparece pra ele(a) quando acessar o SuperRH.</Text></View> : null}<Section title="Categoria"><View style={styles.categoryOptions}>{CATEGORIES.map(([key, value]) => <Button key={key} label={value.label} icon={value.icon as keyof typeof Ionicons.glyphMap} variant={category === key ? 'primary' : 'secondary'} onPress={() => setCategory(key)} />)}</View></Section><Input label="Mensagem" placeholder={`Escreva o que ${selectedEmp?.name.split(' ')[0]} fez de especial`} value={message} onChangeText={setMessage} multiline maxLength={500} numberOfLines={4} inputStyle={styles.messageInput} autoFocus /><Text style={styles.characterCount}>{message.length}/500</Text></>}
         </ScrollView></KeyboardAvoidingView>
       </Modal>
     </View>

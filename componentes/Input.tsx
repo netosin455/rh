@@ -8,6 +8,10 @@ import { useMotion } from '../estilo/movimento';
 
 type InputProps = TextInputProps & {
   label: string;
+  /** Mostra "obrigatório" no rótulo e avisa leitores de tela (", obrigatório"). */
+  required?: boolean;
+  /** Formato esperado (ex.: "DD/MM/AAAA"). Aparece ANTES do erro, para a pessoa saber o que digitar. */
+  hint?: string;
   error?: string;
   containerStyle?: StyleProp<ViewStyle>;
   inputStyle?: StyleProp<TextStyle>;
@@ -17,6 +21,8 @@ type InputProps = TextInputProps & {
 export const Input = forwardRef<TextInput, InputProps>(function Input(
   {
     label,
+    required,
+    hint,
     error,
     containerStyle,
     inputStyle,
@@ -41,13 +47,18 @@ export const Input = forwardRef<TextInput, InputProps>(function Input(
 
   return (
     <View style={containerStyle}>
-      <Text style={styles.label}>{label}</Text>
+      <Text style={styles.label}>
+        {label}
+        {required ? <Text style={styles.obrigatorio}> · obrigatório</Text> : null}
+      </Text>
       <Animated.View style={[styles.inputRow, inputRowStyle, error && styles.inputError]}>
         <TextInput
           {...props}
           ref={ref}
-          accessibilityLabel={accessibilityLabel ?? label}
-          accessibilityHint={error || props.accessibilityHint}
+          accessibilityLabel={`${accessibilityLabel ?? label}${required ? ', obrigatório' : ''}`}
+          accessibilityHint={error || hint || props.accessibilityHint}
+          aria-invalid={error ? true : undefined}
+          aria-required={required ? true : undefined}
           onFocus={(event) => {
             focused.value = 1;
             onFocus?.(event);
@@ -61,12 +72,16 @@ export const Input = forwardRef<TextInput, InputProps>(function Input(
         />
         {rightAccessory}
       </Animated.View>
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+      {hint ? <Text style={styles.hint}>{hint}</Text> : null}
+      {/* Região viva: leitores de tela anunciam o erro assim que ele aparece. */}
+      {error ? <Text accessibilityLiveRegion="polite" accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
     </View>
   );
 });
 
 const styles = StyleSheet.create({
+  obrigatorio: { color: theme.texto.discreto, fontWeight: '400', textTransform: 'none' },
+  hint: { ...tipografia.legenda, color: theme.texto.discreto, marginTop: espaco.xs },
   label: { ...tipografia.rotulo, color: theme.texto.discreto, marginBottom: espaco.xs, textTransform: 'uppercase' },
   inputRow: { alignItems: 'center', backgroundColor: theme.superficie.elevada, borderColor: theme.bordaSemantica.sutil, borderRadius: raio.controle, borderWidth: borda.fina, flexDirection: 'row', minHeight: tamanho.toqueMinimo },
   input: { ...tipografia.corpo, color: theme.texto.primario, flex: 1, minHeight: tamanho.toqueMinimo, minWidth: 0, paddingHorizontal: espaco.md, paddingVertical: espaco.sm },

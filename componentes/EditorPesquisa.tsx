@@ -16,7 +16,8 @@ import { cores } from '../estilo/cores';
 import { borda, espaco, raio, tamanho } from '../estilo/espaco';
 import { tipografia } from '../estilo/tipografia';
 import { confirmAction } from '../helpers/confirm';
-import { maskDate } from '../helpers/datas';
+import { isoParaBr } from '../helpers/camposData';
+import { brToIso } from '../helpers/datas';
 import {
   AREAS_PESQUISA,
   AreaPesquisa,
@@ -36,6 +37,7 @@ import {
   validarPesquisa,
 } from '../helpers/pesquisa';
 import { Button } from './Button';
+import { DateField } from './DateField';
 import { Input } from './Input';
 import { Modal } from './Modal';
 import { PerguntaCard } from './PerguntaCard';
@@ -151,16 +153,14 @@ export function EditorPesquisa({ area }: EditorPesquisaProps) {
               placeholder={cliente ? 'Ex.: Satisfação — Outubro' : 'Ex.: Clima da equipe — Outubro'}
               value={titulo}
             />
-            <Input
-              accessibilityLabel="Encerrar em"
-              editable={!salvando}
+            {/* O estado continua em DD/MM/AAAA (validarPesquisa/montarPesquisa leem assim); o campo fala ISO. */}
+            <DateField
+              disabled={salvando}
               error={erros?.validade}
-              keyboardType="numeric"
+              hint="Deixe em branco para não ter prazo."
               label="Encerrar em (opcional)"
-              maxLength={10}
-              onChangeText={(v) => setValidade(maskDate(v))}
-              placeholder="DD/MM/AAAA"
-              value={validade}
+              onChange={(iso) => setValidade(isoParaBr(iso))}
+              value={brToIso(validade)}
             />
           </View>
 

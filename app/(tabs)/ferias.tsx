@@ -8,7 +8,8 @@ import { getEmployees } from '../../conexoes/colaboradores';
 import { Absence, AbsenceType, ABSENCE_TYPE_LABELS, CreateAbsenceData, Employee } from '../../tipos/modelos';
 import { cores } from '../../estilo/cores';
 import { lerAbaFerias } from '../../helpers/filtros';
-import { formatDateShort, brToIso, isoToBr, maskDate } from '../../helpers/datas';
+import { isoParaBr, validarPeriodo } from '../../helpers/camposData';
+import { formatDateShort, brToIso, isoToBr } from '../../helpers/datas';
 import { confirmAction } from '../../helpers/confirm';
 import { exportAbsencesPDF } from '../../helpers/pdf';
 import { useToast } from '../../contextos/Toast';
@@ -17,6 +18,7 @@ import { Avatar } from '../../componentes/Avatar';
 import { Badge } from '../../componentes/Badge';
 import { Button } from '../../componentes/Button';
 import { Card } from '../../componentes/Card';
+import { DateField } from '../../componentes/DateField';
 import { EmptyState } from '../../componentes/EmptyState';
 import { ErroComRetry } from '../../componentes/ErroComRetry';
 import { Input } from '../../componentes/Input';
@@ -413,12 +415,12 @@ export default function FeriasScreen() {
             </Section>
             {form.type === 'folga' || form.type === 'falta' ? (
               <Section title="Data e horas">
-                <Input label="Data" placeholder="DD/MM/AAAA" value={form.start_date} onChangeText={(value) => setF('start_date', maskDate(value))} keyboardType="numeric" maxLength={10} />
+                <DateField label="Data" onChange={(iso) => setF('start_date', isoParaBr(iso))} required value={brToIso(form.start_date)} />
                 <Input label={form.type === 'falta' ? 'Horas (opcional)' : 'Horas'} placeholder="Ex.: 4" value={form.hours} onChangeText={(value) => setF('hours', value)} keyboardType="decimal-pad" />
                 <Text style={styles.hint}>{form.type === 'folga' ? 'Desconta do banco de horas do colaborador. Deixe em branco para contar o dia inteiro.' : 'Útil para jornadas diferentes de oito horas. Deixe em branco para contar o dia inteiro.'}</Text>
               </Section>
             ) : (
-              <Section title="Período"><View style={styles.dateInputs}><Input label="Início" placeholder="DD/MM/AAAA" value={form.start_date} onChangeText={(value) => setF('start_date', maskDate(value))} keyboardType="numeric" maxLength={10} containerStyle={styles.dateInput} /><Input label="Fim" placeholder="DD/MM/AAAA" value={form.end_date} onChangeText={(value) => setF('end_date', maskDate(value))} keyboardType="numeric" maxLength={10} containerStyle={styles.dateInput} /></View></Section>
+              <Section title="Período"><View style={styles.dateInputs}><DateField containerStyle={styles.dateInput} label="Início" onChange={(iso) => setF('start_date', isoParaBr(iso))} required value={brToIso(form.start_date)} /><DateField containerStyle={styles.dateInput} error={validarPeriodo(brToIso(form.start_date), brToIso(form.end_date)) ?? undefined} label="Fim" min={brToIso(form.start_date) || undefined} onChange={(iso) => setF('end_date', isoParaBr(iso))} required value={brToIso(form.end_date)} /></View></Section>
             )}
             <Section title="Observação" description="Opcional"><Input label="Motivo ou detalhes" placeholder="Descreva o motivo, se necessário" value={form.reason} onChangeText={(value) => setF('reason', value)} multiline numberOfLines={3} inputStyle={styles.textarea} /></Section>
             {formError ? <Card style={styles.errorCard}><View style={styles.errorContent}><Ionicons name="alert-circle-outline" size={tamanho.iconeMedio} color={cores.status.erro.forte} /><Text style={styles.errorText}>{formError}</Text></View></Card> : null}

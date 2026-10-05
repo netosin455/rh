@@ -12,6 +12,7 @@ import { Avatar } from '../../componentes/Avatar';
 import { Badge } from '../../componentes/Badge';
 import { Button } from '../../componentes/Button';
 import { Card } from '../../componentes/Card';
+import { DateField } from '../../componentes/DateField';
 import { EmptyState } from '../../componentes/EmptyState';
 import { ErroComRetry } from '../../componentes/ErroComRetry';
 import { Input } from '../../componentes/Input';
@@ -26,7 +27,8 @@ import { StatusPill } from '../../componentes/StatusPill';
 import { cores } from '../../estilo/cores';
 import { espaco } from '../../estilo/espaco';
 import { tipografia } from '../../estilo/tipografia';
-import { ymd, brToIso, isoToBr, maskDate } from '../../helpers/datas';
+import { isoParaBr } from '../../helpers/camposData';
+import { ymd, brToIso, isoToBr, getTodayString } from '../../helpers/datas';
 import { maskCPF, maskPhone } from '../../helpers/validacoes';
 import { confirmAction } from '../../helpers/confirm';
 
@@ -101,8 +103,8 @@ export default function ColaboradorScreen() {
       <Input editable={!saving} keyboardType="phone-pad" label="Telefone" value={form.phone} onChangeText={(value) => set('phone', maskPhone(value))} placeholder="(11) 99999-9999" />
       <Input autoCapitalize="none" autoCorrect={false} editable={!saving} keyboardType="email-address" label="Email" value={form.email ?? ''} onChangeText={(value) => set('email', value)} placeholder="nome@empresa.com" />
       <Input editable={!saving} keyboardType="numeric" label="CPF" value={form.cpf} onChangeText={(value) => set('cpf', maskCPF(value))} placeholder="000.000.000-00" />
-      <Input editable={!saving} keyboardType="numeric" label="Admissão (DD/MM/AAAA)" maxLength={10} value={form.hire_date} onChangeText={(value) => set('hire_date', maskDate(value))} />
-      <Input editable={!saving} keyboardType="numeric" label="Nascimento (DD/MM/AAAA)" maxLength={10} value={form.birth_date} onChangeText={(value) => set('birth_date', maskDate(value))} />
+      <DateField disabled={saving} label="Admissão" onChange={(iso) => set('hire_date', isoParaBr(iso))} required value={brToIso(form.hire_date ?? '')} />
+      <DateField disabled={saving} label="Nascimento" max={getTodayString()} onChange={(iso) => set('birth_date', isoParaBr(iso))} value={brToIso(form.birth_date ?? '')} />
       <Input editable={!saving} keyboardType="number-pad" label="Dias de férias disponíveis" value={String(form.vacation_days ?? '')} onChangeText={(value) => set('vacation_days', parseInt(value) || 0)} />
       <Input editable={!saving} keyboardType="decimal-pad" label="Banco de horas de folga" value={String(form.folga_hours ?? '')} onChangeText={(value) => set('folga_hours', parseFloat(value.replace(',', '.')) || 0)} />
       {canSeeSalary ? <Input editable={!saving} keyboardType="decimal-pad" label="Salário base (R$)" value={form.salary ?? ''} onChangeText={(value) => set('salary', value)} /> : null}

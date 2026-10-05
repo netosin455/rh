@@ -1,17 +1,19 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { KeyboardAvoidingView, Platform, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { KeyboardAvoidingView, Platform, RefreshControl, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { getEventsByMonth, createEvent } from '../../conexoes/eventos';
 import { getEmployees } from '../../conexoes/colaboradores';
 import { Event, EventCategory, EVENT_CATEGORY_COLORS, CreateEventData, Employee } from '../../tipos/modelos';
 import { cores } from '../../estilo/cores';
 import { getTodayString, toDateString, formatDateDisplay, ymd } from '../../helpers/datas';
+import { validarHorarios } from '../../helpers/camposData';
 import { downloadICS } from '../../helpers/ics';
 import { useToast } from '../../contextos/Toast';
 import { Avatar } from '../../componentes/Avatar';
 import { Badge } from '../../componentes/Badge';
 import { Button } from '../../componentes/Button';
 import { Card } from '../../componentes/Card';
+import { DateField } from '../../componentes/DateField';
 import { EmptyState } from '../../componentes/EmptyState';
 import { ErroComRetry } from '../../componentes/ErroComRetry';
 import { Input } from '../../componentes/Input';
@@ -20,6 +22,7 @@ import { Modal } from '../../componentes/Modal';
 import { ScreenHeader } from '../../componentes/ScreenHeader';
 import { Section } from '../../componentes/Section';
 import { Skeleton } from '../../componentes/Skeleton';
+import { TimeField } from '../../componentes/TimeField';
 import { borda, espaco, largura, raio, tamanho } from '../../estilo/espaco';
 import { tipografia } from '../../estilo/tipografia';
 
@@ -83,6 +86,9 @@ export default function AgendaScreen() {
   const [showModal,  setShowModal]  = useState(false);
   const [saving,     setSaving]     = useState(false);
   const [formError,  setFormError]  = useState('');
+  // Erros no PRÓPRIO campo (título, data, início, fim), em vez de uma mensagem genérica.
+  const [erros,      setErros]      = useState<{ titulo?: string; data?: string; inicio?: string; fim?: string }>({});
+  const emAndamento = useRef(false);
   const [form,       setForm]       = useState({
     title:       '',
     date:        today,
@@ -151,28 +157,48 @@ export default function AgendaScreen() {
   const selectedBirthdays = birthdaysByDate[selected] ?? [];
   const weeks = buildCalendar(year, month);
 
-  function setF(field: string, value: any) {
+  function setF(field: string, value: string | boolean) {
     setForm(f => ({ ...f, [field]: value }));
+    // Mexeu no campo: o erro dele sai (volta ao salvar, se continuar errado).
+    setErros((atual) => {
+      const novo = { ...atual };
+      if (field === 'title') novo.titulo = undefined;
+      if (field === 'date') novo.data = undefined;
+      if (field === 'start_time' || field === 'end_time' || field === 'is_all_day') { novo.inicio = undefined; novo.fim = undefined; }
+      return novo;
+    });
   }
 
+  // Abrir pelo calendário: o dia tocado já vem preenchido.
   function openModal() {
     setForm(f => ({ ...f, date: selected }));
     setFormError('');
+    setErros({});
     setShowModal(true);
   }
 
   async function handleSave() {
+    if (emAndamento.current) return; // evita duplo clique
     setFormError('');
-    if (!form.title.trim()) { setFormError('Informe o título do evento.'); return; }
-    if (!form.date)         { setFormError('Informe a data do evento.'); return; }
+    const novos: typeof erros = {};
+    if (!form.title.trim()) novos.titulo = 'Escreva o título do evento.';
+    if (!form.date) novos.data = 'Escolha a data do evento.';
+    if (!form.is_all_day) {
+      if (!form.start_time && form.end_time) novos.inicio = 'Informe o início ou apague o fim.';
+      else novos.fim = validarHorarios(form.start_time, form.end_time) ?? undefined;
+    }
+    if (Object.values(novos).some(Boolean)) { setErros(novos); return; }
+    setErros({});
 
+    emAndamento.current = true;
     setSaving(true);
     try {
       const data: CreateEventData = {
         title:       form.title.trim(),
         date:        form.date,
-        start_time:  form.start_time || undefined,
-        end_time:    form.end_time || undefined,
+        // Evento de dia inteiro não leva horários.
+        start_time:  form.is_all_day ? undefined : form.start_time || undefined,
+        end_time:    form.is_all_day ? undefined : form.end_time || undefined,
         category:    form.category,
         color:       EVENT_CATEGORY_COLORS[form.category],
         location:    form.location.trim() || undefined,
@@ -184,9 +210,10 @@ export default function AgendaScreen() {
       setShowModal(false);
       toast.success('Evento adicionado à agenda!');
       setForm({ title: '', date: today, start_time: '', end_time: '', category: 'outro', location: '', description: '', is_all_day: false });
-    } catch (e: any) {
-      setFormError(e.message || 'Não foi possível salvar. Tente novamente.');
+    } catch (e: unknown) {
+      setFormError(e instanceof Error && e.message ? e.message : 'Não foi possível salvar. Tente novamente.');
     } finally {
+      emAndamento.current = false;
       setSaving(false);
     }
   }
@@ -220,10 +247,22 @@ export default function AgendaScreen() {
       </ScrollView>
       <Modal visible={showModal} title="Novo evento" subtitle="Audiência, reunião, prazo ou outro." onClose={() => setShowModal(false)} footer={<View style={styles.modalActions}><Button label="Cancelar" variant="secondary" onPress={() => setShowModal(false)} style={styles.actionButton} /><Button label="Salvar evento" loading={saving} onPress={handleSave} style={styles.actionButton} /></View>}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}><ScrollView style={styles.modalScroll} contentContainerStyle={styles.formContent} keyboardShouldPersistTaps="handled">
-          <Input label="Título" placeholder="Ex.: Audiência — Processo 0012847" value={form.title} onChangeText={(value) => setF('title', value)} error={formError && !form.title.trim() ? formError : undefined} />
-          <Input label="Data (AAAA-MM-DD)" placeholder="2024-07-15" value={form.date} onChangeText={(value) => setF('date', value)} error={formError && !form.date ? formError : undefined} />
+          <Input label="Título" required placeholder="Ex.: Audiência — Processo 0012847" value={form.title} onChangeText={(value) => setF('title', value)} error={erros.titulo} />
+          <DateField label="Data" required value={form.date} onChange={(iso) => setF('date', iso)} error={erros.data} />
           <Section title="Categoria"><View style={styles.optionGroup}>{CATEGORY_OPTIONS.map((option) => <Button key={option.key} label={option.label} variant={form.category === option.key ? 'primary' : 'secondary'} accessibilityLabel={`Selecionar ${option.label}`} onPress={() => setF('category', option.key)} />)}</View></Section>
-          <View style={styles.timeInputs}><Input label="Início (HH:mm)" placeholder="09:00" value={form.start_time} onChangeText={(value) => setF('start_time', value)} containerStyle={styles.timeInput} /><Input label="Fim (HH:mm)" placeholder="10:30" value={form.end_time} onChangeText={(value) => setF('end_time', value)} containerStyle={styles.timeInput} /></View>
+          <View style={styles.diaInteiro}>
+            <View style={styles.diaInteiroTexto}>
+              <Text style={styles.diaInteiroTitulo}>Dia inteiro</Text>
+              <Text style={styles.diaInteiroAjuda}>{form.is_all_day ? 'O evento não tem horário.' : 'Desligado: informe o horário abaixo, se quiser.'}</Text>
+            </View>
+            <Switch accessibilityLabel="Evento de dia inteiro" onValueChange={(v) => setF('is_all_day', v)} trackColor={{ false: cores.borda.forte, true: cores.accent.dourado }} value={form.is_all_day} />
+          </View>
+          {form.is_all_day ? null : (
+            <View style={styles.timeInputs}>
+              <TimeField label="Início" value={form.start_time} onChange={(h) => setF('start_time', h)} error={erros.inicio} containerStyle={styles.timeInput} />
+              <TimeField label="Fim" value={form.end_time} onChange={(h) => setF('end_time', h)} error={erros.fim} containerStyle={styles.timeInput} />
+            </View>
+          )}
           <Input label="Local" placeholder="Ex.: Fórum Central, Sala 5" value={form.location} onChangeText={(value) => setF('location', value)} />
           <Input label="Descrição" placeholder="Detalhes do evento" value={form.description} onChangeText={(value) => setF('description', value)} multiline numberOfLines={3} inputStyle={styles.textarea} />
           {formError ? <Card style={styles.errorCard}><View style={styles.errorContent}><Ionicons name="alert-circle-outline" size={tamanho.iconeMedio} color={cores.status.erro.forte} /><Text style={styles.errorText}>{formError}</Text></View></Card> : null}
@@ -252,6 +291,10 @@ const styles = StyleSheet.create({
   formContent: { gap: espaco.xxl },
   optionGroup: { flexDirection: 'row', flexWrap: 'wrap', gap: espaco.sm },
   timeInputs: { flexDirection: 'row', gap: espaco.md },
+  diaInteiro: { alignItems: 'center', flexDirection: 'row', gap: espaco.md },
+  diaInteiroTexto: { flex: 1, gap: espaco.micro },
+  diaInteiroTitulo: { ...tipografia.corpoForte, color: cores.texto.primario },
+  diaInteiroAjuda: { ...tipografia.legenda, color: cores.texto.discreto },
   timeInput: { flex: 1 },
   textarea: { minHeight: tamanho.toqueMinimo * 2, textAlignVertical: 'top' },
   errorCard: { backgroundColor: cores.status.erro.superficie, borderColor: cores.status.erro.borda },
