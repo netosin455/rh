@@ -15,6 +15,8 @@ Nada sobe sem todos os itens aplicáveis:
 - [ ] **Privacidade** (se houver dado pessoal): conteúdo mínimo; destinatário da mesma empresa
 - [ ] **IA** (se houver Groq/prompt): checklist de `domains/AI_GOVERNANCE.md`
 - [ ] Migration (se houver): numerada, idempotente, rollback descrito, OK do Carlo
+- [ ] **Schema real:** `npm run db:verify` (só leitura) antes de qualquer push que mude SQL em `api/`. Testes com banco simulado NÃO pegam tabela/coluna inexistente em produção (casos reais: `salary_history` e `push_tokens` descritas no repositório e nunca criadas no Neon). Se listar algo que o código novo usa, a migration roda ANTES do push.
+- [ ] SQL novo de `api/` conferido com `EXPLAIN` no banco real (sem `ANALYZE`, não escreve nada)
 - [ ] Novas variáveis de ambiente listadas (ex.: `RESEND_API_KEY`, `GROQ_API_KEY`) e configuradas na Vercel
 - [ ] `docs/changelog.md` atualizado
 - [ ] Teste manual da tela afetada (login, fluxo alterado, web e celular). Preview da Vercel quando houver
