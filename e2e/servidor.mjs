@@ -10,7 +10,7 @@
 // ============================================================
 
 import { spawn } from 'node:child_process';
-import { createReadStream, existsSync, statSync } from 'node:fs';
+import { createReadStream, existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { dirname, extname, join, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -41,7 +41,9 @@ const TIPOS = {
 function gerarBuild() {
   return new Promise((ok, falhou) => {
     console.log(`[e2e] gerando o app web em ${PASTA} (API = ${ORIGEM})`);
-    const filho = spawn('npx expo export --platform web --output-dir ' + JSON.stringify(PASTA) + ' --clear', {
+    // --clear (limpa o cache do Metro) só sob pedido: E2E_CLEAR=1. O build é conferido logo depois (confirmarOrigemNoBuild).
+    const limpar = process.env.E2E_CLEAR === '1' ? ' --clear' : '';
+    const filho = spawn('npx expo export --platform web --output-dir ' + JSON.stringify(PASTA) + limpar, {
       cwd: RAIZ,
       shell: true,
       stdio: 'inherit',
@@ -57,6 +59,14 @@ function gerarBuild() {
     filho.on('exit', (codigo) => (codigo === 0 ? ok() : falhou(new Error(`expo export saiu com código ${codigo}`))));
     filho.on('error', falhou);
   });
+}
+
+/** Trava de segurança: o bundle tem de apontar para ESTE servidor (e não para localhost:3000/produção do cache ou do .env). */
+function confirmarOrigemNoBuild() {
+  const pasta = join(PASTA, '_expo', 'static', 'js', 'web');
+  const bundles = existsSync(pasta) ? readdirSync(pasta).filter((n) => n.endsWith('.js')) : [];
+  const achou = bundles.some((n) => readFileSync(join(pasta, n), 'utf8').includes(ORIGEM));
+  if (!achou) throw new Error(`o bundle não contém ${ORIGEM}: a API do app não aponta para o servidor de teste (cache do Metro? tente E2E_CLEAR=1)`);
 }
 
 function arquivoDe(caminho) {
@@ -137,9 +147,10 @@ if (process.env.E2E_REUSE_BUILD === '1') {
     console.error(`[e2e] E2E_REUSE_BUILD=1, mas ${PASTA} não tem build.`);
     process.exit(1);
   }
+  confirmarOrigemNoBuild();
   iniciarServidor();
 } else {
-  gerarBuild().then(iniciarServidor, (e) => {
+  gerarBuild().then(() => { confirmarOrigemNoBuild(); iniciarServidor(); }).catch((e) => {
     console.error('[e2e] build falhou:', e.message);
     process.exit(1);
   });

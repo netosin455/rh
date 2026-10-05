@@ -12,8 +12,11 @@
 
 import type { BrowserContext, Request, Route } from '@playwright/test';
 import type {
-  AnalyticsOverview, Absence, Employee, EmployeeAtRisk, Event, Notice, PulseSurvey, SurveyQuestion, User,
+  AnalyticsOverview, Absence, Employee, EmployeeAtRisk, Event, Feedback, Notice, OnboardingProcess, PublicFeedback,
+  PulseSurvey, QuestionResult, Recognition, SurveyContact, SurveyQuestion, User,
 } from '../tipos/modelos';
+import type { Notificacao } from '../conexoes/notificacoes';
+import type { SystemUser } from '../conexoes/usuarios';
 
 export const ORIGEM = 'http://127.0.0.1:4173';
 
@@ -21,6 +24,7 @@ export const ORIGEM = 'http://127.0.0.1:4173';
 export const CREDENCIAIS = { usuario: 'ana.rh', senha: 'senha-de-teste-123' } as const;
 
 export const USUARIO_RH: User = { id: 1, company_id: 1, name: 'Ana Paula RH', email: 'ana.rh@exemplo.test', role: 'rh' };
+export const USUARIO_SUPER: User = { id: 1, company_id: 1, name: 'Carlos Super', email: 'super@exemplo.test', role: 'super_admin' };
 
 export interface Escrita {
   metodo: string;
@@ -85,6 +89,41 @@ export class ApiSimulada {
   }];
 
   events: Event[] = [];
+  recognitions: Recognition[] = [];
+  feedbacks: Feedback[] = [];
+  /** Clientes que pediram contato, por pesquisa. */
+  contatosPorPesquisa = new Map<number, SurveyContact[]>();
+  onboardings: OnboardingProcess[] = [{
+    id: 1, company_id: 1, employee_id: 3, employee_name: 'Carla Dias', role_title: 'Estagiária', department_name: 'Jurídico',
+    template_id: 1, template_name: 'Onboarding padrão', started_at: new Date(Date.now() - 2 * 86_400_000).toISOString(), completed_at: null,
+    steps_snapshot: [
+      { title: 'Assinar contrato', description: 'Enviar o contrato para assinatura.', responsible_role: 'rh', days_deadline: 3 },
+      { title: 'Criar e-mail', description: 'Abrir a conta de e-mail.', responsible_role: 'ti', days_deadline: 5 },
+      { title: 'Apresentar a equipe', description: '', responsible_role: 'gestor', days_deadline: 7 },
+    ],
+    steps_progress: {},
+  }];
+  usuarios: SystemUser[] = [
+    { id: 1, company_id: 1, name: 'Carlos Super', email: 'super@exemplo.test', username: 'carlos.super', role: 'super_admin', created_at: agoraIso() },
+    { id: 2, company_id: 1, name: 'Bruno Gestor', email: 'bruno@exemplo.test', username: 'bruno.gestor', role: 'gestor', created_at: agoraIso() },
+  ];
+  notificacoes: Notificacao[] = [
+    { id: 1, title: 'Férias aprovadas', body: 'As férias de Bruno foram aprovadas.', type: 'ferias', route: null, read: false, created_at: agoraIso() },
+    { id: 2, title: 'Novo aviso publicado', body: null, type: 'aviso', route: null, read: false, created_at: agoraIso() },
+    { id: 3, title: 'Pesquisa encerrada', body: 'A pesquisa de clima terminou.', type: 'pesquisa', route: null, read: true, created_at: agoraIso() },
+  ];
+  /** Usuário devolvido pelo login simulado. */
+  usuarioLogado: User = USUARIO_RH;
+  /** true => POST /api/chat responde 502 (IA fora do ar). */
+  chatIndisponivel = false;
+  /** Toda requisição que chegou à API simulada ("GET /api/employees?page=1..."). */
+  chamadas: string[] = [];
+  private proximoIdFeedback = 1;
+  private proximoIdReconhecimento = 1;
+  private proximoIdContato = 1;
+  private proximoIdAviso = 2;
+  private proximoIdUsuario = 3;
+
   notices: Notice[] = [{
     id: 1, company_id: 1, author_id: 1, author_name: 'Ana Paula RH', title: 'Recesso de fim de ano', body: 'O escritório fecha de 24/12 a 02/01.',
     priority: 'normal', pinned: false, created_at: agoraIso(),
@@ -131,6 +170,85 @@ export class ApiSimulada {
     };
   }
 
+  // ── Dados prontos para os testes (estado inicial) ──
+
+  /** Cria uma pesquisa já existente (RH ou NPS) sem passar pela tela. */
+  semearPesquisa(titulo: string, audience: 'employees' | 'customers', perguntas: { question: string; type: SurveyQuestion['type']; options?: string[]; required?: boolean }[]): PulseSurvey {
+    const questions: SurveyQuestion[] = perguntas.map((p, i) => ({
+      id: this.proximoIdPergunta++, position: i + 1, question: p.question, type: p.type, options: p.options ?? null, required: p.required !== false,
+    }));
+    const nova: PulseSurvey = { id: this.proximoIdPesquisa++, company_id: 1, created_by: 1, title: titulo, audience, target_dept: null, expires_at: null, created_at: agoraIso(), questions, response_count: 0 };
+    this.surveys.unshift(nova);
+    return nova;
+  }
+
+  /** Cliente que aceitou ser contatado numa campanha NPS. */
+  semearContato(pesquisaId: number, contato: { name: string; phone?: string; email?: string; score: number; comment?: string }): SurveyContact {
+    const c: SurveyContact = {
+      submission_id: this.proximoIdContato++, name: contato.name, phone: contato.phone ?? null, email: contato.email ?? null,
+      score: contato.score, comment: contato.comment ?? null, submitted_at: agoraIso(), contacted_at: null,
+    };
+    this.contatosPorPesquisa.set(pesquisaId, [...(this.contatosPorPesquisa.get(pesquisaId) ?? []), c]);
+    const s = this.surveys.find((x) => x.id === pesquisaId);
+    if (s) s.response_count = (s.response_count ?? 0) + 1;
+    return c;
+  }
+
+  /** Feedback já existente. Publicado/confirmado/revogado ganha token de 43 caracteres (formato que o app exige). */
+  semearFeedback(dados: { employee_id: number; title: string; content: string; status: Feedback['status']; note?: string }): Feedback {
+    const emp = this.employees.find((e) => e.id === dados.employee_id) ?? this.employees[0];
+    const id = this.proximoIdFeedback++;
+    const publicado = dados.status !== 'draft';
+    const f: Feedback = {
+      id, company_id: 1, employee_id: emp.id, created_by: 1, title: dados.title, content: dados.content,
+      public_token: publicado ? `tk${id}`.padEnd(43, 'x') : null, status: dados.status,
+      published_at: publicado ? agoraIso() : null, acknowledged_at: dados.status === 'acknowledged' ? agoraIso() : null,
+      acknowledgment_note: dados.note ?? null, revoked_at: dados.status === 'revoked' ? agoraIso() : null,
+      created_at: agoraIso(), updated_at: agoraIso(), employee_name: emp.name, employee_role_title: emp.role_title,
+      employee_department_name: emp.department_name ?? null, created_by_name: 'Ana Paula RH', created_by_role: 'rh',
+    };
+    this.feedbacks.unshift(f);
+    return f;
+  }
+
+  private publicoDe(f: Feedback): PublicFeedback {
+    return {
+      title: f.title, content: f.content, employee_name: f.employee_name ?? '', employee_role_title: f.employee_role_title ?? null,
+      employee_department_name: f.employee_department_name ?? null, company_name: 'Escritório Exemplo', created_by_name: f.created_by_name ?? null,
+      created_by_role: f.created_by_role ?? null, status: f.status === 'acknowledged' ? 'acknowledged' : 'published',
+      published_at: f.published_at ?? agoraIso(), acknowledged_at: f.acknowledged_at, acknowledgment_note: f.acknowledgment_note ?? null,
+    };
+  }
+
+  /** Resultados por pergunta, calculados com as respostas realmente recebidas. */
+  private resultadosDe(s: PulseSurvey): QuestionResult[] {
+    const envios = this.respostasRecebidas.filter((r) => r.pesquisa === s.id);
+    return (s.questions ?? []).map((q) => {
+      const respostas = envios.flatMap((e) => ((e.corpo.answers ?? []) as CorpoJson[]).filter((a) => a.question_id === q.id));
+      const base: QuestionResult = { question_id: q.id, position: q.position, question: q.question, type: q.type, answered: respostas.length };
+      const notas = respostas.map((a) => Number(a.score));
+      if (q.type === 'scale') {
+        const distribution: Record<string, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+        notas.forEach((n) => { distribution[String(n)] += 1; });
+        return { ...base, avg: notas.length ? notas.reduce((t, n) => t + n, 0) / notas.length : undefined, distribution };
+      }
+      if (q.type === 'nps') {
+        const distribution: Record<string, number> = {};
+        for (let n = 0; n <= 10; n++) distribution[String(n)] = 0;
+        notas.forEach((n) => { distribution[String(n)] += 1; });
+        const promoters = notas.filter((n) => n >= 9).length;
+        const detractors = notas.filter((n) => n <= 6).length;
+        return { ...base, distribution, promoters, passives: notas.length - promoters - detractors, detractors, nps: notas.length ? Math.round(((promoters - detractors) * 100) / notas.length) : null };
+      }
+      if (q.type === 'choice') {
+        const distribution: Record<string, number> = Object.fromEntries((q.options ?? []).map((o) => [o, 0]));
+        respostas.forEach((a) => { distribution[String(a.choice)] = (distribution[String(a.choice)] ?? 0) + 1; });
+        return { ...base, distribution };
+      }
+      return { ...base, texts: respostas.map((a) => String(a.text)) };
+    });
+  }
+
   /** Escritas feitas com o método (e, se informado, o caminho) dados. */
   escritasDe(metodo: string, caminho?: RegExp): Escrita[] {
     return this.escritas.filter((e) => e.metodo === metodo && (!caminho || caminho.test(e.caminho)));
@@ -152,6 +270,7 @@ export class ApiSimulada {
     const metodo = request.method().toUpperCase();
     const caminho = url.pathname;
     const consulta = url.searchParams;
+    this.chamadas.push(`${metodo} ${caminho}${url.search}`);
     let corpo: CorpoJson = {};
     if (metodo !== 'GET' && metodo !== 'HEAD') {
       try {
@@ -173,9 +292,28 @@ export class ApiSimulada {
     if (caminho === '/api/auth/login' && metodo === 'POST') {
       const usuario = String(corpo.username ?? '').trim().toLowerCase();
       if (usuario === CREDENCIAIS.usuario && corpo.password === CREDENCIAIS.senha) {
-        return responder(200, { token: gerarToken(), user: USUARIO_RH });
+        return responder(200, { token: gerarToken(this.usuarioLogado), user: this.usuarioLogado });
       }
       return erro(401, 'Usuário ou senha incorretos');
+    }
+
+    // Feedback público (link individual do colaborador, sem login). Mesmas mensagens/status do api/feedback/_handler.ts.
+    const mFbPublico = caminho.match(/^\/api\/feedback\/public\/([^/]+)(\/acknowledge)?$/);
+    if (mFbPublico) {
+      const f = this.feedbacks.find((x) => x.public_token === mFbPublico[1] && x.status !== 'draft');
+      if (!f) return erro(404, 'Feedback não encontrado');
+      if (f.status === 'revoked') return erro(410, 'Este link de feedback foi revogado');
+      if (mFbPublico[2] && metodo === 'POST') {
+        if (corpo.acknowledged !== true) return erro(400, 'Confirmação de leitura obrigatória');
+        const jaConfirmado = f.status === 'acknowledged';
+        if (!jaConfirmado) {
+          f.status = 'acknowledged';
+          f.acknowledged_at = agoraIso();
+          f.acknowledgment_note = typeof corpo.note === 'string' ? corpo.note : null;
+        }
+        return responder(200, { acknowledged_at: f.acknowledged_at, already_acknowledged: jaConfirmado, acknowledgment_note: f.acknowledgment_note });
+      }
+      if (metodo === 'GET') return responder(200, this.publicoDe(f));
     }
 
     const mPesquisa = caminho.match(/^\/api\/surveys\/(\d+)$/);
@@ -196,6 +334,19 @@ export class ApiSimulada {
       this.respostasRecebidas.push({ pesquisa: id, corpo });
       const s = this.surveys.find((x) => x.id === id);
       if (s) s.response_count = (s.response_count ?? 0) + 1;
+      // Contato só existe quando o cliente consentiu (o app só envia `contact` nesse caso).
+      const contato = corpo.contact as CorpoJson | undefined;
+      if (contato && contato.consent === true) {
+        const respostas = (corpo.answers ?? []) as CorpoJson[];
+        const nps = s?.questions?.find((q) => q.type === 'nps');
+        const texto = s?.questions?.find((q) => q.type === 'text');
+        this.semearContato(id, {
+          name: String(contato.name ?? ''), phone: contato.phone as string | undefined, email: contato.email as string | undefined,
+          score: Number(respostas.find((a) => a.question_id === nps?.id)?.score ?? 0),
+          comment: respostas.find((a) => a.question_id === texto?.id)?.text as string | undefined,
+        });
+        if (s) s.response_count = (s.response_count ?? 1) - 1; // semearContato já contou uma; a resposta acima é a mesma
+      }
       return responder(201, { ok: true });
     }
 
@@ -278,8 +429,99 @@ export class ApiSimulada {
 
     // Avisos, notificações, push, holerites, analytics
     if (caminho === '/api/notices' && metodo === 'GET') return responder(200, { data: this.notices, total: this.notices.length });
+    if (caminho === '/api/notices' && metodo === 'POST') {
+      const novo = { id: this.proximoIdAviso++, company_id: 1, author_id: 1, author_name: USUARIO_RH.name, created_at: agoraIso(), pinned: false, priority: 'normal', ...corpo } as Notice;
+      this.notices.unshift(novo);
+      return responder(201, novo);
+    }
+    const mAviso = caminho.match(/^\/api\/notices\/(\d+)$/);
+    if (mAviso) {
+      const n = this.notices.find((x) => x.id === Number(mAviso[1]));
+      if (!n) return erro(404, 'Aviso não encontrado');
+      if (metodo === 'PATCH') { Object.assign(n, corpo); return responder(200, n); }
+      if (metodo === 'DELETE') { this.notices = this.notices.filter((x) => x.id !== n.id); return responder(204); }
+    }
+
+    // Notificações (a mesma rota de /api/users, com ?notifications=1)
     if (caminho === '/api/users' && consulta.get('notifications') === '1') {
-      return metodo === 'GET' ? responder(200, { notifications: [], unread: 0 }) : responder(200, { ok: true });
+      if (metodo === 'GET') return responder(200, { notifications: this.notificacoes, unread: this.notificacoes.filter((n) => !n.read).length });
+      this.notificacoes.forEach((n) => { if (corpo.all === true || n.id === corpo.id) n.read = true; });
+      return responder(200, { ok: true });
+    }
+
+    // Usuários (Admin)
+    const consultaDeUsuarios = !consulta.get('push');
+    if (caminho === '/api/users' && consultaDeUsuarios && metodo === 'GET') return responder(200, { data: this.usuarios, total: this.usuarios.length, page: 1, limit: 50, totalPages: 1 });
+    if (caminho === '/api/users' && consultaDeUsuarios && metodo === 'POST') {
+      const novo = { id: this.proximoIdUsuario++, company_id: 1, created_at: agoraIso(), ...corpo } as SystemUser;
+      this.usuarios.push(novo);
+      return responder(201, novo);
+    }
+
+    // Reconhecimentos
+    if (caminho === '/api/recognitions' && metodo === 'GET') return responder(200, { data: this.recognitions, total: this.recognitions.length });
+    if (caminho === '/api/recognitions' && metodo === 'POST') {
+      const emp = this.employees.find((e) => e.id === Number(corpo.to_employee_id));
+      const nova: Recognition = {
+        id: this.proximoIdReconhecimento++, company_id: 1, from_user_id: 1, from_name: USUARIO_RH.name, to_employee_id: Number(corpo.to_employee_id),
+        to_name: emp?.name ?? '', to_role: emp?.role_title, message: String(corpo.message), category: corpo.category as Recognition['category'], created_at: agoraIso(),
+      };
+      this.recognitions.unshift(nova);
+      return responder(201, nova);
+    }
+    const mReconhecimento = caminho.match(/^\/api\/recognitions\/(\d+)$/);
+    if (mReconhecimento && metodo === 'DELETE') {
+      this.recognitions = this.recognitions.filter((r) => r.id !== Number(mReconhecimento[1]));
+      return responder(204);
+    }
+
+    // Feedbacks (RH)
+    if (caminho === '/api/feedbacks' && metodo === 'GET') return responder(200, this.feedbacks);
+    if (caminho === '/api/feedbacks' && metodo === 'POST') {
+      const f = this.semearFeedback({ employee_id: Number(corpo.employee_id), title: String(corpo.title), content: String(corpo.content), status: 'draft' });
+      return responder(201, f);
+    }
+    const mFeedback = caminho.match(/^\/api\/feedbacks\/(\d+)(?:\/(publish|revoke))?$/);
+    if (mFeedback) {
+      const f = this.feedbacks.find((x) => x.id === Number(mFeedback[1]));
+      if (!f) return erro(404, 'Feedback não encontrado');
+      if (!mFeedback[2] && metodo === 'GET') return responder(200, f);
+      if (!mFeedback[2] && metodo === 'PUT') { Object.assign(f, corpo); return responder(200, f); }
+      if (mFeedback[2] === 'publish' && metodo === 'POST') {
+        if (f.status !== 'draft') return erro(409, 'Feedback já foi publicado ou encerrado');
+        f.status = 'published';
+        f.published_at = agoraIso();
+        f.public_token = `tk${f.id}`.padEnd(43, 'x');
+        return responder(200, f);
+      }
+      if (mFeedback[2] === 'revoke' && metodo === 'POST') {
+        if (f.status !== 'published' && f.status !== 'acknowledged') return erro(409, 'Somente feedback publicado pode ser revogado');
+        f.status = 'revoked';
+        f.revoked_at = agoraIso();
+        return responder(200, f);
+      }
+    }
+
+    // Onboarding
+    if (caminho === '/api/onboarding' && metodo === 'GET') return responder(200, this.onboardings);
+    const mOnboarding = caminho.match(/^\/api\/onboarding\/(\d+)(\/step)?$/);
+    if (mOnboarding) {
+      const p = this.onboardings.find((x) => x.id === Number(mOnboarding[1]));
+      if (!p) return erro(404, 'Processo não encontrado');
+      if (!mOnboarding[2] && metodo === 'GET') return responder(200, p);
+      if (mOnboarding[2] && metodo === 'PATCH') {
+        p.steps_progress[String(corpo.step_index)] = corpo.completed === true
+          ? { completed: true, completed_at: agoraIso(), completed_by: USUARIO_RH.name }
+          : { completed: false };
+        const feitas = Object.values(p.steps_progress).filter((s) => s.completed).length;
+        p.completed_at = feitas === p.steps_snapshot.length ? agoraIso() : null;
+        return responder(200, p);
+      }
+    }
+
+    // Assistente (IA)
+    if (caminho === '/api/chat' && metodo === 'POST') {
+      return this.chatIndisponivel ? erro(502, 'Assistente temporariamente indisponível. Tente novamente em instantes.') : responder(200, { message: 'Resposta simulada do assistente.' });
     }
     if (caminho === '/api/users' && consulta.get('push') === '1') return responder(200, { ok: true });
     if (caminho === '/api/payslips' && metodo === 'GET') return responder(200, []);
@@ -307,6 +549,14 @@ export class ApiSimulada {
       this.surveys.unshift(nova);
       return responder(201, nova);
     }
+    // Retornar contato (NPS): mesma rota da pesquisa, com ?contact=<participação>.
+    if (mPesquisa && consulta.get('contact')) {
+      const contatos = this.contatosPorPesquisa.get(Number(mPesquisa[1])) ?? [];
+      const c = contatos.find((x) => x.submission_id === Number(consulta.get('contact')));
+      if (!c) return erro(404, 'Contato não encontrado');
+      if (metodo === 'PATCH') { c.contacted_at = agoraIso(); return responder(200, { contacted_at: c.contacted_at }); }
+      if (metodo === 'DELETE') { this.contatosPorPesquisa.set(Number(mPesquisa[1]), contatos.filter((x) => x !== c)); return responder(204); }
+    }
     if (mPesquisa && metodo === 'DELETE') {
       this.surveys = this.surveys.filter((s) => s.id !== Number(mPesquisa[1]));
       return responder(204);
@@ -315,7 +565,8 @@ export class ApiSimulada {
     if (mResultados && metodo === 'GET') {
       const s = this.surveys.find((x) => x.id === Number(mResultados[1]));
       if (!s) return erro(404, 'Pesquisa não encontrada');
-      return responder(200, { survey: s, total_responses: s.response_count ?? 0, questions: [], contacts: [] });
+      const contacts = this.contatosPorPesquisa.get(s.id);
+      return responder(200, { survey: s, total_responses: s.response_count ?? 0, questions: this.resultadosDe(s), ...(s.audience === 'customers' ? { contacts: contacts ?? [] } : {}) });
     }
 
     this.desconhecidas.push(`${metodo} ${caminho}${url.search}`);

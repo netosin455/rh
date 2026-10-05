@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { getEmployees } from '../conexoes/colaboradores';
+import { normalizarTexto } from '../helpers/buscaColaborador';
 import type { CreateFeedbackData, Employee } from '../tipos/modelos';
 import { cores } from '../estilo/cores';
 import { borda, espaco, raio, tamanho } from '../estilo/espaco';
@@ -29,8 +30,9 @@ export function FeedbackForm({ value, onChange, disabled = false }: FeedbackForm
   const [error, setError] = useState('');
   const selected = employees.find((employee) => employee.id === value.employee_id);
   const filtered = useMemo(() => {
-    const query = search.trim().toLocaleLowerCase('pt-BR');
-    return query ? employees.filter((employee) => employee.name.toLocaleLowerCase('pt-BR').includes(query)) : employees;
+    // Sem diferenciar acento nem maiúsculas ("brúno" acha "Bruno"), igual ao seletor do Lançar.
+    const query = normalizarTexto(search);
+    return query ? employees.filter((employee) => normalizarTexto(employee.name).includes(query)) : employees;
   }, [employees, search]);
 
   useEffect(() => {

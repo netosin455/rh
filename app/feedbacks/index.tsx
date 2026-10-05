@@ -9,6 +9,7 @@ import { Input } from '../../componentes/Input';
 import { Skeleton } from '../../componentes/Skeleton';
 import { feedbackPdfUrl, feedbackPublicUrl, getFeedbacks } from '../../conexoes/feedbacks';
 import { useAuth } from '../../contextos/Autenticacao';
+import { normalizarTexto } from '../../helpers/buscaColaborador';
 import { useToast } from '../../contextos/Toast';
 import type { Feedback, FeedbackStatus } from '../../tipos/modelos';
 import { cores } from '../../estilo/cores';
@@ -125,10 +126,11 @@ export default function FeedbacksScreen() {
     acknowledged: feedbacks.filter((item) => item.status === 'acknowledged').length,
   }), [feedbacks]);
   const visibleFeedbacks = useMemo(() => {
-    const normalized = query.trim().toLocaleLowerCase('pt-BR');
+    // Sem diferenciar acento nem maiúsculas ("cárla" acha "Carla").
+    const normalized = normalizarTexto(query);
     return feedbacks.filter((item) => {
       const matchesStatus = filter === 'all' || item.status === filter;
-      const matchesQuery = !normalized || `${item.employee_name ?? ''} ${item.title}`.toLocaleLowerCase('pt-BR').includes(normalized);
+      const matchesQuery = !normalized || normalizarTexto(`${item.employee_name ?? ''} ${item.title}`).includes(normalized);
       return matchesStatus && matchesQuery;
     });
   }, [feedbacks, filter, query]);

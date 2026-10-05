@@ -31,6 +31,16 @@ export default defineConfig({
     screenshot: 'only-on-failure',
     video: 'off',
   },
+  projects: [
+    // Telas de computador (sidebar fixa, 1280x800): tudo, menos os specs de celular.
+    { name: 'desktop', testIgnore: /20-celular.*\.spec\.ts/ },
+    // Celular (390x844, toque): só os specs 20-celular-*. Mesmo servidor e mesma API simulada.
+    {
+      name: 'celular',
+      testMatch: /20-celular.*\.spec\.ts/,
+      use: { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 },
+    },
+  ],
   webServer: {
     // Gera o build (a menos que E2E_REUSE_BUILD=1) e serve em 127.0.0.1:4173.
     command: 'node e2e/servidor.mjs',

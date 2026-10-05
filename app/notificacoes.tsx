@@ -11,6 +11,7 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { buscarNotificacoes, marcarLida, marcarTodasLidas, Notificacao } from '../conexoes/notificacoes';
+import { useContadoresShell } from '../contextos/Contadores';
 import { useToast } from '../contextos/Toast';
 import { theme, cores } from '../estilo/cores';
 
@@ -33,6 +34,8 @@ function timeAgo(dateStr: string): string {
 export default function NotificacoesScreen() {
   const router = useRouter();
   const toast = useToast();
+  // O sino do shell lê o contador daqui: depois de marcar como lida, pede para ele atualizar já.
+  const { atualizar: atualizarContadores } = useContadoresShell();
   const [items,      setItems]      = useState<Notificacao[]>([]);
   const [unread,     setUnread]     = useState(0);
   const [loading,    setLoading]    = useState(true);
@@ -57,6 +60,7 @@ export default function NotificacoesScreen() {
         await marcarLida(item.id);
         setItems(prev => prev.map(n => n.id === item.id ? { ...n, read: true } : n));
         setUnread(prev => Math.max(0, prev - 1));
+        atualizarContadores();
       } catch {
         toast.error('Não foi possível marcar a notificação como lida.');
       }
@@ -69,6 +73,7 @@ export default function NotificacoesScreen() {
       await marcarTodasLidas();
       setItems(prev => prev.map(n => ({ ...n, read: true })));
       setUnread(0);
+      atualizarContadores();
     } catch {
       toast.error('Não foi possível marcar as notificações como lidas.');
     }
@@ -86,12 +91,12 @@ export default function NotificacoesScreen() {
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+        <TouchableOpacity accessibilityLabel="Voltar" accessibilityRole="button" onPress={() => router.back()} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={20} color={theme.gold} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Notificações</Text>
         {unread > 0 && (
-          <TouchableOpacity onPress={handleMarcarTodas} style={styles.markAllBtn}>
+          <TouchableOpacity accessibilityLabel="Marcar todas as notificações como lidas" accessibilityRole="button" onPress={handleMarcarTodas} style={styles.markAllBtn}>
             <Text style={styles.markAllText}>Marcar todas</Text>
           </TouchableOpacity>
         )}
@@ -113,6 +118,8 @@ export default function NotificacoesScreen() {
             return (
               <Animated.View key={item.id} entering={FadeInDown.delay(i * 30).duration(280)}>
                 <TouchableOpacity
+                  accessibilityLabel={`${item.title}${item.read ? '' : ', não lida'}`}
+                  accessibilityRole="button"
                   style={[styles.item, !item.read && styles.itemUnread]}
                   onPress={() => handleTap(item)}
                   activeOpacity={0.75}

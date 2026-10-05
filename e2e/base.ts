@@ -6,9 +6,10 @@
 // ============================================================
 
 import { expect, test as base, type Page } from '@playwright/test';
-import { ApiSimulada, CREDENCIAIS, ORIGEM, USUARIO_RH, gerarToken } from './apiSimulada';
+import type { User } from '../tipos/modelos';
+import { ApiSimulada, CREDENCIAIS, ORIGEM, USUARIO_RH, USUARIO_SUPER, gerarToken } from './apiSimulada';
 
-export { expect, CREDENCIAIS };
+export { expect, CREDENCIAIS, USUARIO_RH, USUARIO_SUPER };
 
 type Fixtures = {
   api: ApiSimulada;
@@ -35,13 +36,24 @@ export const test = base.extend<Fixtures>({
  * Deixa o navegador já logado como RH, uma única vez por aba (sessionStorage), para que um
  * logout dentro do teste não seja desfeito por um reload ou nova navegação.
  */
-export async function entrarComoRh(page: Page): Promise<void> {
+export async function entrarComo(page: Page, usuario: User): Promise<void> {
   await page.addInitScript(({ token, user }) => {
     if (window.sessionStorage.getItem('__e2e_semeado')) return;
     window.sessionStorage.setItem('__e2e_semeado', '1');
     window.localStorage.setItem('@superrh:token', token);
     window.localStorage.setItem('@superrh:user', JSON.stringify(user));
-  }, { token: gerarToken(), user: USUARIO_RH });
+  }, { token: gerarToken(usuario), user: usuario });
+}
+
+export async function entrarComoRh(page: Page): Promise<void> {
+  await entrarComo(page, USUARIO_RH);
+}
+
+/** A página não pode rolar para o lado (nada vazando da largura da tela). */
+export async function semRolagemHorizontal(page: Page): Promise<void> {
+  const medidas = await page.evaluate(() => ({ janela: window.innerWidth, doc: document.documentElement.scrollWidth, corpo: document.body.scrollWidth }));
+  expect(medidas.doc, `documentElement.scrollWidth (${medidas.doc}) maior que a janela (${medidas.janela})`).toBeLessThanOrEqual(medidas.janela);
+  expect(medidas.corpo, `body.scrollWidth (${medidas.corpo}) maior que a janela (${medidas.janela})`).toBeLessThanOrEqual(medidas.janela);
 }
 
 /** Login real pela tela (credenciais fictícias da API simulada). Termina com o Dashboard aberto. */
