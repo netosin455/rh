@@ -34,7 +34,11 @@ test('campanha NPS: lista, resultados e QR code usam a mensagem de cliente', asy
   expect(await urlsAbertas(page)).toEqual([esperado]);
 
   await page.getByRole('button', { name: 'Mostrar QR code da campanha' }).click();
-  await page.getByRole('button', { name: 'Enviar no WhatsApp', exact: true }).last().click();
+  // Há mais de um botão "Enviar no WhatsApp" na página (a tela de resultados fica atrás da janela do QR).
+  // Escopa ao container mais próximo do "Fechar modal" que contém o botão: não depende da ordem do DOM
+  // (o `.last()` antigo pegava o botão de trás da janela no CI e o clique era bloqueado).
+  const janelaDoQr = page.locator('xpath=//*[@aria-label="Fechar modal"]/ancestor::div[.//*[@aria-label="Enviar no WhatsApp"]][1]');
+  await janelaDoQr.getByRole('button', { name: 'Enviar no WhatsApp', exact: true }).click();
   expect(await urlsAbertas(page)).toEqual([esperado, esperado]);
 });
 
