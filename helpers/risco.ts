@@ -104,7 +104,9 @@ export function tituloDaLista(nivel: NivelRisco, quantidade: number): string {
  */
 export function rotaDoAlerta(alerta: Pick<ProactiveAlert, 'type' | 'route'>): string {
   if (alerta.type === 'turnover_risk') return rotaAnalytics('alto');
-  return `/${alerta.route}`;
+  // Rota ausente (tipo novo/desconhecido sem rota): cai nas notificações em vez de abrir "/undefined".
+  const rota = typeof alerta.route === 'string' ? alerta.route.trim().replace(/^\/+/, '') : '';
+  return rota ? `/${rota}` : '/notificacoes';
 }
 
 /**

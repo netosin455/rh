@@ -12,6 +12,8 @@ import { cores } from '../estilo/cores';
 import { borda, espaco, raio } from '../estilo/espaco';
 import { tipografia } from '../estilo/tipografia';
 import { MARGEM_QR, MatrizQr, gerarQr, htmlParaImpressao, qrParaSvg, trechosDoQr } from '../helpers/qr';
+import { mensagemNps } from '../helpers/whatsapp';
+import { BotaoWhatsApp } from './BotaoWhatsApp';
 import { Button } from './Button';
 import { Modal } from './Modal';
 
@@ -132,6 +134,7 @@ export function QrCodeModal({ visible, onClose, titulo, link }: QrCodeModalProps
         <Text selectable style={styles.link}>{link}</Text>
         <View style={styles.acoes}>
           <Button accessibilityLabel="Copiar link da pesquisa" icon="copy-outline" label="Copiar link" onPress={() => { void copiar(); }} variant="secondary" />
+          <BotaoWhatsApp mensagem={mensagemNps(link)} variant="secondary" />
           {web && matriz ? <Button accessibilityLabel="Baixar o QR code como imagem" icon="download-outline" label="Baixar imagem" onPress={() => { void baixar(); }} variant="secondary" /> : null}
           {web && matriz ? <Button accessibilityLabel="Imprimir o QR code" icon="print-outline" label="Imprimir" onPress={imprimirQr} /> : null}
         </View>

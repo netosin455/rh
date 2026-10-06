@@ -10,6 +10,17 @@ import type {
   ProactiveAlert, EmployeeAtRisk, DeptHeadcount, ClimateHistory,
 } from '../../tipos/modelos';
 
+export const DIAS_EXPERIENCIA_INICIAL = 45;
+export const DIAS_EXPERIENCIA_FINAL = 90;
+export const JANELA_ALERTA_EXPERIENCIA_DIAS = 10;
+export const LIMIAR_BANCO_HORAS_ALTO = 40;
+export const LIMIAR_FALTAS_RECENTES = 2;
+const LIMITE_NOMES_ALERTA = 3;
+
+type AnalyticsAlert = Omit<ProactiveAlert, 'type'> & {
+  type: ProactiveAlert['type'] | 'experiencia_acabando' | 'banco_horas_alto' | 'faltas_recentes';
+};
+
 // ── GET /api/analytics?view=insights — IA Insights ────────────
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
@@ -95,6 +106,201 @@ interface RiskRow      { risk: string; count: number; employees: EmployeeAtRisk[
 interface CaseRow      { id: number; case_number: string; title: string; area: string; deadline: string | null; responsible_name: string | null }
 interface OnboardRow   { active: number; long_running: number }
 interface ClimateRow   { month: string; avg_score: number; response_count: number }
+interface ClosingRow {
+  employee_id: number;
+  name: string;
+  department_name: string;
+  role_title: string;
+  faltas_dias: number | string;
+  faltas_horas: number | string;
+  folgas_horas: number | string;
+  ferias_dias: number | string;
+  licencas_dias: number | string;
+  banco_horas_saldo: number | string;
+}
+interface ExperienceAlertRow { id: number; name: string; marco: number | string; dias_restantes: number | string }
+interface BankHoursAlertRow { id: number; name: string; folga_hours: number | string }
+interface RecentAbsenceAlertRow { id: number; name: string; faltas: number | string }
+
+type ClosingLine = {
+  employee_id: number;
+  name: string;
+  department_name: string;
+  role_title: string;
+  faltas_dias: number;
+  faltas_horas: number;
+  folgas_horas: number;
+  ferias_dias: number;
+  licencas_dias: number;
+  banco_horas_saldo: number;
+};
+
+type ClosingTotals = Omit<ClosingLine, 'employee_id' | 'name' | 'department_name' | 'role_title'>;
+
+function parseClosingMonth(value: unknown): string | null {
+  return typeof value === 'string' && /^(?:[1-9]\d{3})-(0[1-9]|1[0-2])$/.test(value) ? value : null;
+}
+
+function numericValue(value: unknown): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function singularOrPlural(value: number, singular: string, plural: string): string {
+  return value === 1 ? singular : plural;
+}
+
+function alertRoute(rows: readonly { id: number }[]): string {
+  return rows.length === 1 ? `colaborador/${rows[0].id}` : 'colaboradores';
+}
+
+function alertNames<T>(rows: readonly T[], format: (row: T) => string): string {
+  const names = rows.slice(0, LIMITE_NOMES_ALERTA).map(format).join(', ');
+  const extra = rows.length - LIMITE_NOMES_ALERTA;
+  return extra > 0 ? `${names} +${extra}` : names;
+}
+
+export function buildExperienceAlert(rows: readonly ExperienceAlertRow[]): AnalyticsAlert | null {
+  const upcoming = rows.filter((row) => {
+    const remainingDays = numericValue(row.dias_restantes);
+    return remainingDays >= 0 && remainingDays <= JANELA_ALERTA_EXPERIENCIA_DIAS;
+  });
+  if (!upcoming.length) return null;
+  const severity = upcoming.some((row) => numericValue(row.dias_restantes) <= 3) ? 'alta' : 'media';
+  return {
+    type: 'experiencia_acabando',
+    severity,
+    title: `${upcoming.length} ${singularOrPlural(upcoming.length, 'contrato', 'contratos')} de experiência ${singularOrPlural(upcoming.length, 'termina', 'terminam')} nos próximos ${JANELA_ALERTA_EXPERIENCIA_DIAS} dias`,
+    description: alertNames(upcoming, (row) => {
+      const days = numericValue(row.dias_restantes);
+      return `${row.name} (${numericValue(row.marco)} dias em ${days} ${singularOrPlural(days, 'dia', 'dias')})`;
+    }),
+    route: alertRoute(upcoming),
+    icon: 'hourglass-outline',
+  };
+}
+
+export function buildHighBankHoursAlert(rows: readonly BankHoursAlertRow[]): AnalyticsAlert | null {
+  const highBalance = rows.filter((row) => numericValue(row.folga_hours) >= LIMIAR_BANCO_HORAS_ALTO);
+  if (!highBalance.length) return null;
+  return {
+    type: 'banco_horas_alto',
+    severity: 'media',
+    title: `${highBalance.length} ${singularOrPlural(highBalance.length, 'colaborador com banco de horas alto', 'colaboradores com banco de horas alto')}`,
+    description: alertNames(highBalance, (row) => `${row.name} (${numericValue(row.folga_hours)}h)`),
+    route: alertRoute(highBalance),
+    icon: 'time-outline',
+  };
+}
+
+export function buildRecentAbsencesAlert(rows: readonly RecentAbsenceAlertRow[]): AnalyticsAlert | null {
+  const recurringAbsences = rows.filter((row) => numericValue(row.faltas) >= LIMIAR_FALTAS_RECENTES);
+  if (!recurringAbsences.length) return null;
+  return {
+    type: 'faltas_recentes',
+    severity: 'media',
+    title: `${recurringAbsences.length} ${singularOrPlural(recurringAbsences.length, 'colaborador com faltas recentes', 'colaboradores com faltas recentes')}`,
+    description: alertNames(recurringAbsences, (row) => {
+      const count = numericValue(row.faltas);
+      return `${row.name} (${count} ${singularOrPlural(count, 'falta', 'faltas')})`;
+    }),
+    route: alertRoute(recurringAbsences),
+    icon: 'alert-circle-outline',
+  };
+}
+
+async function handleMonthClosing(companyId: number, month: string, res: VercelResponse) {
+  const rows = await sql`
+    WITH periodo AS (
+      SELECT
+        TO_DATE(${month} || '-01', 'YYYY-MM-DD') AS inicio,
+        (DATE_TRUNC('month', TO_DATE(${month} || '-01', 'YYYY-MM-DD')) + INTERVAL '1 month - 1 day')::date AS fim
+    ), equipe AS (
+      SELECT
+        e.id AS employee_id,
+        e.name,
+        COALESCE(d.name, 'Sem departamento') AS department_name,
+        e.role_title,
+        e.folga_hours AS banco_horas_saldo
+      FROM employees e
+      CROSS JOIN periodo p
+      LEFT JOIN departments d ON d.id = e.department_id AND d.company_id = e.company_id
+      WHERE e.company_id = ${companyId}
+        AND e.deleted_at IS NULL
+        AND e.hire_date <= p.fim
+        AND e.status <> 'desligado'
+    )
+    SELECT
+      eq.employee_id,
+      eq.name,
+      eq.department_name,
+      eq.role_title,
+      COALESCE(SUM(CASE
+        WHEN a.type = 'falta' AND a.hours IS NULL
+        THEN LEAST(a.end_date, p.fim) - GREATEST(a.start_date, p.inicio) + 1
+        ELSE 0
+      END), 0)::int AS faltas_dias,
+      COALESCE(SUM(CASE
+        WHEN a.type = 'falta' AND a.hours IS NOT NULL THEN a.hours
+        ELSE 0
+      END), 0)::numeric AS faltas_horas,
+      COALESCE(SUM(CASE
+        WHEN a.type = 'folga' AND a.hours IS NOT NULL THEN a.hours
+        ELSE 0
+      END), 0)::numeric AS folgas_horas,
+      COALESCE(SUM(CASE
+        WHEN a.type = 'ferias'
+        THEN LEAST(a.end_date, p.fim) - GREATEST(a.start_date, p.inicio) + 1
+        ELSE 0
+      END), 0)::int AS ferias_dias,
+      COALESCE(SUM(CASE
+        WHEN a.type IN ('licenca_medica', 'licenca_maternidade', 'licenca_paternidade')
+        THEN LEAST(a.end_date, p.fim) - GREATEST(a.start_date, p.inicio) + 1
+        ELSE 0
+      END), 0)::int AS licencas_dias,
+      eq.banco_horas_saldo
+    FROM equipe eq
+    CROSS JOIN periodo p
+    LEFT JOIN absences a ON a.employee_id = eq.employee_id
+      AND a.company_id = ${companyId}
+      AND a.status = 'aprovado'
+      AND a.start_date <= p.fim
+      AND a.end_date >= p.inicio
+    GROUP BY eq.employee_id, eq.name, eq.department_name, eq.role_title, eq.banco_horas_saldo
+    ORDER BY eq.name
+  `;
+
+  const linhas: ClosingLine[] = (rows as ClosingRow[]).map((row) => ({
+    employee_id: numericValue(row.employee_id),
+    name: row.name,
+    department_name: row.department_name,
+    role_title: row.role_title,
+    faltas_dias: numericValue(row.faltas_dias),
+    faltas_horas: numericValue(row.faltas_horas),
+    folgas_horas: numericValue(row.folgas_horas),
+    ferias_dias: numericValue(row.ferias_dias),
+    licencas_dias: numericValue(row.licencas_dias),
+    banco_horas_saldo: numericValue(row.banco_horas_saldo),
+  }));
+  const totais = linhas.reduce<ClosingTotals>((total, line) => ({
+    faltas_dias: total.faltas_dias + line.faltas_dias,
+    faltas_horas: total.faltas_horas + line.faltas_horas,
+    folgas_horas: total.folgas_horas + line.folgas_horas,
+    ferias_dias: total.ferias_dias + line.ferias_dias,
+    licencas_dias: total.licencas_dias + line.licencas_dias,
+    banco_horas_saldo: total.banco_horas_saldo + line.banco_horas_saldo,
+  }), {
+    faltas_dias: 0,
+    faltas_horas: 0,
+    folgas_horas: 0,
+    ferias_dias: 0,
+    licencas_dias: 0,
+    banco_horas_saldo: 0,
+  });
+
+  // "outro" não é licença e folga sem horas legada vale zero; o saldo não possui histórico mensal.
+  return res.json({ month, gerado_em: new Date().toISOString(), saldo_referencia: 'atual', linhas, totais });
+}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   cors(req, res);
@@ -107,6 +313,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   if (req.method !== 'GET') return err(res, 405, 'Método não permitido');
+
+  // Fechamento mensal: GET /api/analytics?view=fechamento&month=YYYY-MM
+  if (req.query.view === 'fechamento') {
+    if (!IS_ADMIN.includes(ctx.role) && ctx.role !== 'rh') return err(res, 403, 'Acesso restrito');
+    const month = parseClosingMonth(req.query.month);
+    if (!month) return err(res, 400, 'month deve usar o formato YYYY-MM');
+    try {
+      return await handleMonthClosing(ctx.company_id, month, res);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'erro desconhecido';
+      console.error(`[${new Date().toISOString()}] [ERROR] analytics/fechamento`, { company_id: ctx.company_id, message });
+      return err(res, 500, 'Erro ao gerar fechamento mensal');
+    }
+  }
 
   // Rota de insights: GET /api/analytics?view=insights
   if (req.query.view === 'insights') {
@@ -130,6 +350,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     urgentCases,
     onboardingStats,
     climateHistory,
+    experienceEnding,
+    highBankHours,
+    recentAbsences,
   ] = await Promise.all([
 
     // Distribuição por status (calculado ao vivo a partir de ausências aprovadas,
@@ -259,6 +482,67 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       GROUP BY 1
       ORDER BY 1
     `.catch(() => [] as ClimateRow[]),
+
+    // Contratos de experiência que chegam ao marco de 45 ou 90 dias na próxima janela.
+    sql`
+      WITH hoje AS (
+        SELECT (NOW() AT TIME ZONE 'America/Sao_Paulo')::date AS data_referencia
+      )
+      SELECT
+        e.id,
+        e.name,
+        CASE
+          WHEN e.hire_date + ${DIAS_EXPERIENCIA_INICIAL}::int BETWEEN hoje.data_referencia AND hoje.data_referencia + ${JANELA_ALERTA_EXPERIENCIA_DIAS}::int
+          THEN ${DIAS_EXPERIENCIA_INICIAL}::int
+          ELSE ${DIAS_EXPERIENCIA_FINAL}::int
+        END AS marco,
+        CASE
+          WHEN e.hire_date + ${DIAS_EXPERIENCIA_INICIAL}::int BETWEEN hoje.data_referencia AND hoje.data_referencia + ${JANELA_ALERTA_EXPERIENCIA_DIAS}::int
+          THEN e.hire_date + ${DIAS_EXPERIENCIA_INICIAL}::int - hoje.data_referencia
+          ELSE e.hire_date + ${DIAS_EXPERIENCIA_FINAL}::int - hoje.data_referencia
+        END AS dias_restantes
+      FROM employees e
+      CROSS JOIN hoje
+      WHERE e.company_id = ${cid}
+        AND e.deleted_at IS NULL
+        AND e.status = 'ativo'
+        AND (
+          e.hire_date + ${DIAS_EXPERIENCIA_INICIAL}::int BETWEEN hoje.data_referencia AND hoje.data_referencia + ${JANELA_ALERTA_EXPERIENCIA_DIAS}::int
+          OR e.hire_date + ${DIAS_EXPERIENCIA_FINAL}::int BETWEEN hoje.data_referencia AND hoje.data_referencia + ${JANELA_ALERTA_EXPERIENCIA_DIAS}::int
+        )
+      ORDER BY dias_restantes, e.name
+    `,
+
+    // O saldo é atual, pois ainda não existe histórico de banco de horas por competência.
+    sql`
+      SELECT e.id, e.name, e.folga_hours
+      FROM employees e
+      WHERE e.company_id = ${cid}
+        AND e.deleted_at IS NULL
+        AND e.status = 'ativo'
+        AND e.folga_hours >= ${LIMIAR_BANCO_HORAS_ALTO}
+      ORDER BY e.folga_hours DESC, e.name
+    `,
+
+    // Hoje local evita deslocar a janela de sete dias na virada de UTC.
+    sql`
+      WITH hoje AS (
+        SELECT (NOW() AT TIME ZONE 'America/Sao_Paulo')::date AS data_referencia
+      )
+      SELECT e.id, e.name, COUNT(*)::int AS faltas
+      FROM employees e
+      JOIN absences a ON a.employee_id = e.id AND a.company_id = e.company_id
+      CROSS JOIN hoje
+      WHERE e.company_id = ${cid}
+        AND e.deleted_at IS NULL
+        AND e.status = 'ativo'
+        AND a.status = 'aprovado'
+        AND a.type = 'falta'
+        AND a.start_date BETWEEN hoje.data_referencia - 6 AND hoje.data_referencia
+      GROUP BY e.id, e.name
+      HAVING COUNT(*) >= ${LIMIAR_FALTAS_RECENTES}
+      ORDER BY faltas DESC, e.name
+    `,
   ]);
 
   const rows        = statusDist  as StatusRow[];
@@ -287,7 +571,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const ucList  = urgentCases as CaseRow[];
 
   // Geração de alertas proativos
-  const alerts: ProactiveAlert[] = [];
+  const alerts: AnalyticsAlert[] = [];
 
   if (riskMap.alto.count > 0) {
     const names = riskMap.alto.employees.slice(0, 2).map(e => e.name).join(', ');
@@ -334,6 +618,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       icon:        'clipboard-outline',
     });
   }
+
+  const experienceAlert = buildExperienceAlert(experienceEnding as ExperienceAlertRow[]);
+  if (experienceAlert) alerts.push(experienceAlert);
+
+  const bankHoursAlert = buildHighBankHoursAlert(highBankHours as BankHoursAlertRow[]);
+  if (bankHoursAlert) alerts.push(bankHoursAlert);
+
+  const recentAbsencesAlert = buildRecentAbsencesAlert(recentAbsences as RecentAbsenceAlertRow[]);
+  if (recentAbsencesAlert) alerts.push(recentAbsencesAlert);
 
   return res.json({
     summary: {

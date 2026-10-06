@@ -92,3 +92,19 @@ export function controlarConfirmacoes(page: Page): { aceitar: boolean; mensagens
   });
   return controle;
 }
+
+/**
+ * Troca window.open por um registro (nada abre de verdade): `urlsAbertas` devolve o que o app tentou abrir.
+ * Chame ANTES do page.goto (usa addInitScript).
+ */
+export async function interceptarWindowOpen(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    const abertas: string[] = [];
+    (window as unknown as { __abertas: string[] }).__abertas = abertas;
+    window.open = ((url?: string | URL) => { abertas.push(String(url)); return { opener: null } as unknown as Window; }) as typeof window.open;
+  });
+}
+
+export async function urlsAbertas(page: Page): Promise<string[]> {
+  return page.evaluate(() => (window as unknown as { __abertas?: string[] }).__abertas ?? []);
+}

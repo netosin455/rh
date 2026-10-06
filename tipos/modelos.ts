@@ -434,7 +434,14 @@ export interface AbsenteeismPeriod {
 }
 
 export type AlertSeverity = 'alta' | 'media';
-export type AlertType = 'turnover_risk' | 'absenteeism' | 'juridico' | 'onboarding';
+export type AlertType =
+  | 'turnover_risk'
+  | 'absenteeism'
+  | 'juridico'
+  | 'onboarding'
+  | 'experiencia_acabando'
+  | 'banco_horas_alto'
+  | 'faltas_recentes';
 
 export interface ProactiveAlert {
   type:        AlertType;
@@ -585,3 +592,32 @@ export const STATUS_LABELS: Record<EmployeeStatus, string> = {
   afastado:             'Afastado',
   desligado:            'Desligado',
 };
+
+// ── Fechamento do mês ───────────────────────────────────────
+
+/** Totais do mês de UMA pessoa (ou da soma de todas). Horas e dias podem ter casas decimais. */
+export interface FechamentoValores {
+  faltas_dias: number;
+  faltas_horas: number;
+  folgas_horas: number;
+  ferias_dias: number;
+  licencas_dias: number;
+  /** Saldo ATUAL do banco de horas (não o de fim do mês). */
+  banco_horas_saldo: number;
+}
+
+export interface FechamentoLinha extends FechamentoValores {
+  employee_id: number;
+  name: string;
+  department_name: string | null;
+  role_title: string;
+}
+
+/** Resposta de GET /api/analytics?view=fechamento&month=AAAA-MM. */
+export interface Fechamento {
+  month: string;
+  gerado_em: string;
+  saldo_referencia: 'atual';
+  linhas: FechamentoLinha[];
+  totais: FechamentoValores;
+}

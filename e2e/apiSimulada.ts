@@ -12,13 +12,13 @@
 
 import type { BrowserContext, Request, Route } from '@playwright/test';
 import type {
-  AnalyticsOverview, Absence, Employee, EmployeeAtRisk, Event, Feedback, Notice, OnboardingProcess, PublicFeedback,
+  AnalyticsOverview, Absence, Fechamento, FechamentoLinha, ProactiveAlert, Employee, EmployeeAtRisk, Event, Feedback, Notice, OnboardingProcess, PublicFeedback,
   PulseSurvey, QuestionResult, Recognition, SurveyContact, SurveyQuestion, User,
 } from '../tipos/modelos';
 import type { Notificacao } from '../conexoes/notificacoes';
 import type { SystemUser } from '../conexoes/usuarios';
 
-export const ORIGEM = 'http://127.0.0.1:4173';
+export const ORIGEM = `http://127.0.0.1:${process.env.E2E_PORTA ?? 4173}`;
 
 /** Credenciais fictícias aceitas pelo login simulado. */
 export const CREDENCIAIS = { usuario: 'ana.rh', senha: 'senha-de-teste-123' } as const;
@@ -75,7 +75,7 @@ function diasEntre(inicio: string, fim: string): number {
 
 export class ApiSimulada {
   employees: Employee[] = [
-    pessoa(1, 'Ana Souza', 'Advogada', 'ativo', { folga_hours: 10 }),
+    pessoa(1, 'Ana Souza', 'Advogada', 'ativo', { folga_hours: 10, phone: '(11) 98888-7777' }),
     pessoa(2, 'Bruno Lima', 'Analista Jurídico', 'ativo', { vacation_days: 20 }),
     pessoa(3, 'Carla Dias', 'Estagiária', 'ativo'),
     pessoa(4, 'Diego Rocha', 'Assistente Administrativo', 'ativo'),
@@ -116,6 +116,10 @@ export class ApiSimulada {
   usuarioLogado: User = USUARIO_RH;
   /** Se preenchido, o PUT de pesquisa responde 409 edicao_bloqueada com estas mensagens (o servidor discordando do front). */
   forcarBloqueios: string[] | null = null;
+  /** Alertas proativos devolvidos por GET /api/analytics (campo `alerts`). */
+  alertas: ProactiveAlert[] = [];
+  /** Quantas chamadas do fechamento ainda respondem 500 antes de voltar ao normal (testa o "Tentar de novo"). */
+  falhasDoFechamento = 0;
   /** true => POST /api/chat responde 502 (IA fora do ar). */
   chatIndisponivel = false;
   /** Toda requisição que chegou à API simulada ("GET /api/employees?page=1..."). */
@@ -168,7 +172,7 @@ export class ApiSimulada {
       },
       urgent_cases: [],
       climate_history: [],
-      alerts: [],
+      alerts: this.alertas,
     };
   }
 
@@ -240,6 +244,30 @@ export class ApiSimulada {
       employee_department_name: f.employee_department_name ?? null, company_name: 'Escritório Exemplo', created_by_name: f.created_by_name ?? null,
       created_by_role: f.created_by_role ?? null, status: f.status === 'acknowledged' ? 'acknowledged' : 'published',
       published_at: f.published_at ?? agoraIso(), acknowledged_at: f.acknowledged_at, acknowledgment_note: f.acknowledgment_note ?? null,
+    };
+  }
+
+  /** Contrato de GET /api/analytics?view=fechamento: totais do mês por colaborador; saldo do banco é o ATUAL. */
+  private fechamentoDoMes(mes: string): Fechamento {
+    const doMes = this.absences.filter((a) => a.status === 'aprovado' && a.start_date.startsWith(mes));
+    const linhas: FechamentoLinha[] = this.employees.map((e) => {
+      const minhas = doMes.filter((a) => a.employee_id === e.id);
+      const soma = (tipo: Absence['type'], campo: (a: Absence) => number) => minhas.filter((a) => a.type === tipo).reduce((t, a) => t + campo(a), 0);
+      return {
+        employee_id: e.id, name: e.name, department_name: e.department_name ?? null, role_title: e.role_title,
+        faltas_dias: soma('falta', (a) => (a.hours == null ? a.days_count : 0)), faltas_horas: soma('falta', (a) => a.hours ?? 0),
+        folgas_horas: soma('folga', (a) => a.hours ?? 0), ferias_dias: soma('ferias', (a) => a.days_count),
+        licencas_dias: minhas.filter((a) => a.type.startsWith('licenca')).reduce((t, a) => t + a.days_count, 0),
+        banco_horas_saldo: Number(e.folga_hours),
+      };
+    });
+    const total = (campo: keyof FechamentoLinha) => linhas.reduce((t, l) => t + Number(l[campo]), 0);
+    return {
+      month: mes, gerado_em: agoraIso(), saldo_referencia: 'atual', linhas,
+      totais: {
+        faltas_dias: total('faltas_dias'), faltas_horas: total('faltas_horas'), folgas_horas: total('folgas_horas'),
+        ferias_dias: total('ferias_dias'), licencas_dias: total('licencas_dias'), banco_horas_saldo: total('banco_horas_saldo'),
+      },
     };
   }
 
@@ -593,6 +621,12 @@ export class ApiSimulada {
     }
     if (caminho === '/api/users' && consulta.get('push') === '1') return responder(200, { ok: true });
     if (caminho === '/api/payslips' && metodo === 'GET') return responder(200, []);
+    if (caminho === '/api/analytics' && metodo === 'GET' && consulta.get('view') === 'fechamento') {
+      const mes = consulta.get('month') ?? '';
+      if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(mes)) return erro(400, 'Mês inválido (use AAAA-MM)');
+      if (this.falhasDoFechamento > 0) { this.falhasDoFechamento -= 1; return erro(500, 'Erro interno'); }
+      return responder(200, this.fechamentoDoMes(mes));
+    }
     if (caminho === '/api/analytics' && metodo === 'GET') {
       return consulta.get('view') === 'insights' ? responder(200, { insights: [], cached: false }) : responder(200, this.analytics());
     }

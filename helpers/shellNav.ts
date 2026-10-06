@@ -41,6 +41,8 @@ export const SHELL_GROUPS: readonly ShellNavigationGroup[] = [
     items: [
       { key: 'ferias', title: 'Férias', icon: 'umbrella', href: '/(tabs)/ferias', tabName: 'ferias', roles: null },
       { key: 'agenda', title: 'Agenda', icon: 'calendar', href: '/(tabs)/agenda', tabName: 'agenda', roles: null },
+      // Mesma permissão do Analytics (mexe com saldo e ausência de todo mundo).
+      { key: 'fechamento', title: 'Fechamento', icon: 'calendar-outline', href: '/fechamento', roles: ['rh', 'admin', 'super_admin', 'adm'] },
     ],
   },
   {

@@ -18,6 +18,7 @@ import { espaco } from '../estilo/espaco';
 import { useMotion } from '../estilo/movimento';
 import { tipografia } from '../estilo/tipografia';
 import { AREAS_PESQUISA, AreaPesquisa } from '../helpers/pesquisa';
+import { mensagemNps, mensagemPesquisa } from '../helpers/whatsapp';
 import type { PulseSurvey } from '../tipos/modelos';
 import { Badge } from './Badge';
 import { Button } from './Button';
@@ -25,6 +26,7 @@ import { Card } from './Card';
 import { EmptyState } from './EmptyState';
 import { ListRow } from './ListRow';
 import { MetricCard } from './MetricCard';
+import { BotaoWhatsApp } from './BotaoWhatsApp';
 import { QrCodeModal } from './QrCodeModal';
 import { useAcoesPesquisa } from './useAcoesPesquisa';
 import { ScreenHeader } from './ScreenHeader';
@@ -159,10 +161,12 @@ export function ListaPesquisas({ area }: { area: AreaPesquisa }) {
                         {cliente ? (
                           <>
                             <Button accessibilityLabel={`Copiar link da campanha ${survey.title}`} icon="copy-outline" label="Copiar link" onPress={() => { void copiarLink(survey); }} style={styles.actionButton} variant="ghost" />
+                            <BotaoWhatsApp accessibilityLabel={`Enviar no WhatsApp: ${survey.title}`} mensagem={mensagemNps(linkPublicoPesquisa(survey.id))} style={styles.actionButton} />
                             <Button accessibilityLabel={`Mostrar QR code da campanha ${survey.title}`} icon="qr-code-outline" label="QR code" onPress={() => setQrDe(survey)} style={styles.actionButton} variant="ghost" />
                           </>
                         ) : (
-                          <Button icon="share-social-outline" label="Compartilhar" onPress={() => compartilhar(survey)} style={styles.actionButton} variant="ghost" />
+                          <><Button icon="share-social-outline" label="Compartilhar" onPress={() => compartilhar(survey)} style={styles.actionButton} variant="ghost" />
+                            <BotaoWhatsApp accessibilityLabel={`Enviar no WhatsApp: ${survey.title}`} mensagem={mensagemPesquisa(linkPublicoPesquisa(survey.id))} style={styles.actionButton} /></>
                         )}
                         <Button icon="bar-chart-outline" label="Ver resultados" onPress={() => router.push(cfg.rotaDetalhe(survey.id) as never)} style={styles.actionButton} variant="ghost" />
                         <Button accessibilityLabel={`Editar ${survey.title}`} icon="create-outline" label="Editar" onPress={() => editar(survey)} style={styles.actionButton} variant="ghost" />

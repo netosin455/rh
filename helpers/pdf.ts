@@ -2,7 +2,8 @@
 // Abre em nova aba; usuário salva como PDF pelo diálogo de impressão.
 // Sem dependências externas — funciona direto no browser.
 import { Platform } from 'react-native';
-import type { Employee, Absence, AnalyticsOverview } from '../tipos/modelos';
+import type { Employee, Absence, AnalyticsOverview, FechamentoLinha, FechamentoValores } from '../tipos/modelos';
+import { AVISO_SALDO_BANCO, COLUNAS_FECHAMENTO, celula, rotuloDoMes } from './fechamento';
 import { ABSENCE_TYPE_LABELS, STATUS_LABELS } from '../tipos/modelos';
 
 const CSS = `
@@ -196,4 +197,24 @@ export function exportAnalyticsPDF(overview: AnalyticsOverview) {
 
   const body = kpis + deptTable + abSection + riskTable;
   openPrint(shell('Relatório de People Analytics', `Gerado em ${new Date().toLocaleDateString('pt-BR')}`, body));
+}
+
+// ── Fechamento do mês ─────────────────────────────────────────
+function escaparHtml(texto: string): string {
+  return texto.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+/** Folha limpa só com a tabela do fechamento (e o aviso do saldo). Nomes são escapados: não confiamos no texto. */
+export function exportFechamentoPDF(mes: string, linhas: readonly FechamentoLinha[], totais: FechamentoValores) {
+  if (Platform.OS !== 'web') return;
+  const celulas = (v: FechamentoValores) => COLUNAS_FECHAMENTO.map((c) => `<td style="text-align:right">${celula(v[c.chave])}</td>`).join('');
+  const celulasTotal = COLUNAS_FECHAMENTO.map((c) => `<td style="font-weight:700;text-align:right">${celula(totais[c.chave])}</td>`).join('');
+  const corpo = linhas.map((l) => `<tr><td>${escaparHtml(l.name)}</td><td>${escaparHtml(l.department_name ?? '—')}</td>${celulas(l)}</tr>`).join('');
+  const body = `
+    <table>
+      <thead><tr><th>Colaborador</th><th>Departamento</th>${COLUNAS_FECHAMENTO.map((c) => `<th style="text-align:right">${c.titulo}</th>`).join('')}</tr></thead>
+      <tbody>${corpo}<tr><td><strong>TOTAL</strong></td><td></td>${celulasTotal}</tr></tbody>
+    </table>
+    <p class="sub">${AVISO_SALDO_BANCO}</p>`;
+  openPrint(shell(`Fechamento de ${rotuloDoMes(mes)}`, `${linhas.length} colaborador${linhas.length === 1 ? '' : 'es'}`, body));
 }

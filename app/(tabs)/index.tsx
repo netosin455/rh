@@ -23,6 +23,7 @@ import { ErroComRetry } from '../../componentes/ErroComRetry';
 import { useAuth } from '../../contextos/Autenticacao';
 import { cores } from '../../estilo/cores';
 import { rotaEquipe, rotaFerias } from '../../helpers/filtros';
+import { iconeDoAlerta } from '../../helpers/alertas';
 import { rotaDoAlerta } from '../../helpers/risco';
 import { borda, espaco, raio, tamanho } from '../../estilo/espaco';
 import { useMotion } from '../../estilo/movimento';
@@ -174,9 +175,9 @@ export default function DashboardScreen() {
   const attentionItems: AttentionItem[] = [
     ...alerts.filter((alert) => alert.severity === 'alta').map((alert, index) => ({
       id: `urgent-alert-${index}`,
-      title: alert.title,
+      title: alert.title || 'Alerta',
       description: alert.description ?? 'Este alerta requer revisão.',
-      icon: alert.icon as keyof typeof Ionicons.glyphMap,
+      icon: iconeDoAlerta(alert, Ionicons.glyphMap) as keyof typeof Ionicons.glyphMap,
       level: 'urgent' as const,
       // Risco de saída vai direto para a lista filtrada em /analytics?risco=alto.
       route: rotaDoAlerta(alert),
@@ -199,9 +200,9 @@ export default function DashboardScreen() {
     }] : []),
     ...alerts.filter((alert) => alert.severity !== 'alta').map((alert, index) => ({
       id: `important-alert-${index}`,
-      title: alert.title,
+      title: alert.title || 'Alerta',
       description: alert.description ?? 'Há um item para acompanhar.',
-      icon: alert.icon as keyof typeof Ionicons.glyphMap,
+      icon: iconeDoAlerta(alert, Ionicons.glyphMap) as keyof typeof Ionicons.glyphMap,
       level: 'important' as const,
       route: rotaDoAlerta(alert),
     })),

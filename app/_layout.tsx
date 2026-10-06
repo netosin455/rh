@@ -95,6 +95,7 @@ function AuthGuard() {
       <Stack.Screen name="feedback/[token]" options={{ headerShown: false }} />
       <Stack.Screen name="onboarding/index" options={{ headerShown: false }} />
       <Stack.Screen name="onboarding/[id]" options={{ headerShown: false }} />
+      <Stack.Screen name="fechamento" options={{ headerShown: false }} />
       <Stack.Screen name="notificacoes" options={{ headerShown: false }} />
     </Stack>
       </View>

@@ -3,6 +3,7 @@ import * as Clipboard from 'expo-clipboard';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Linking, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useRouter } from 'expo-router';
+import { BotaoWhatsApp } from '../../componentes/BotaoWhatsApp';
 import { Button } from '../../componentes/Button';
 import { EmptyState } from '../../componentes/EmptyState';
 import { Input } from '../../componentes/Input';
@@ -10,6 +11,7 @@ import { Skeleton } from '../../componentes/Skeleton';
 import { feedbackPdfUrl, feedbackPublicUrl, getFeedbacks } from '../../conexoes/feedbacks';
 import { useAuth } from '../../contextos/Autenticacao';
 import { normalizarTexto } from '../../helpers/buscaColaborador';
+import { mensagemFeedback } from '../../helpers/whatsapp';
 import { useToast } from '../../contextos/Toast';
 import type { Feedback, FeedbackStatus } from '../../tipos/modelos';
 import { cores } from '../../estilo/cores';
@@ -92,6 +94,7 @@ function FeedbackRow({ feedback, wide, onOpen, onCopy, onPdf, onManage }: {
       >
         <Button icon="eye-outline" label="Abrir" onPress={onOpen} variant="ghost" />
         {canShare ? <Button icon="copy-outline" label="Copiar link" onPress={onCopy} variant="ghost" /> : null}
+        {canShare && feedback.public_token ? <BotaoWhatsApp accessibilityLabel={`Enviar no WhatsApp: ${feedback.title}`} mensagem={mensagemFeedback(feedback.employee_name, feedbackPublicUrl(feedback.public_token))} /> : null}
         <Button icon="ellipsis-horizontal" label="Mais" onPress={onManage} variant="ghost" />
         {canShare ? <Button accessibilityLabel="Baixar PDF" icon="download-outline" onPress={onPdf} variant="ghost" /> : null}
       </View>

@@ -3,12 +3,15 @@ import { Ionicons } from '@expo/vector-icons';
 import { useCallback, useEffect, useState } from 'react';
 import { Linking, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { BotaoWhatsApp } from '../../componentes/BotaoWhatsApp';
 import { Button } from '../../componentes/Button';
 import { EmptyState } from '../../componentes/EmptyState';
 import { FeedbackForm } from '../../componentes/FeedbackForm';
 import { Skeleton } from '../../componentes/Skeleton';
 import { deleteFeedback, feedbackPdfUrl, feedbackPublicUrl, getFeedback, publishFeedback, revokeFeedback, updateFeedback } from '../../conexoes/feedbacks';
+import { getEmployeeById } from '../../conexoes/colaboradores';
 import { textoExclusaoFeedback } from '../../helpers/feedback';
+import { mensagemFeedback, normalizarTelefoneWhatsapp } from '../../helpers/whatsapp';
 import { confirmAction } from '../../helpers/confirm';
 import { useToast } from '../../contextos/Toast';
 import type { CreateFeedbackData, Feedback } from '../../tipos/modelos';
@@ -47,6 +50,8 @@ export default function FeedbackDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+  // Telefone do colaborador (opcional): com ele o WhatsApp já abre a conversa certa.
+  const [telefone, setTelefone] = useState<string | null>(null);
   const [error, setError] = useState('');
   const narrow = width < 560;
 
@@ -61,6 +66,13 @@ export default function FeedbackDetailScreen() {
   }, [id]);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    if (!feedback?.employee_id || feedback.status === 'draft') return;
+    let ativo = true;
+    getEmployeeById(feedback.employee_id).then((e) => { if (ativo) setTelefone(e.phone ?? null); }).catch(() => { /* sem telefone: cai no wa.me sem número */ });
+    return () => { ativo = false; };
+  }, [feedback?.employee_id, feedback?.status]);
 
   async function saveDraft() {
     if (!id || !form || !form.employee_id || !form.title.trim() || !form.content.trim()) return toast.warning('Preencha colaborador, título e texto do feedback.');
@@ -153,7 +165,7 @@ export default function FeedbackDetailScreen() {
             <Text style={styles.body}>{feedback.content}</Text>
             <View style={styles.rule} />
             <View style={styles.author}><Text style={styles.authorName}>{feedback.created_by_name || 'Recursos Humanos'}</Text><Text style={styles.authorMeta}>Publicado em {dateTime(feedback.published_at)}</Text></View>
-            {activeToken ? <><View style={styles.sectionRule} /><Text style={styles.sectionLabel}>Link do colaborador</Text><Text selectable numberOfLines={1} style={styles.link}>{feedbackPublicUrl(activeToken)}</Text><View style={[styles.linkActions, narrow && styles.linkActionsNarrow]}><Button icon="copy-outline" label="Copiar link" onPress={() => copyLink(activeToken)} style={narrow ? styles.fullAction : undefined} variant="secondary" /><Button icon="eye-outline" label="Abrir como colaborador" onPress={() => openUrl(feedbackPublicUrl(activeToken))} style={narrow ? styles.fullAction : undefined} variant="ghost" /></View><View style={styles.documentRow}><View><Text style={styles.documentTitle}>Documento</Text><Text style={styles.documentHint}>Versão para download e arquivo.</Text></View><Button icon="download-outline" label="Baixar PDF" onPress={() => openUrl(feedbackPdfUrl(activeToken))} variant="secondary" /></View></> : null}
+            {activeToken ? <><View style={styles.sectionRule} /><Text style={styles.sectionLabel}>Link do colaborador</Text><Text selectable numberOfLines={1} style={styles.link}>{feedbackPublicUrl(activeToken)}</Text>{normalizarTelefoneWhatsapp(telefone) ? <Text style={styles.documentHint}>WhatsApp do colaborador: {telefone}</Text> : null}<View style={[styles.linkActions, narrow && styles.linkActionsNarrow]}><Button icon="copy-outline" label="Copiar link" onPress={() => copyLink(activeToken)} style={narrow ? styles.fullAction : undefined} variant="secondary" /><BotaoWhatsApp mensagem={mensagemFeedback(feedback.employee_name, feedbackPublicUrl(activeToken))} style={narrow ? styles.fullAction : undefined} telefone={telefone} variant="secondary" /><Button icon="eye-outline" label="Abrir como colaborador" onPress={() => openUrl(feedbackPublicUrl(activeToken))} style={narrow ? styles.fullAction : undefined} variant="ghost" /></View><View style={styles.documentRow}><View><Text style={styles.documentTitle}>Documento</Text><Text style={styles.documentHint}>Versão para download e arquivo.</Text></View><Button icon="download-outline" label="Baixar PDF" onPress={() => openUrl(feedbackPdfUrl(activeToken))} variant="secondary" /></View></> : null}
             <View style={styles.moreWrap}><Pressable accessibilityRole="button" accessibilityState={{ expanded: moreOpen }} onPress={() => setMoreOpen((open) => !open)} style={styles.moreButton}><Ionicons color={cores.texto.secundario} name="ellipsis-horizontal" size={tamanho.iconeMedio} /><Text style={styles.moreText}>Mais ações</Text></Pressable>{moreOpen ? <View style={styles.moreMenu}>{activeToken ? <Pressable accessibilityRole="button" disabled={saving} onPress={revoke} style={styles.revokeAction}><Text style={styles.revokeActionText}>Revogar acesso</Text></Pressable> : null}<Pressable accessibilityRole="button" disabled={saving} onPress={remove} style={styles.revokeAction}><Text style={styles.revokeActionText}>Excluir feedback</Text></Pressable></View> : null}</View>
           </>
         )}

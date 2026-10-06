@@ -18,7 +18,8 @@ import { fileURLToPath } from 'node:url';
 const RAIZ = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const PASTA = join(RAIZ, process.env.E2E_DIST ?? 'dist-e2e');
 const HOST = '127.0.0.1';
-const PORTA = 4173;
+// Porta padrão 4173; E2E_PORTA muda (útil se outro processo já usa a 4173).
+const PORTA = Number(process.env.E2E_PORTA ?? 4173);
 const ORIGEM = `http://${HOST}:${PORTA}`;
 
 const TIPOS = {

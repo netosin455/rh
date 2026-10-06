@@ -7,6 +7,7 @@
 import { defineConfig } from '@playwright/test';
 
 const emCI = Boolean(process.env.CI);
+const origem = `http://127.0.0.1:${process.env.E2E_PORTA ?? 4173}`;
 
 export default defineConfig({
   testDir: './e2e',
@@ -21,7 +22,7 @@ export default defineConfig({
   reporter: emCI ? [['list'], ['html', { open: 'never' }]] : [['list']],
   outputDir: 'test-results',
   use: {
-    baseURL: 'http://127.0.0.1:4173',
+    baseURL: origem,
     locale: 'pt-BR',
     timezoneId: 'America/Sao_Paulo',
     viewport: { width: 1280, height: 800 },
@@ -33,18 +34,18 @@ export default defineConfig({
   },
   projects: [
     // Telas de computador (sidebar fixa, 1280x800): tudo, menos os specs de celular.
-    { name: 'desktop', testIgnore: /20-celular.*\.spec\.ts/ },
-    // Celular (390x844, toque): só os specs 20-celular-*. Mesmo servidor e mesma API simulada.
+    { name: 'desktop', testIgnore: /-celular.*\.spec\.ts/ },
+    // Celular (390x844, toque): só os specs NN-celular-*. Mesmo servidor e mesma API simulada.
     {
       name: 'celular',
-      testMatch: /20-celular.*\.spec\.ts/,
+      testMatch: /-celular.*\.spec\.ts/,
       use: { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 },
     },
   ],
   webServer: {
     // Gera o build (a menos que E2E_REUSE_BUILD=1) e serve em 127.0.0.1:4173.
     command: 'node e2e/servidor.mjs',
-    url: 'http://127.0.0.1:4173',
+    url: origem,
     // Nunca reaproveita um servidor já aberto: ele poderia ser outro app.
     reuseExistingServer: false,
     timeout: 600_000,

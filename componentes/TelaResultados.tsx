@@ -19,6 +19,7 @@ import { EmptyState } from './EmptyState';
 import { ErroComRetry } from './ErroComRetry';
 import { MetricCard } from './MetricCard';
 import { ProgressBar } from './ProgressBar';
+import { BotaoWhatsApp } from './BotaoWhatsApp';
 import { QrCodeModal } from './QrCodeModal';
 import { useAcoesPesquisa } from './useAcoesPesquisa';
 import { ScreenHeader } from './ScreenHeader';
@@ -41,6 +42,7 @@ import {
   separarContatos,
   totalNps,
 } from '../helpers/pesquisa';
+import { mensagemNps, mensagemPesquisa } from '../helpers/whatsapp';
 
 const ROTULOS_NOTA: Record<number, string> = { 1: 'Muito ruim', 2: 'Ruim', 3: 'Regular', 4: 'Bom', 5: 'Ótimo' };
 
@@ -327,6 +329,7 @@ export function TelaResultados({ area }: { area: AreaPesquisa }) {
           action={(
             <View style={styles.acoes}>
               <Button accessibilityLabel={cliente ? 'Voltar para NPS' : 'Voltar para pesquisas'} icon="arrow-back-outline" onPress={() => router.replace(cfg.rotaRaiz as never)} variant="ghost" />
+              <BotaoWhatsApp mensagem={(cliente ? mensagemNps : mensagemPesquisa)(linkPublicoPesquisa(survey.id))} />
               <Button accessibilityLabel={`Editar ${cfg.singular}`} icon="create-outline" label="Editar" onPress={() => editar(survey)} variant="ghost" />
               <Button accessibilityLabel={`Duplicar ${cfg.singular}`} icon="duplicate-outline" label="Duplicar" onPress={() => { void duplicar(survey); }} variant="ghost" />
               {!encerrada ? <Button accessibilityLabel={`Encerrar ${cfg.singular} agora`} icon="stop-circle-outline" label="Encerrar agora" onPress={() => encerrarAgora(survey)} variant="ghost" /> : null}
