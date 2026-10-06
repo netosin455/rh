@@ -20,6 +20,10 @@ import { getEmployees } from '../../conexoes/colaboradores';
 import { getUpcomingEvents } from '../../conexoes/eventos';
 import { buscarInsights, Insight } from '../../conexoes/insights';
 import { ErroComRetry } from '../../componentes/ErroComRetry';
+import { AvisoDesatualizado } from '../../componentes/AvisoDesatualizado';
+import { usarDados } from '../../contextos/usarDados';
+import { chaves } from '../../helpers/chavesCache';
+import { gravarCache } from '../../helpers/cacheDados';
 import { useAuth } from '../../contextos/Autenticacao';
 import { cores } from '../../estilo/cores';
 import { rotaEquipe, rotaFerias } from '../../helpers/filtros';
@@ -83,76 +87,65 @@ export default function DashboardScreen() {
   const motion = useMotion();
   const { width } = useWindowDimensions();
   const compact = width <= 768;
-  const [employees, setEmployees] = useState<Employee[]>([]);
-  const [events, setEvents] = useState<Event[]>([]);
-  const [notices, setNotices] = useState<Notice[]>([]);
-  const [alerts, setAlerts] = useState<ProactiveAlert[]>([]);
-  const [faltaCount, setFaltaCount] = useState(0);
-  const [pendentesCount, setPendentesCount] = useState(0);
-  const [insights, setInsights] = useState<Insight[]>([]);
-  const [insightsLoading, setInsightsLoading] = useState(false);
-  const [insightsErro, setInsightsErro] = useState(false);
-  // Blocos do dashboard que falharam ao carregar: evita que falha de API pareça "nenhum dado".
-  const [falhas, setFalhas] = useState<string[]>([]);
   const [insightsExpanded, setInsightsExpanded] = useState(false);
-  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const canSeeInsights = INSIGHT_ROLES.includes(user?.role ?? '');
+  const podeAprovar = APPROVER_ROLES.includes(user?.role ?? '');
+  const logado = Boolean(user);
+  const mesAtual = getTodayString().slice(0, 7);
 
-  const registrarFalha = useCallback((bloco: string, erro: unknown) => {
-    console.error(`[Dashboard] Falha ao carregar ${bloco}:`, erro);
-    setFalhas((atual) => (atual.includes(bloco) ? atual : [...atual, bloco]));
-  }, []);
+  // Cada bloco vem do cache: voltar ao Dashboard mostra tudo na hora e atualiza por baixo. Sem cache, esqueleto como antes.
+  const colaboradores = usarDados(chaves.colaboradores, () => getEmployees(), { ativo: logado });
+  const proximosEventos = usarDados(chaves.proximosEventos(5), () => getUpcomingEvents(5), { ativo: logado });
+  const avisos = usarDados(chaves.avisos, () => getNotices(), { ativo: logado });
+  const alertasApi = usarDados(chaves.alertas, () => getAlerts(), { ativo: logado });
+  const faltasDoMes = usarDados(chaves.contagemFaltas(mesAtual), () => countAbsences('falta', mesAtual), { ativo: logado });
+  const pendentes = usarDados(chaves.contagemPendentes, () => countPendentes(), { ativo: logado && podeAprovar });
+  const resumoIA = usarDados(chaves.insights, () => buscarInsights(false), { ativo: logado && canSeeInsights });
+  // "Atualizar" da IA pede ao servidor um resumo novo (refresh=1) e grava no cache.
+  const [insightsForcando, setInsightsForcando] = useState(false);
+  const [insightsErroForcado, setInsightsErroForcado] = useState(false);
+
+  const employees: Employee[] = colaboradores.dados ?? [];
+  const events: Event[] = proximosEventos.dados ?? [];
+  const notices: Notice[] = avisos.dados ?? [];
+  const alerts: ProactiveAlert[] = alertasApi.dados ?? [];
+  const faltaCount = faltasDoMes.dados ?? 0;
+  const pendentesCount = pendentes.dados ?? 0;
+  const insights: Insight[] = resumoIA.dados?.insights ?? [];
+  const insightsLoading = resumoIA.carregando || insightsForcando;
+  const insightsErro = insightsErroForcado || (resumoIA.erro !== null && resumoIA.dados === undefined);
+  const loading = colaboradores.carregando || proximosEventos.carregando || avisos.carregando;
+  const blocos: [string, { erro: Error | null; dados: unknown }][] = [
+    ['colaboradores', colaboradores], ['agenda', proximosEventos], ['avisos', avisos], ['alertas', alertasApi],
+    ['faltas do mês', faltasDoMes], ['férias pendentes', pendentes],
+  ];
+  // Bloco que falhou SEM nada para mostrar: avisa (falha de API não pode parecer "nenhum dado").
+  const falhas = blocos.filter(([, b]) => b.erro !== null && b.dados === undefined).map(([nome]) => nome);
+  const algumErroLeve = [colaboradores, proximosEventos, avisos, alertasApi, faltasDoMes, pendentes].some((b) => b.erroLeve);
 
   const carregarInsights = useCallback(async (forcar = false) => {
-    setInsightsLoading(true);
-    setInsightsErro(false);
+    if (!forcar) { await resumoIA.recarregar(); return; }
+    setInsightsForcando(true);
+    setInsightsErroForcado(false);
     try {
-      const result = await buscarInsights(forcar);
-      setInsights(result.insights);
+      gravarCache(chaves.insights, await buscarInsights(true));
     } catch (error) {
-      console.error('[Dashboard] Falha ao carregar insights:', error);
-      setInsightsErro(true);
+      console.error('[Dashboard] Falha ao atualizar insights:', error);
+      setInsightsErroForcado(true);
     } finally {
-      setInsightsLoading(false);
+      setInsightsForcando(false);
     }
-  }, []);
-
-  const load = useCallback(async () => {
-    // Sem sessão o AuthGuard redireciona para login: não chamar a API evita erros falsos.
-    if (!user) return;
-
-    setFalhas([]);
-    try {
-      const [employeeList, eventList, noticeList] = await Promise.allSettled([
-        getEmployees(),
-        getUpcomingEvents(5),
-        getNotices(),
-      ]);
-      if (employeeList.status === 'fulfilled') setEmployees(employeeList.value);
-      else registrarFalha('colaboradores', employeeList.reason);
-      if (eventList.status === 'fulfilled') setEvents(eventList.value);
-      else registrarFalha('agenda', eventList.reason);
-      if (noticeList.status === 'fulfilled') setNotices(noticeList.value);
-      else registrarFalha('avisos', noticeList.reason);
-
-      getAlerts().then(setAlerts).catch((erro: unknown) => registrarFalha('alertas', erro));
-      const currentMonth = getTodayString().slice(0, 7);
-      countAbsences('falta', currentMonth).then(setFaltaCount).catch((erro: unknown) => registrarFalha('faltas do mês', erro));
-      if (APPROVER_ROLES.includes(user.role ?? '')) countPendentes().then(setPendentesCount).catch((erro: unknown) => registrarFalha('férias pendentes', erro));
-      if (canSeeInsights) void carregarInsights();
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [canSeeInsights, carregarInsights, registrarFalha, user?.role]);
-
-  useEffect(() => { load(); }, [load]);
+  }, [resumoIA.recarregar]);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
-    load();
-  }, [load]);
+    void Promise.all([
+      colaboradores.recarregar(), proximosEventos.recarregar(), avisos.recarregar(), alertasApi.recarregar(), faltasDoMes.recarregar(),
+      podeAprovar ? pendentes.recarregar() : Promise.resolve(),
+      canSeeInsights ? resumoIA.recarregar() : Promise.resolve(),
+    ]).finally(() => setRefreshing(false));
+  }, [colaboradores.recarregar, proximosEventos.recarregar, avisos.recarregar, alertasApi.recarregar, faltasDoMes.recarregar, pendentes.recarregar, resumoIA.recarregar, podeAprovar, canSeeInsights]);
 
   const today = getTodayString();
   const todayName = WEEKDAY_NAMES[new Date(`${today}T00:00:00`).getDay()];
@@ -239,6 +232,7 @@ export default function DashboardScreen() {
         subtitle={`${todayName} · ${formatDateDisplay(today)}`}
       />
 
+      <AvisoDesatualizado visivel={algumErroLeve} />
       {falhas.length > 0 ? (
         <ErroComRetry
           mensagem={`Não foi possível carregar: ${falhas.join(', ')}. Os números abaixo podem estar incompletos.`}

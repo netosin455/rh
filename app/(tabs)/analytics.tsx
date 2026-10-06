@@ -7,6 +7,9 @@ import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { getAnalyticsOverview } from '../../conexoes/analytics';
+import { usarDados } from '../../contextos/usarDados';
+import { chaves } from '../../helpers/chavesCache';
+import { AvisoDesatualizado } from '../../componentes/AvisoDesatualizado';
 import {
   AnalyticsOverview, EmployeeAtRisk, DeptHeadcount, ClimateHistory,
 } from '../../tipos/modelos';
@@ -74,30 +77,15 @@ export default function AnalyticsScreen() {
   // O filtro de risco mora na URL (?risco=medio): voltar do perfil, deep link e recarregar mantêm a lista.
   const params = useLocalSearchParams<{ risco?: string | string[] }>();
   const filtroRisco = lerFiltroRisco(params.risco);
-  const [data,       setData]       = useState<AnalyticsOverview | null>(null);
-  const [loading,    setLoading]    = useState(true);
+  // Dado em cache aparece na hora; atualiza em segundo plano.
+  const { dados, carregando: loading, erro, erroLeve, recarregar: load } = usarDados(chaves.analytics, () => getAnalyticsOverview());
+  const data: AnalyticsOverview | null = dados ?? null;
+  const loadError = erro !== null && dados === undefined ? (erro.message || 'Erro ao carregar analytics') : null;
   const [refreshing, setRefreshing] = useState(false);
-  const [loadError,  setLoadError]  = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    try {
-      setLoadError(null);
-      const overview = await getAnalyticsOverview();
-      setData(overview);
-    } catch (e: unknown) {
-      const er = e as { message?: string };
-      setLoadError(er?.message ?? 'Erro ao carregar analytics');
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, []);
-
-  useEffect(() => { load(); }, [load]);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
-    load();
+    void load().finally(() => setRefreshing(false));
   }, [load]);
 
   // Clicar no card seleciona; clicar de novo no mesmo (ou em "Ver todos") limpa.
@@ -143,6 +131,7 @@ export default function AnalyticsScreen() {
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={cores.accent.dourado} />
       }
     >
+      <AvisoDesatualizado visivel={erroLeve} />
       <ScreenHeader title="People Analytics" subtitle="Indicadores para decisões de pessoas." action={<Button label="Exportar PDF" icon="download-outline" variant="ghost" onPress={() => exportAnalyticsPDF(data)} />} />
       <Section title="Visão geral"><View style={styles.metricGrid}><MetricCard accessibilityLabel={`Total: ${summary.total}. Abrir a equipe.`} detail="No sistema" label="Total" onPress={() => router.push(rotaEquipe() as never)} value={summary.total} /><MetricCard accessibilityLabel={`Ativos: ${summary.ativo}. Ver quem está ativo na equipe.`} onPress={() => router.push(rotaEquipe('ativo') as never)} label="Ativos" value={summary.ativo} detail="Em atividade" indicator={<StatusPill label="Ativo" status="ativo" />} /><MetricCard accessibilityLabel={`Em férias: ${summary.ferias}. Ver quem está de férias na equipe.`} onPress={() => router.push(rotaEquipe('ferias') as never)} label="Em férias" value={summary.ferias} detail="Ausências programadas" indicator={<StatusPill label="Férias" status="info" />} /><MetricCard accessibilityLabel={`Em licença: ${summary.licenca + summary.afastado}. Ver licenças e afastados na equipe.`} onPress={() => router.push(rotaEquipe('licenca_afastado') as never)} label="Em licença" value={summary.licenca + summary.afastado} detail="Licenças e afastamentos" indicator={<StatusPill label="Atenção" status="pendente" />} /></View></Section>
 

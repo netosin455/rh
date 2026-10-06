@@ -36,7 +36,8 @@ test('rascunho -> publicar -> copiar link -> revogar (com confirmação)', async
   expect(token).toHaveLength(43);
   const link = `${ORIGEM}/feedback/${token}`;
   await expect(page.getByText(link)).toBeVisible();
-  await expect(page.getByText('Aguardando leitura')).toBeVisible();
+  // A lista (mais abaixo na pilha) também se atualiza para "Aguardando leitura": basta a tela aberta mostrar o status.
+  await expect(page.getByText('Aguardando leitura').filter({ visible: true }).first()).toBeVisible();
 
   await page.getByRole('button', { name: /Copiar link/ }).click();
   await expect(page.getByText('Link copiado.')).toBeVisible();
@@ -51,7 +52,7 @@ test('rascunho -> publicar -> copiar link -> revogar (com confirmação)', async
   page.once('dialog', (d) => { void d.accept(); });
   await page.getByRole('button', { name: 'Revogar acesso' }).click();
   await expect.poll(() => api.escritasDe('POST', /^\/api\/feedbacks\/1\/revoke$/).length).toBe(1);
-  await expect(page.getByText('Acesso revogado').first()).toBeVisible();
+  await expect(page.getByText('Acesso revogado').filter({ visible: true }).first()).toBeVisible();
   await expect(page.getByText(link)).toHaveCount(0);
 });
 

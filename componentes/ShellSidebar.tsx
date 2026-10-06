@@ -16,6 +16,7 @@ import { borda, espaco, raio, tamanho } from '../estilo/espaco';
 import { useMotion } from '../estilo/movimento';
 import { tipografia } from '../estilo/tipografia';
 import { resolverItemAtivo } from '../helpers/navegacao';
+import { prefetchDaRota } from '../helpers/prefetchRotas';
 import { CAN_APPROVE, SHELL_GROUPS, ShellNavigationItem, canAccessNavigation } from '../helpers/shellNav';
 import { BrandMark } from './BrandMark';
 
@@ -26,12 +27,15 @@ function SidebarItem({
   item,
   onLayout,
   onPress,
+  onPrefetch,
   pendingCount = 0,
 }: {
   active: boolean;
   item: ShellNavigationItem;
   onLayout: (event: LayoutChangeEvent) => void;
   onPress: () => void;
+  /** Passar o mouse ou focar: pré-carrega o dado da tela de destino (só leitura). */
+  onPrefetch?: () => void;
   pendingCount?: number;
 }) {
   const [focused, setFocused] = useState(false);
@@ -45,6 +49,7 @@ function SidebarItem({
   }, [active, hoverOpacity]);
 
   function setHovering(hovered: boolean) {
+    if (hovered) onPrefetch?.();
     if (active) return;
     hoverOpacity.value = withTiming(hovered ? 1 : 0, {
       duration: motion.reduzMovimento ? motion.fadeCurto : 120,
@@ -58,7 +63,7 @@ function SidebarItem({
       accessibilityRole="tab"
       accessibilityState={{ selected: active }}
       onBlur={() => setFocused(false)}
-      onFocus={() => setFocused(true)}
+      onFocus={() => { setFocused(true); onPrefetch?.(); }}
       onHoverIn={() => setHovering(true)}
       onHoverOut={() => setHovering(false)}
       onLayout={onLayout}
@@ -162,6 +167,7 @@ export function ShellSidebar() {
                     : { ...previous, [item.key]: { height, y } });
                 }}
                 onPress={() => router.navigate(item.href as never)}
+                onPrefetch={() => prefetchDaRota(item.href, role)}
                 pendingCount={item.key === 'ferias' && CAN_APPROVE.includes(role ?? '') ? pendentesCount : 0}
               />
             ))}

@@ -17,7 +17,10 @@ function primeiroNome(nome: string): string {
 /** "As 4h de folga voltam ao banco de horas de Maria; saldo passa de 6h para 10h." / férias idem / "Não altera saldo." */
 export function efeitoDaExclusao(ausencia: Pick<Absence, 'type' | 'status' | 'hours' | 'days_count'>, colaborador: DadosColaborador): string {
   const semEfeito = 'Esta exclusão não altera saldo.';
-  if (ausencia.status !== 'aprovado' || !colaborador) return semEfeito;
+  if (ausencia.status !== 'aprovado') return semEfeito;
+  const mexeNoSaldo = (ausencia.type === 'folga' && ausencia.hours != null && ausencia.hours > 0) || (ausencia.type === 'ferias' && ausencia.days_count > 0);
+  // Sem os dados do colaborador (saldo desatualizado, busca nova a caminho): não afirma números nem "não altera".
+  if (!colaborador) return mexeNoSaldo ? 'O saldo do colaborador será ajustado ao excluir.' : semEfeito;
   const nome = primeiroNome(colaborador.name);
 
   if (ausencia.type === 'folga' && ausencia.hours != null && ausencia.hours > 0) {

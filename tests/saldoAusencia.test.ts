@@ -23,6 +23,12 @@ describe('efeitoDaExclusao', () => {
     }
   });
 
+  it('sem dados do colaborador (saldo desatualizado) não inventa números nem diz que não altera', () => {
+    expect(efeitoDaExclusao({ type: 'folga', status: 'aprovado', hours: 4, days_count: 1 }, undefined)).toBe('O saldo do colaborador será ajustado ao excluir.');
+    expect(efeitoDaExclusao({ type: 'ferias', status: 'aprovado', days_count: 3 }, undefined)).toBe('O saldo do colaborador será ajustado ao excluir.');
+    expect(efeitoDaExclusao({ type: 'falta', status: 'aprovado', days_count: 1 }, undefined)).toBe('Esta exclusão não altera saldo.');
+  });
+
   it('pendente nunca descontou nada: não altera saldo', () => {
     expect(efeitoDaExclusao({ type: 'folga', status: 'pendente', hours: 4, days_count: 1 }, MARIA)).toBe('Esta exclusão não altera saldo.');
   });

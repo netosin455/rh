@@ -1,4 +1,5 @@
 import { apiFetch, ApiError, publicFetch } from './http';
+import { comInvalidacao } from '../helpers/invalidacaoCache';
 import type { CreateFeedbackData, Feedback, PublicFeedback } from '../tipos/modelos';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? '';
@@ -28,24 +29,24 @@ export async function getFeedback(id: number): Promise<Feedback> {
 }
 
 export async function createFeedback(data: CreateFeedbackData): Promise<Feedback> {
-  return apiFetch<Feedback>('/api/feedbacks', { method: 'POST', body: JSON.stringify(data) });
+  return comInvalidacao('feedbacks', apiFetch<Feedback>('/api/feedbacks', { method: 'POST', body: JSON.stringify(data) }));
 }
 
 export async function updateFeedback(id: number, data: CreateFeedbackData): Promise<Feedback> {
-  return apiFetch<Feedback>(`/api/feedbacks/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+  return comInvalidacao('feedbacks', apiFetch<Feedback>(`/api/feedbacks/${id}`, { method: 'PUT', body: JSON.stringify(data) }));
 }
 
 /** Exclui o feedback (qualquer status). A API responde 204. */
 export async function deleteFeedback(id: number): Promise<void> {
-  return apiFetch(`/api/feedbacks/${id}`, { method: 'DELETE' });
+  return comInvalidacao('feedbacks', apiFetch(`/api/feedbacks/${id}`, { method: 'DELETE' }));
 }
 
 export async function publishFeedback(id: number): Promise<Feedback> {
-  return apiFetch<Feedback>(`/api/feedbacks/${id}/publish`, { method: 'POST' });
+  return comInvalidacao('feedbacks', apiFetch<Feedback>(`/api/feedbacks/${id}/publish`, { method: 'POST' }));
 }
 
 export async function revokeFeedback(id: number): Promise<Feedback> {
-  return apiFetch<Feedback>(`/api/feedbacks/${id}/revoke`, { method: 'POST' });
+  return comInvalidacao('feedbacks', apiFetch<Feedback>(`/api/feedbacks/${id}/revoke`, { method: 'POST' }));
 }
 
 export async function getPublicFeedback(token: string): Promise<PublicFeedback> {
@@ -58,8 +59,8 @@ export async function acknowledgeFeedback(
   note?: string,
 ): Promise<{ acknowledged_at: string; already_acknowledged: boolean; acknowledgment_note?: string | null }> {
   const observacao = note?.trim();
-  return publicFetch(`/api/feedback/public/${token}/acknowledge`, {
+  return comInvalidacao('feedbacks', publicFetch(`/api/feedback/public/${token}/acknowledge`, {
     method: 'POST',
     body: JSON.stringify(observacao ? { acknowledged: true, note: observacao } : { acknowledged: true }),
-  });
+  }));
 }

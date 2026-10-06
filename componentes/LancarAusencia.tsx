@@ -62,6 +62,8 @@ type LancarAusenciaProps = {
   employeeId?: number | null;
   /** Chamado depois de salvar com sucesso, para a tela recarregar saldos/lista. */
   onLancado: () => void;
+  /** O saldo dos colaboradores foi invalidado por uma escrita e a busca nova ainda não chegou: não mostrar nem confiar. */
+  saldoAtualizando?: boolean;
 };
 
 function Opcao({ label, icon, selecionada, onPress }: { label: string; icon: keyof typeof Ionicons.glyphMap; selecionada: boolean; onPress: () => void }) {
@@ -97,7 +99,7 @@ function Rotulo({ children }: { children: string }) {
   return <Text accessibilityRole="header" style={styles.rotulo}>{children}</Text>;
 }
 
-export function LancarAusencia({ visible, onClose, employees, employeeId, onLancado }: LancarAusenciaProps) {
+export function LancarAusencia({ visible, onClose, employees, employeeId, onLancado, saldoAtualizando = false }: LancarAusenciaProps) {
   const toast = useToast();
   const { height } = useWindowDimensions();
   const [entrada, setEntrada] = useState<EntradaLancamento>(entradaInicial);
@@ -121,9 +123,11 @@ export function LancarAusencia({ visible, onClose, employees, employeeId, onLanc
 
   const saldo = { vacation_days: colaborador?.vacation_days ?? 0, folga_hours: Number(colaborador?.folga_hours ?? 0) };
   const nome = colaborador?.name ?? '';
-  const bloqueio = colaborador ? bloqueioDeSaldo(entrada, nome, saldo) : null;
-  const previaBanco = colaborador ? previaBancoHoras(entrada, saldo) : null;
-  const feriasPrevia = colaborador && entrada.tipo === 'ferias' ? previaFerias(entrada, saldo) : null;
+  // Com o saldo desatualizado (acabou de lançar e a lista nova não chegou) nada é calculado em cima do número velho.
+  const saldoConfiavel = !saldoAtualizando;
+  const bloqueio = colaborador && saldoConfiavel ? bloqueioDeSaldo(entrada, nome, saldo) : null;
+  const previaBanco = colaborador && saldoConfiavel ? previaBancoHoras(entrada, saldo) : null;
+  const feriasPrevia = colaborador && saldoConfiavel && entrada.tipo === 'ferias' ? previaFerias(entrada, saldo) : null;
 
   function mudar(parcial: Partial<EntradaLancamento>) {
     setEntrada((atual) => ({ ...atual, ...parcial }));
@@ -157,7 +161,7 @@ export function LancarAusencia({ visible, onClose, employees, employeeId, onLanc
   }
 
   const periodoDias = usaPeriodo(entrada.tipo) ? diasDoPeriodo(entrada) : null;
-  const salvarBloqueado = salvando || Boolean(bloqueio) || faltamHorasNaFolga(entrada);
+  const salvarBloqueado = salvando || Boolean(bloqueio) || faltamHorasNaFolga(entrada) || (saldoAtualizando && Boolean(colaborador));
 
   return (
     <Modal
@@ -259,7 +263,13 @@ export function LancarAusencia({ visible, onClose, employees, employeeId, onLanc
 
       {/* Resumo e avisos ficam FORA do scroll: quem não consegue salvar precisa ver o porquê sem rolar. */}
       <View style={styles.fixo}>
-        {colaborador && mostraBancoHoras(entrada.tipo) ? (
+        {colaborador && saldoAtualizando && (mostraBancoHoras(entrada.tipo) || entrada.tipo === 'ferias') ? (
+          <View accessibilityLiveRegion="polite" style={styles.saldo}>
+            <Text style={styles.saldoValor}>Atualizando saldo…</Text>
+          </View>
+        ) : null}
+
+        {colaborador && saldoConfiavel && mostraBancoHoras(entrada.tipo) ? (
           <View accessibilityLiveRegion="polite" style={styles.saldo}>
             <Text style={styles.saldoRotulo}>Banco de horas</Text>
             <Text style={styles.saldoValor}>

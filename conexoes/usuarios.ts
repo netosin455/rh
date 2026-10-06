@@ -1,4 +1,5 @@
 import { apiFetch, extrairLista, RespostaLista } from './http';
+import { comInvalidacao } from '../helpers/invalidacaoCache';
 
 export interface SystemUser {
   id: number;
@@ -31,13 +32,13 @@ export async function getUsers(page = 1, limit = 50): Promise<SystemUser[]> {
 }
 
 export async function createUser(data: CreateUserData): Promise<SystemUser> {
-  return apiFetch('/api/users', { method: 'POST', body: JSON.stringify(data) });
+  return comInvalidacao('users', apiFetch('/api/users', { method: 'POST', body: JSON.stringify(data) }));
 }
 
 export async function updateUser(id: number, data: UpdateUserData): Promise<SystemUser> {
-  return apiFetch(`/api/users/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+  return comInvalidacao('users', apiFetch(`/api/users/${id}`, { method: 'PUT', body: JSON.stringify(data) }));
 }
 
 export async function deleteUser(id: number): Promise<void> {
-  return apiFetch(`/api/users/${id}`, { method: 'DELETE' });
+  return comInvalidacao('users', apiFetch(`/api/users/${id}`, { method: 'DELETE' }));
 }

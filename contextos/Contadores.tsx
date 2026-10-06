@@ -7,6 +7,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { countPendentes } from '../conexoes/ausencias';
 import { buscarNotificacoes } from '../conexoes/notificacoes';
+import { aoInvalidar } from '../helpers/cacheDados';
 import { CAN_APPROVE } from '../helpers/shellNav';
 import { useAuth } from './Autenticacao';
 
@@ -37,7 +38,9 @@ export function ContadoresProvider({ children }: { children: React.ReactNode }) 
     const buscar = () => countPendentes().then(setPendentes).catch((erro: unknown) => console.warn('[Contadores] pendentes:', erro));
     buscar();
     const timer = setInterval(buscar, INTERVALO_MS);
-    return () => clearInterval(timer);
+    // Qualquer escrita em ausência (aprovar, lançar, excluir) muda a fila: o badge do menu atualiza na hora.
+    const cancelar = aoInvalidar('absences', buscar);
+    return () => { clearInterval(timer); cancelar(); };
   }, [role]);
 
   const buscarNaoLidas = useCallback(
@@ -52,7 +55,8 @@ export function ContadoresProvider({ children }: { children: React.ReactNode }) 
     }
     void buscarNaoLidas();
     const timer = setInterval(() => { void buscarNaoLidas(); }, INTERVALO_MS);
-    return () => clearInterval(timer);
+    const cancelar = aoInvalidar('notifications', () => { void buscarNaoLidas(); });
+    return () => { clearInterval(timer); cancelar(); };
   }, [logado, buscarNaoLidas]);
 
   const atualizar = useCallback(() => { if (logado) void buscarNaoLidas(); }, [logado, buscarNaoLidas]);

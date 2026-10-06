@@ -8,6 +8,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { getFechamento } from '../conexoes/fechamento';
+import { usarDados } from '../contextos/usarDados';
+import { chaves } from '../helpers/chavesCache';
+import { AvisoDesatualizado } from './AvisoDesatualizado';
 import { useToast } from '../contextos/Toast';
 import { cores } from '../estilo/cores';
 import { borda, espaco, raio, tamanho } from '../estilo/espaco';
@@ -43,27 +46,11 @@ const LARGURA_NUMERO = 104;
 export function TelaFechamento() {
   const toast = useToast();
   const [mes, setMes] = useState(() => mesDaData(getTodayString()));
-  const [dados, setDados] = useState<Fechamento | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [erro, setErro] = useState(false);
   const [busca, setBusca] = useState('');
-
-  const carregar = useCallback(() => {
-    let ativo = true;
-    setLoading(true);
-    setErro(false);
-    getFechamento(mes)
-      .then((d) => { if (ativo) setDados(d); })
-      .catch((e: unknown) => {
-        console.error('[Fechamento]', e);
-        if (ativo) { setErro(true); setDados(null); }
-      })
-      .finally(() => { if (ativo) setLoading(false); });
-    // Uma resposta atrasada de outro mês não pode sobrescrever a do mês que está na tela.
-    return () => { ativo = false; };
-  }, [mes]);
-
-  useEffect(() => carregar(), [carregar]);
+  // Uma chave por mês: voltar a um mês já visto mostra na hora; resposta atrasada de outro mês não interfere.
+  const { dados: dadosCache, carregando: loading, erro: erroBusca, erroLeve, recarregar: carregar } = usarDados(chaves.fechamento(mes), () => getFechamento(mes));
+  const dados: Fechamento | null = dadosCache ?? null;
+  const erro = erroBusca !== null && dadosCache === undefined;
 
   const linhas = useMemo(() => filtrarLinhas(dados?.linhas ?? [], busca), [dados, busca]);
   // Sem filtro vale o total da API; com filtro, o TOTAL acompanha o que está na tela.
@@ -97,12 +84,14 @@ export function TelaFechamento() {
           <Text style={styles.avisoTexto}>{AVISO_SALDO_BANCO}</Text>
         </View>
 
+        <AvisoDesatualizado visivel={erroLeve} />
+
         <Input accessibilityLabel="Buscar colaborador" label="Buscar colaborador" onChangeText={setBusca} placeholder="Digite o nome" value={busca} />
 
         {loading ? (
           <View accessibilityLabel="Carregando fechamento" style={styles.carregando}><Skeleton height={espaco.tela} /><Skeleton height={espaco.tela} /><Skeleton height={espaco.tela} /></View>
         ) : erro ? (
-          <ErroComRetry mensagem={`Não foi possível carregar o fechamento de ${rotuloDoMes(mes)}.`} onTentarNovamente={carregar} />
+          <ErroComRetry mensagem={`Não foi possível carregar o fechamento de ${rotuloDoMes(mes)}.`} onTentarNovamente={() => { void carregar(); }} />
         ) : !dados || dados.linhas.length === 0 ? (
           <Card><EmptyState icon="calendar-outline" title="Sem colaboradores neste mês" description={`Não há dados para fechar em ${rotuloDoMes(mes)}.`} /></Card>
         ) : (

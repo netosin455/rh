@@ -4,6 +4,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { getEventsByMonth, createEvent, updateEvent, deleteEvent } from '../../conexoes/eventos';
 import { confirmAction } from '../../helpers/confirm';
 import { getEmployees } from '../../conexoes/colaboradores';
+import { usarDados } from '../../contextos/usarDados';
+import { chaves } from '../../helpers/chavesCache';
+import { AvisoDesatualizado } from '../../componentes/AvisoDesatualizado';
 import { Event, EventCategory, EVENT_CATEGORY_COLORS, CreateEventData, Employee } from '../../tipos/modelos';
 import { cores } from '../../estilo/cores';
 import { getTodayString, toDateString, formatDateDisplay, ymd } from '../../helpers/datas';
@@ -79,11 +82,7 @@ export default function AgendaScreen() {
   const [year,       setYear]       = useState(new Date().getFullYear());
   const [month,      setMonth]      = useState(new Date().getMonth());
   const [selected,   setSelected]   = useState(today);
-  const [events,     setEvents]     = useState<Event[]>([]);
-  const [employees,  setEmployees]  = useState<Employee[]>([]);
-  const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [loadError,  setLoadError]  = useState(false);
   const [showModal,  setShowModal]  = useState(false);
   const [saving,     setSaving]     = useState(false);
   const [formError,  setFormError]  = useState('');
@@ -105,26 +104,13 @@ export default function AgendaScreen() {
 
   const monthKey = `${year}-${String(month + 1).padStart(2, '0')}`;
 
-  const load = useCallback(async () => {
-    try {
-      const [evts, emps] = await Promise.all([
-        getEventsByMonth(monthKey),
-        employees.length === 0 ? getEmployees() : Promise.resolve(employees),
-      ]);
-      setEvents(evts);
-      if (employees.length === 0) setEmployees(emps);
-      setLoadError(false);
-    } catch (e) {
-      console.error('[Agenda]', e);
-      setLoadError(true);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [monthKey]);
-
-  useEffect(() => { load(); }, [load]);
-  const onRefresh = useCallback(() => { setRefreshing(true); load(); }, [load]);
+  // Eventos do mês (uma chave por mês: voltar a um mês visto mostra na hora) e colaboradores (aniversários).
+  const { dados: eventosDados, carregando: loading, erro: erroEventos, erroLeve, recarregar: recarregarEventos, definir: setEvents } = usarDados(chaves.eventosDoMes(monthKey), () => getEventsByMonth(monthKey));
+  const { dados: colaboradoresDados } = usarDados(chaves.colaboradores, () => getEmployees());
+  const events: Event[] = eventosDados ?? [];
+  const employees: Employee[] = colaboradoresDados ?? [];
+  const loadError = erroEventos !== null && eventosDados === undefined;
+  const onRefresh = useCallback(() => { setRefreshing(true); void recarregarEventos().finally(() => setRefreshing(false)); }, [recarregarEventos]);
 
   function prevMonth() {
     if (month === 0) { setYear(y => y - 1); setMonth(11); }
@@ -201,11 +187,14 @@ export default function AgendaScreen() {
 
   function handleDelete(event: Event) {
     confirmAction('Excluir evento', `Excluir o evento "${event.title}"? Não dá para desfazer.`, async () => {
+      // Otimista: o evento sai do dia na hora; se a API recusar, volta exatamente como estava.
+      const anterior = events;
+      setEvents((prev) => prev.filter((e) => e.id !== event.id));
       try {
         await deleteEvent(event.id);
-        setEvents(prev => prev.filter(e => e.id !== event.id));
         toast.success('Evento excluído.');
       } catch (e: unknown) {
+        setEvents(() => anterior);
         toast.error(e instanceof Error && e.message ? e.message : 'Não foi possível excluir o evento.');
       }
     });
@@ -246,7 +235,6 @@ export default function AgendaScreen() {
         setShowModal(false);
         toast.success('Evento atualizado!');
         setEditId(null);
-        void load();
         return;
       }
       const created = await createEvent(data);
@@ -269,6 +257,7 @@ export default function AgendaScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={cores.accent.dourado} />}
       >
         <ScreenHeader title="Agenda" subtitle="Acompanhe prazos, reuniões e aniversários da equipe." action={<Button label="Novo evento" icon="add" onPress={openModal} />} />
+        <AvisoDesatualizado visivel={erroLeve} />
         {loadError ? <ErroComRetry mensagem="Não foi possível carregar a agenda. Os dias sem evento podem estar incompletos." onTentarNovamente={onRefresh} carregando={refreshing} /> : null}
         <Section title={`${MONTH_NAMES[month]} de ${year}`} action={<View style={styles.monthActions}><Button icon="chevron-back" accessibilityLabel="Mês anterior" variant="ghost" onPress={prevMonth} /><Button icon="chevron-forward" accessibilityLabel="Próximo mês" variant="ghost" onPress={nextMonth} /></View>}>
           <Card padded={false}>

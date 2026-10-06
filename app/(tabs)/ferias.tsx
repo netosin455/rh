@@ -15,6 +15,9 @@ import { efeitoDaExclusao } from '../../helpers/saldoAusencia';
 import { exportAbsencesPDF } from '../../helpers/pdf';
 import { useToast } from '../../contextos/Toast';
 import { useAuth } from '../../contextos/Autenticacao';
+import { usarDados } from '../../contextos/usarDados';
+import { chaves } from '../../helpers/chavesCache';
+import { AvisoDesatualizado } from '../../componentes/AvisoDesatualizado';
 import { Avatar } from '../../componentes/Avatar';
 import { Badge } from '../../componentes/Badge';
 import { Button } from '../../componentes/Button';
@@ -134,11 +137,16 @@ export default function FeriasScreen() {
   const canApprove = CAN_APPROVE.includes(user?.role ?? '');
   const canManage = ['super_admin','admin','rh','adm'].includes(user?.role ?? '');
 
-  const [absences,   setAbsences]   = useState<Absence[]>([]);
-  const [pendentes,  setPendentes]  = useState<Absence[]>([]);
-  const [employees,  setEmployees]  = useState<Employee[]>([]);
-  const [empNames,   setEmpNames]   = useState<Record<number, string>>({});
-  const [loading,    setLoading]    = useState(true);
+  // Lista, fila de pendentes e colaboradores (saldos) vêm do cache: voltar à tela mostra na hora e atualiza por baixo.
+  const { dados: absDados, carregando: carregandoAbs, erro: erroAbs, erroLeve: leveAbs, recarregar: recarregarAbs, definir: setAbsences } = usarDados(chaves.ausencias, () => getAbsences());
+  const { dados: empsDados, carregando: carregandoEmps, erro: erroEmps, erroLeve: leveEmps, desatualizado: saldoVelho, recarregar: recarregarEmps } = usarDados(chaves.colaboradores, () => getEmployees());
+  const { dados: pendDados, carregando: carregandoPend, erro: erroPend, erroLeve: levePend, recarregar: recarregarPend, definir: setPendentes } = usarDados(chaves.ausenciasPendentes, () => getPendingAbsences(), { ativo: canApprove });
+  const absences: Absence[] = absDados ?? [];
+  const pendentes: Absence[] = pendDados ?? [];
+  const employees: Employee[] = empsDados ?? [];
+  const empNames = useMemo(() => Object.fromEntries(employees.map((e) => [e.id, e.name])) as Record<number, string>, [employees]);
+  const loading = carregandoAbs || carregandoEmps || carregandoPend;
+  const erroLeveGeral = leveAbs || leveEmps || levePend;
   const [refreshing, setRefreshing] = useState(false);
   // A aba mora na URL (/ferias?tab=falta): o card de faltas do Dashboard leva para cá já filtrado.
   const router = useRouter();
@@ -156,32 +164,13 @@ export default function FeriasScreen() {
   const [editId,     setEditId]     = useState<number | null>(null);
   const [vacDays,    setVacDays]    = useState<number | null>(null);
   const [folgaHours, setFolgaHours] = useState<number | null>(null);
-  const [loadError, setLoadError] = useState(false);
+  const loadError = (erroAbs !== null && absDados === undefined) || (erroEmps !== null && empsDados === undefined) || (canApprove && erroPend !== null && pendDados === undefined);
+
 
   const load = useCallback(async () => {
-    try {
-      const promises: Promise<any>[] = [getAbsences(), getEmployees()];
-      if (canApprove) promises.push(getPendingAbsences());
-      const [abs, emps, pend] = await Promise.all(promises);
-      setAbsences(abs);
-      setEmployees(emps);
-      if (canApprove) setPendentes(pend ?? []);
-      setLoadError(false);
-      const names: Record<number, string> = {};
-      emps.forEach((e: Employee) => { names[e.id] = e.name; });
-      setEmpNames(names);
-    } catch (e) {
-      console.error('[Ferias]', e);
-      setLoadError(true);
-      toast.error('Não foi possível carregar as ausências.');
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [canApprove]);
-
-  useEffect(() => { load(); }, [load]);
-  const onRefresh = useCallback(() => { setRefreshing(true); load(); }, [load]);
+    await Promise.all([recarregarAbs(), recarregarEmps(), canApprove ? recarregarPend() : Promise.resolve()]);
+  }, [recarregarAbs, recarregarEmps, recarregarPend, canApprove]);
+  const onRefresh = useCallback(() => { setRefreshing(true); void load().finally(() => setRefreshing(false)); }, [load]);
 
   useEffect(() => { setActiveTab(abaUrl); }, [abaUrl]);
 
@@ -218,8 +207,9 @@ export default function FeriasScreen() {
       });
       setEmpSearch(empNames[abs.employee_id] || '');
       const emp = employees.find(e => e.id === abs.employee_id);
-      setVacDays(emp?.vacation_days ?? null);
-      setFolgaHours(emp?.folga_hours ?? null);
+      // Saldo desatualizado (escrita recente, busca nova a caminho): não mostra número velho.
+      setVacDays(saldoVelho ? null : emp?.vacation_days ?? null);
+      setFolgaHours(saldoVelho ? null : emp?.folga_hours ?? null);
     } else {
       setEditId(null);
       setForm(EMPTY_FORM);
@@ -246,14 +236,19 @@ export default function FeriasScreen() {
 
   async function handleApprove(id: number, approved: boolean) {
     setApprovingId(id);
+    // Otimista: o pedido sai da fila na hora (e a lista já mostra o novo status). Se a API recusar, tudo volta
+    // exatamente como estava e o aviso aparece. O saldo NÃO é mexido aqui: o cache de colaboradores é invalidado
+    // ao confirmar e a tela busca o saldo certo.
+    const anteriorPend = pendentes;
+    const anteriorAbs = absences;
+    setPendentes((lista) => lista.filter((a) => a.id !== id));
+    setAbsences((lista) => lista.map((a) => (a.id === id ? { ...a, status: approved ? 'aprovado' : 'recusado' } : a)));
     try {
       await approveAbsence(id, approved);
       toast.success(approved ? 'Solicitação aprovada!' : 'Solicitação recusada.');
-      // Recarregar lista e pendentes após ação
-      const [abs, pend] = await Promise.all([getAbsences(), getPendingAbsences()]);
-      setAbsences(abs);
-      setPendentes(pend);
     } catch (e: any) {
+      setPendentes(() => anteriorPend);
+      setAbsences(() => anteriorAbs);
       toast.error(e.message || 'Não foi possível processar a solicitação.');
     } finally {
       setApprovingId(null);
@@ -339,6 +334,7 @@ export default function FeriasScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={cores.accent.dourado} />}
       >
         <ScreenHeader title="Férias e ausências" subtitle="Registre afastamentos, acompanhe saldos e decida solicitações pendentes." action={<Button label="Lançar" icon="add" onPress={() => setShowLancar(true)} />} />
+        <AvisoDesatualizado visivel={erroLeveGeral} />
         {loadError ? <ErroComRetry mensagem="Não foi possível carregar as ausências." onTentarNovamente={onRefresh} carregando={refreshing} /> : null}
         {canApprove && pendentes.length > 0 ? (
           <Section title="Aguardando aprovação" description={`${pendentes.length} solicitação${pendentes.length === 1 ? '' : 'ões'} requer${pendentes.length === 1 ? '' : 'em'} decisão.`}>
@@ -385,7 +381,7 @@ export default function FeriasScreen() {
                   <Card key={absence.id} padded={false}>
                     <ListRow title={employeeName} description={absencePeriod(absence)} onPress={isEditable ? () => openModal(absence) : undefined} accessibilityLabel={isEditable ? `Editar ${ABSENCE_TYPE_LABELS[absence.type]} de ${employeeName}` : `${ABSENCE_TYPE_LABELS[absence.type]} de ${employeeName}`} leading={<Avatar name={employeeName} size="small" />} trailing={<View style={styles.rowTrailing}><Badge label={ABSENCE_TYPE_LABELS[absence.type]} tone={absenceTone[absence.type]} /><Text style={styles.duration}>{absenceDuration(absence)}</Text><AbsenceStatusBadge status={absence.status} /></View>} />
                     {absence.reason ? <Text numberOfLines={2} style={styles.recordReason}>{absence.reason}</Text> : null}
-                    {isEditable ? <View style={styles.recordActions}><Button label="Editar" icon="pencil-outline" variant="ghost" onPress={() => openModal(absence)} /><Button label="Excluir" icon="trash-outline" variant="danger" onPress={() => confirmAction('Excluir lançamento', `Excluir ${ABSENCE_TYPE_LABELS[absence.type]} de ${employeeName}? ${efeitoDaExclusao(absence, employees.find((e) => e.id === absence.employee_id))}`, () => handleDeleteAbsence(absence.id))} /></View> : null}
+                    {isEditable ? <View style={styles.recordActions}><Button label="Editar" icon="pencil-outline" variant="ghost" onPress={() => openModal(absence)} /><Button label="Excluir" icon="trash-outline" variant="danger" onPress={() => confirmAction('Excluir lançamento', `Excluir ${ABSENCE_TYPE_LABELS[absence.type]} de ${employeeName}? ${efeitoDaExclusao(absence, saldoVelho ? undefined : employees.find((e) => e.id === absence.employee_id))}`, () => handleDeleteAbsence(absence.id))} /></View> : null}
                   </Card>
                 );
               })}
@@ -398,6 +394,7 @@ export default function FeriasScreen() {
         employees={employees}
         onClose={() => setShowLancar(false)}
         onLancado={() => { void load(); }}
+        saldoAtualizando={saldoVelho}
         visible={showLancar}
       />
 

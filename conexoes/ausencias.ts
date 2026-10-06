@@ -1,4 +1,5 @@
 import { apiFetch, extrairLista, RespostaLista } from './http';
+import { comInvalidacao } from '../helpers/invalidacaoCache';
 import { Absence, CreateAbsenceData } from '../tipos/modelos';
 
 export async function getAbsences(
@@ -36,17 +37,17 @@ export async function getPendingAbsences(): Promise<Absence[]> {
 }
 
 export async function createAbsence(data: CreateAbsenceData): Promise<Absence> {
-  return apiFetch('/api/absences', { method: 'POST', body: JSON.stringify(data) });
+  return comInvalidacao('absences', apiFetch('/api/absences', { method: 'POST', body: JSON.stringify(data) }));
 }
 
 export async function approveAbsence(id: number, approved: boolean): Promise<Absence> {
-  return apiFetch(`/api/absences/${id}`, { method: 'PATCH', body: JSON.stringify({ approved }) });
+  return comInvalidacao('absences', apiFetch(`/api/absences/${id}`, { method: 'PATCH', body: JSON.stringify({ approved }) }));
 }
 
 export async function updateAbsence(id: number, data: Partial<CreateAbsenceData>): Promise<Absence> {
-  return apiFetch(`/api/absences/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+  return comInvalidacao('absences', apiFetch(`/api/absences/${id}`, { method: 'PATCH', body: JSON.stringify(data) }));
 }
 
 export async function deleteAbsence(id: number): Promise<void> {
-  return apiFetch(`/api/absences/${id}`, { method: 'DELETE' });
+  return comInvalidacao('absences', apiFetch(`/api/absences/${id}`, { method: 'DELETE' }));
 }

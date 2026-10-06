@@ -26,6 +26,9 @@ import { Card } from './Card';
 import { EmptyState } from './EmptyState';
 import { ListRow } from './ListRow';
 import { MetricCard } from './MetricCard';
+import { usarDados } from '../contextos/usarDados';
+import { chaves } from '../helpers/chavesCache';
+import { AvisoDesatualizado } from './AvisoDesatualizado';
 import { BotaoWhatsApp } from './BotaoWhatsApp';
 import { QrCodeModal } from './QrCodeModal';
 import { useAcoesPesquisa } from './useAcoesPesquisa';
@@ -52,35 +55,23 @@ export function ListaPesquisas({ area }: { area: AreaPesquisa }) {
   const router = useRouter();
   const toast = useToast();
   const motion = useMotion();
-  const [surveys, setSurveys] = useState<PulseSurvey[]>([]);
-  const [loading, setLoading] = useState(true);
+  // Uma chave por área (pesquisas dos colaboradores x NPS): voltar à lista mostra na hora e atualiza por baixo.
+  const { dados, carregando: loading, erro, erroLeve, recarregar } = usarDados(chaves.pesquisas(cfg.audience), async () => {
+    const lista = await getSurveys(cfg.audience);
+    // Mesmo que a API ignore o filtro, nunca mistura as duas áreas na tela.
+    return lista.filter((s) => (s.audience ?? 'employees') === cfg.audience);
+  });
+  const surveys: PulseSurvey[] = dados ?? [];
+  const loadError = erro !== null && dados === undefined ? (erro.message || `Não foi possível carregar ${cfg.plural}`) : '';
   const [refreshing, setRefreshing] = useState(false);
-  const [loadError, setLoadError] = useState('');
   // Campanha cujo QR code está aberto (só na área NPS).
   const [qrDe, setQrDe] = useState<PulseSurvey | null>(null);
 
   const ativas = surveys.filter((s) => !s.expires_at || new Date(s.expires_at) >= new Date()).length;
   const entrando = useMemo(() => FadeIn.duration(motion.duracao('normal')), [motion]);
 
-  const load = useCallback(async () => {
-    setLoadError('');
-    try {
-      const lista = await getSurveys(cfg.audience);
-      // Mesmo que a API ignore o filtro, nunca mistura as duas áreas na tela.
-      setSurveys(lista.filter((s) => (s.audience ?? 'employees') === cfg.audience));
-    } catch (e: unknown) {
-      const message = e instanceof Error && e.message ? e.message : `Não foi possível carregar ${cfg.plural}`;
-      setLoadError(message);
-      toast.error(message);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [cfg.audience, cfg.plural, toast]);
-
-  useEffect(() => { void load(); }, [load]);
-
-  const onRefresh = () => { setRefreshing(true); void load(); };
+  const load = recarregar;
+  const onRefresh = () => { setRefreshing(true); void recarregar().finally(() => setRefreshing(false)); };
 
   const { editar, duplicar, encerrarAgora, excluir } = useAcoesPesquisa(area, () => { void load(); });
 
@@ -104,6 +95,8 @@ export function ListaPesquisas({ area }: { area: AreaPesquisa }) {
           subtitle={cfg.subtitulo}
           title={cfg.titulo}
         />
+
+        <AvisoDesatualizado visivel={erroLeve} />
 
         <MetricCard
           detail={`${surveys.length} ${surveys.length === 1 ? cfg.singular : cfg.plural} ${surveys.length === 1 ? 'criada' : 'criadas'}`}

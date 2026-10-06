@@ -5,6 +5,9 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAuth } from '../../contextos/Autenticacao';
+import { usarDados } from '../../contextos/usarDados';
+import { chaves } from '../../helpers/chavesCache';
+import { AvisoDesatualizado } from '../../componentes/AvisoDesatualizado';
 import { Ionicons } from '@expo/vector-icons';
 import { getEmployees, createEmployee } from '../../conexoes/colaboradores';
 import { Employee, EmployeeStatus, LegalArea, STATUS_LABELS, CreateEmployeeData } from '../../tipos/modelos';
@@ -98,8 +101,10 @@ export default function ColaboradoresScreen() {
   const { user } = useAuth();
   const canManageEmployees = ['super_admin','admin','rh','adm'].includes(user?.role ?? '');
 
-  const [employees,  setEmployees]  = useState<Employee[]>([]);
-  const [loading,    setLoading]    = useState(true);
+  // Voltar à Equipe mostra a lista na hora (cache) e atualiza em segundo plano.
+  const { dados, carregando: loading, erro, erroLeve, desatualizado, recarregar, definir: setEmployees } = usarDados(chaves.colaboradores, () => getEmployees());
+  const employees: Employee[] = dados ?? [];
+  const loadError = erro !== null && dados === undefined;
   const [refreshing, setRefreshing] = useState(false);
   const [search,     setSearch]     = useState('');
   // O filtro de status mora na URL (/colaboradores?status=ativo): números de outras telas levam para cá já filtrados.
@@ -112,24 +117,9 @@ export default function ColaboradoresScreen() {
   const [formError,  setFormError]  = useState('');
   // Tela única "Lançar" (falta, folga, hora extra, férias, licença), já com a pessoa da linha.
   const [lancar, setLancar] = useState<{ employeeId: number } | null>(null);
-  const [loadError, setLoadError] = useState(false);
   const [hoveredEmployeeId, setHoveredEmployeeId] = useState<number | null>(null);
 
-  const load = useCallback(async () => {
-    try {
-      setEmployees(await getEmployees());
-      setLoadError(false);
-    } catch (e) {
-      console.error('[Colaboradores]', e);
-      setLoadError(true);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, []);
-
-  useEffect(() => { load(); }, [load]);
-  const onRefresh = useCallback(() => { setRefreshing(true); load(); }, [load]);
+  const onRefresh = useCallback(() => { setRefreshing(true); void recarregar().finally(() => setRefreshing(false)); }, [recarregar]);
 
   // A URL mudou (ex.: veio de outro card): acompanha.
   useEffect(() => { setFilter(filtroUrl); }, [filtroUrl]);
@@ -253,6 +243,7 @@ export default function ColaboradoresScreen() {
         refreshControl={<RefreshControl onRefresh={onRefresh} refreshing={refreshing} tintColor={cores.accent.dourado} />}
         style={styles.list}
       >
+        <AvisoDesatualizado visivel={erroLeve} />
         {loadError ? <ErroComRetry mensagem="Não foi possível carregar os colaboradores." onTentarNovamente={onRefresh} carregando={refreshing} /> : null}
         {filtered.length === 0 && !loadError ? (
           <EmptyState
@@ -358,7 +349,8 @@ export default function ColaboradoresScreen() {
         employeeId={lancar?.employeeId ?? null}
         employees={employees}
         onClose={() => setLancar(null)}
-        onLancado={() => { void load(); }}
+        onLancado={() => { void recarregar(); }}
+        saldoAtualizando={desatualizado}
         visible={lancar !== null}
       />
     </View>

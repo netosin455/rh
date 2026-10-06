@@ -8,6 +8,10 @@ import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-na
 import { useToast } from '../../contextos/Toast';
 import { Ionicons } from '@expo/vector-icons';
 import { getRecognitions, createRecognition, deleteRecognition } from '../../conexoes/reconhecimentos';
+import { usarDados } from '../../contextos/usarDados';
+import { chaves } from '../../helpers/chavesCache';
+import { obterDados } from '../../helpers/cacheDados';
+import { AvisoDesatualizado } from '../../componentes/AvisoDesatualizado';
 import { getEmployees } from '../../conexoes/colaboradores';
 import { Recognition, Employee, RECOGNITION_CATEGORIES, RecognitionCategory } from '../../tipos/modelos';
 import { useAuth } from '../../contextos/Autenticacao';
@@ -48,11 +52,12 @@ export default function RecognitionsScreen() {
   const { user } = useAuth();
   const toast = useToast();
   const motion = useMotion();
-  const [items,      setItems]      = useState<Recognition[]>([]);
-  const [total,      setTotal]      = useState(0);
-  const [loading,    setLoading]    = useState(true);
+  // Dado em cache aparece na hora; atualiza em segundo plano.
+  const { dados, carregando: loading, erro, erroLeve, recarregar: load, definir } = usarDados(chaves.reconhecimentos, () => getRecognitions());
+  const items: Recognition[] = dados?.data ?? [];
+  const total = dados?.total ?? 0;
+  const loadError = erro !== null && dados === undefined;
   const [refreshing, setRefreshing] = useState(false);
-  const [loadError,  setLoadError]  = useState(false);
 
   // Modal state
   const [modalOpen,   setModalOpen]   = useState(false);
@@ -101,26 +106,10 @@ export default function RecognitionsScreen() {
     transform: [{ scale: publishFeedbackScale.value }],
   }));
 
-  const load = useCallback(async () => {
-    try {
-      const res = await getRecognitions();
-      setItems(res.data);
-      setTotal(res.total);
-      setLoadError(false);
-    } catch (e: any) {
-      setLoadError(true);
-      toast.error(e?.message ?? 'Não foi possível carregar reconhecimentos');
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, []);
-
-  useEffect(() => { load(); }, [load]);
 
   async function openModal() {
     try {
-      const emps = await getEmployees();
+      const emps = await obterDados(chaves.colaboradores, () => getEmployees());
       setEmployees(emps.filter(e => e.status !== 'desligado'));
     } catch (e: unknown) {
       console.error('[Reconhecimentos] colaboradores:', e);
@@ -142,7 +131,6 @@ export default function RecognitionsScreen() {
       setModalOpen(false);
       showPublishFeedback();
       toast.success('Reconhecimento publicado! 🏆');
-      load();
     } catch (e: any) {
       toast.error(e?.message ?? 'Não foi possível publicar o reconhecimento');
     } finally {
@@ -154,8 +142,11 @@ export default function RecognitionsScreen() {
     const canDelete = ['super_admin', 'admin', 'rh', 'adm'].includes(user?.role ?? '') || r.from_user_id === (user as any)?.id;
     if (!canDelete) return;
     confirmAction('Remover', 'Remover este reconhecimento?', async () => {
-      try { await deleteRecognition(r.id); toast.success('Reconhecimento removido'); load(); }
-      catch (e: any) { toast.error(e?.message ?? 'Não foi possível remover'); }
+      // Otimista: o item sai na hora; se a API recusar, volta exatamente como estava.
+      const anterior = dados;
+      definir((atual) => ({ data: atual.data.filter((x) => x.id !== r.id), total: Math.max(0, atual.total - 1) }));
+      try { await deleteRecognition(r.id); toast.success('Reconhecimento removido'); }
+      catch (e: any) { if (anterior) definir(() => anterior); toast.error(e?.message ?? 'Não foi possível remover'); }
     });
   }
 
@@ -167,7 +158,7 @@ export default function RecognitionsScreen() {
     <View style={styles.container}>
       <ScrollView
         contentContainerStyle={styles.content}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={cores.accent.dourado} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load().finally(() => setRefreshing(false)); }} tintColor={cores.accent.dourado} />}
       >
         <ScreenHeader title="Reconhecimentos" subtitle="Celebre contribuições que fortalecem a equipe." action={<Button label="Dar kudos" icon="add" onPress={openModal} />} />
         {publishFeedbackVisible ? (
@@ -178,7 +169,8 @@ export default function RecognitionsScreen() {
             </Card>
           </Animated.View>
         ) : null}
-        {loadError ? <ErroComRetry mensagem="Não foi possível carregar os reconhecimentos." onTentarNovamente={() => { setRefreshing(true); load(); }} carregando={refreshing} /> : null}
+        <AvisoDesatualizado visivel={erroLeve} />
+        {loadError ? <ErroComRetry mensagem="Não foi possível carregar os reconhecimentos." onTentarNovamente={() => { setRefreshing(true); void load().finally(() => setRefreshing(false)); }} carregando={refreshing} /> : null}
         <MetricCard label="Reconhecimentos" value={total} detail="Registrados no mural" />
 
         {items.length === 0 && !loadError ? (

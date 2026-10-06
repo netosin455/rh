@@ -1,4 +1,5 @@
 import { apiFetch } from './http';
+import { comInvalidacao } from '../helpers/invalidacaoCache';
 
 export interface Notificacao {
   id:         number;
@@ -20,15 +21,15 @@ export function buscarNotificacoes(): Promise<NotificacoesResponse> {
 }
 
 export function marcarLida(id: number): Promise<{ ok: boolean }> {
-  return apiFetch('/api/users?notifications=1', {
+  return comInvalidacao('notifications', apiFetch('/api/users?notifications=1', {
     method: 'PATCH',
     body:   JSON.stringify({ id }),
-  });
+  }));
 }
 
 export function marcarTodasLidas(): Promise<{ ok: boolean }> {
-  return apiFetch('/api/users?notifications=1', {
+  return comInvalidacao('notifications', apiFetch('/api/users?notifications=1', {
     method: 'PATCH',
     body:   JSON.stringify({ all: true }),
-  });
+  }));
 }

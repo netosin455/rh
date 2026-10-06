@@ -108,3 +108,27 @@ export async function interceptarWindowOpen(page: Page): Promise<void> {
 export async function urlsAbertas(page: Page): Promise<string[]> {
   return page.evaluate(() => (window as unknown as { __abertas?: string[] }).__abertas ?? []);
 }
+
+/**
+ * Mede quanto tempo (ms) o conteúdo leva para aparecer DEPOIS da ação (um clique). Conta quando existem pelo menos
+ * `minimo` elementos VISÍVEIS que casam com o seletor CSS. Usa performance.now() na própria página (sem o ida e volta do
+ * Playwright). Chame com a ação que dispara a navegação.
+ */
+export async function medirAteConteudo(page: Page, acao: () => Promise<void>, seletorCss: string, minimo: number): Promise<number> {
+  await page.evaluate(({ sel, min }) => {
+    const w = window as unknown as { __medida: Promise<number> };
+    w.__medida = new Promise<number>((resolve) => {
+      let inicio = -1;
+      const verificar = () => {
+        // Só conta o que está VISÍVEL: telas anteriores da pilha continuam no DOM, escondidas.
+        const visiveis = Array.from(document.querySelectorAll(sel)).filter((el) => el.getClientRects().length > 0).length;
+        if (inicio >= 0 && visiveis >= min) { observador.disconnect(); resolve(performance.now() - inicio); }
+      };
+      const observador = new MutationObserver(verificar);
+      observador.observe(document.body, { subtree: true, childList: true, attributes: true });
+      document.addEventListener('click', () => { inicio = performance.now(); verificar(); }, { capture: true, once: true });
+    });
+  }, { sel: seletorCss, min: minimo });
+  await acao();
+  return page.evaluate(() => (window as unknown as { __medida: Promise<number> }).__medida);
+}

@@ -1,4 +1,5 @@
 import { apiFetch } from './http';
+import { comInvalidacao } from '../helpers/invalidacaoCache';
 import { Employee, CreateEmployeeData, UpdateEmployeeData } from '../tipos/modelos';
 
 /** Tamanho de página pedido à API (o servidor limita em 100). */
@@ -37,13 +38,13 @@ export async function getEmployeeById(id: number): Promise<Employee> {
 }
 
 export async function createEmployee(data: CreateEmployeeData): Promise<Employee> {
-  return apiFetch('/api/employees', { method: 'POST', body: JSON.stringify(data) });
+  return comInvalidacao('employees', apiFetch('/api/employees', { method: 'POST', body: JSON.stringify(data) }));
 }
 
 export async function updateEmployee(id: number, data: UpdateEmployeeData): Promise<Employee> {
-  return apiFetch(`/api/employees/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+  return comInvalidacao('employees', apiFetch(`/api/employees/${id}`, { method: 'PUT', body: JSON.stringify(data) }));
 }
 
 export async function deleteEmployee(id: number): Promise<void> {
-  return apiFetch(`/api/employees/${id}`, { method: 'DELETE' });
+  return comInvalidacao('employees', apiFetch(`/api/employees/${id}`, { method: 'DELETE' }));
 }

@@ -1,5 +1,18 @@
 # Changelog — SuperRH
 
+## [2026-10-06] — Fluidez F1: cache com revalidação, invalidação nas escritas, pré-carregamento e otimismo
+
+### Adicionado
+- **Cache de dados com revalidação** (`helpers/cacheDados.ts` + hook `contextos/usarDados.ts`, sem dependência nova): voltar a uma tela mostra o dado já visto na hora (sem esqueleto) e atualiza por baixo quando passa de 60 s (também ao voltar o foco em telas de aba). Pedidos iguais são um só; revalidação que falha mantém o dado e mostra só o aviso "Não foi possível atualizar". Chaves em `helpers/chavesCache.ts`.
+- **Invalidação dentro das funções de escrita** (`conexoes/*.ts` via `comInvalidacao`, mapa em `helpers/invalidacaoCache.ts`): escrita em ausência invalida colaboradores (saldo de folga/férias), analytics (alertas) e fechamento; vale também quando a escrita falha (timeout). Um pedido que já estava voando antes da escrita nunca grava dado velho. Telas de Lançar não mostram nem confiam no saldo enquanto a lista nova não chegou ("Atualizando saldo…").
+- **Cache da sessão**: esquecido no logout, em 401 e ao trocar de usuário/empresa (dado de uma sessão nunca aparece na seguinte). Um 401 tardio de sessão antiga não derruba a nova.
+- **Pré-carregamento** ao passar o mouse/focar item do menu (`helpers/prefetchRotas.ts`): só leitura, no máximo uma vez por TTL.
+- **Otimismo com rollback exato** em: aprovar/recusar pendente, excluir aviso, evento, reconhecimento, pesquisa e feedback, marcar notificação como lida. Nada de otimismo em lançar/editar nem em saldo.
+- Telas migradas: Dashboard, Equipe, Férias, Agenda, Avisos, Analytics, Fechamento, Pesquisas, NPS, Feedbacks (lista), Notificações e Reconhecimentos. Testes: `tests/cacheDados.test.ts`, `tests/invalidacaoEscritas.test.ts` e `e2e/30-fluidez-cache.spec.ts`.
+
+### Limites conhecidos
+- Tela aberta pelo perfil do colaborador, onboarding, resultados de pesquisa e detalhe de feedback ainda buscam a cada abertura (sem cache).
+
 ## [2026-10-05] — Testes E2E, verificador de schema, seletores de data e hora
 
 ### Adicionado

@@ -1,4 +1,5 @@
 import { apiFetch } from './http';
+import { comInvalidacao } from '../helpers/invalidacaoCache';
 import { Payslip } from '../tipos/modelos';
 
 export async function getPayslips(employeeId?: number): Promise<Payslip[]> {
@@ -12,12 +13,12 @@ export async function createPayslip(data: {
   description?: string;
   file_url: string;
 }): Promise<Payslip> {
-  return apiFetch<Payslip>('/api/payslips', {
+  return comInvalidacao('payslips', apiFetch<Payslip>('/api/payslips', {
     method: 'POST',
     body: JSON.stringify(data),
-  });
+  }));
 }
 
 export async function deletePayslip(id: number): Promise<void> {
-  return apiFetch(`/api/payslips/${id}`, { method: 'DELETE' });
+  return comInvalidacao('payslips', apiFetch(`/api/payslips/${id}`, { method: 'DELETE' }));
 }

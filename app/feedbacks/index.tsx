@@ -10,6 +10,9 @@ import { Input } from '../../componentes/Input';
 import { Skeleton } from '../../componentes/Skeleton';
 import { feedbackPdfUrl, feedbackPublicUrl, getFeedbacks } from '../../conexoes/feedbacks';
 import { useAuth } from '../../contextos/Autenticacao';
+import { usarDados } from '../../contextos/usarDados';
+import { chaves } from '../../helpers/chavesCache';
+import { AvisoDesatualizado } from '../../componentes/AvisoDesatualizado';
 import { normalizarTexto } from '../../helpers/buscaColaborador';
 import { mensagemFeedback } from '../../helpers/whatsapp';
 import { useToast } from '../../contextos/Toast';
@@ -107,21 +110,16 @@ export default function FeedbacksScreen() {
   const toast = useToast();
   const { user } = useAuth();
   const { width } = useWindowDimensions();
-  const [feedbacks, setFeedbacks] = useState<Feedback[]>([]);
-  const [loading, setLoading] = useState(true);
+  // Dado em cache aparece na hora; só busca se o perfil pode gerenciar feedbacks (senão a API recusaria).
+  const { dados, carregando: loading, erro: erroBusca, erroLeve, recarregar: load } = usarDados(chaves.feedbacks, () => getFeedbacks(), { ativo: RH_ROLES.includes(user?.role ?? '') });
+  const feedbacks: Feedback[] = dados ?? [];
+  const error = erroBusca !== null && dados === undefined ? (erroBusca.message || 'Não foi possível carregar feedbacks.') : '';
   const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState('');
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
   const canManage = RH_ROLES.includes(user?.role ?? '');
   const wide = width >= 760;
 
-  const load = useCallback(async () => {
-    setError('');
-    try { setFeedbacks(await getFeedbacks()); } catch (reason: any) { setError(reason?.message ?? 'Não foi possível carregar feedbacks.'); } finally { setLoading(false); setRefreshing(false); }
-  }, []);
-
-  useEffect(() => { load(); }, [load]);
 
   const counts = useMemo(() => ({
     all: feedbacks.length,
@@ -151,7 +149,7 @@ export default function FeedbacksScreen() {
   if (!canManage) return <EmptyState icon="lock-closed-outline" title="Acesso restrito" description="Apenas RH e administradores podem gerenciar feedbacks." />;
 
   return (
-    <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={cores.accent.dourado} />}>
+    <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load().finally(() => setRefreshing(false)); }} tintColor={cores.accent.dourado} />}>
       <View style={[styles.page, !wide && styles.pageNarrow]}>
         <View style={styles.header}>
           <View style={styles.headerCopy}><Text accessibilityRole="header" style={styles.heading}>Feedbacks</Text><Text style={styles.subtitle}>Envie feedbacks individuais e acompanhe a leitura.</Text></View>
@@ -173,6 +171,7 @@ export default function FeedbacksScreen() {
           ))}
         </View>
 
+        <AvisoDesatualizado visivel={erroLeve} />
         {loading ? <View style={styles.loadingList}><Skeleton accessibilityLabel="Carregando feedbacks" style={styles.skeleton} /><Skeleton accessibilityLabel="Carregando feedbacks" style={styles.skeleton} /><Skeleton accessibilityLabel="Carregando feedbacks" style={styles.skeleton} /></View> : null}
         {!loading && error ? <EmptyState icon="alert-circle-outline" title="Não foi possível carregar feedbacks" description={error} action={<Button icon="refresh-outline" label="Tentar novamente" onPress={load} />} /> : null}
         {!loading && !error && !feedbacks.length ? <EmptyState icon="chatbox-ellipses-outline" title="Nenhum feedback criado" description="Crie um rascunho para começar." action={<Button icon="add-outline" label="Novo feedback" onPress={() => router.push('/feedbacks/novo' as never)} />} /> : null}

@@ -4,6 +4,7 @@
 // ============================================================
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { limpar as limparCache } from '../helpers/cacheDados';
 import { limparSessao } from '../helpers/sessao';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
@@ -102,6 +103,10 @@ export async function apiFetch<T = unknown>(
     }
 
     if (res.status === 401) {
+      // Resposta TARDIA de uma sessão que já acabou (o token mudou desde o pedido, ex.: logout e novo login):
+      // não pode derrubar a sessão nova.
+      const tokenAtual = await AsyncStorage.getItem('@superrh:token');
+      if (token !== null && tokenAtual !== token) throw new ApiError(401, 'Sessão expirada. Faça login novamente.');
       await limparSessao(AsyncStorage);
       try {
         aoSessaoExpirar?.();
@@ -109,6 +114,9 @@ export async function apiFetch<T = unknown>(
         // Um handler com defeito não pode esconder o 401 de quem chamou.
         console.warn('[HTTP] handler de sessão expirada falhou:', e instanceof Error ? e.name : 'erro');
       }
+      // Sessão acabou: nada em cache pode sobrar para a próxima pessoa. DEPOIS do handler (usuário já saiu da tela),
+      // para as telas não buscarem de novo sem sessão.
+      limparCache();
       throw new ApiError(401, 'Sessão expirada. Faça login novamente.');
     }
 

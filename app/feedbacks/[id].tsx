@@ -10,6 +10,8 @@ import { FeedbackForm } from '../../componentes/FeedbackForm';
 import { Skeleton } from '../../componentes/Skeleton';
 import { deleteFeedback, feedbackPdfUrl, feedbackPublicUrl, getFeedback, publishFeedback, revokeFeedback, updateFeedback } from '../../conexoes/feedbacks';
 import { getEmployeeById } from '../../conexoes/colaboradores';
+import { atualizarCache, gravarCache, lerCache } from '../../helpers/cacheDados';
+import { chaves } from '../../helpers/chavesCache';
 import { textoExclusaoFeedback } from '../../helpers/feedback';
 import { mensagemFeedback, normalizarTelefoneWhatsapp } from '../../helpers/whatsapp';
 import { confirmAction } from '../../helpers/confirm';
@@ -116,12 +118,18 @@ export default function FeedbackDetailScreen() {
     if (!id || !feedback) return;
     const aviso = textoExclusaoFeedback(feedback.status);
     confirmAction(aviso.titulo, aviso.mensagem, async () => {
-      setSaving(true);
+      // Otimista: o feedback sai da lista e a tela já volta para ela; se a API recusar, a lista volta ao que era e avisa.
+      const chave = chaves.feedbacks;
+      const anterior = lerCache<Feedback[]>(chave);
+      atualizarCache<Feedback[]>(chave, (lista) => lista.filter((x) => x.id !== id));
+      router.replace('/feedbacks' as never);
       try {
         await deleteFeedback(id);
         toast.success('Feedback excluído.');
-        router.replace('/feedbacks' as never);
-      } catch (reason: any) { toast.error(reason?.message ?? 'Não foi possível excluir o feedback.'); setSaving(false); }
+      } catch (reason: any) {
+        if (anterior) gravarCache(chave, anterior.dados, anterior.atualizadoEm);
+        toast.error(reason?.message ?? 'Não foi possível excluir o feedback.');
+      }
     });
   }
 

@@ -2,10 +2,11 @@
 // contexts/AuthContext.tsx — SuperRH
 // ============================================================
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { fazerLogin } from '../conexoes/autenticacao';
 import { setUnauthorizedHandler } from '../conexoes/http';
+import { limpar as limparCache } from '../helpers/cacheDados';
 import { limparSessao, restaurarSessao, TOKEN_KEY, tokenExpirado, USER_KEY } from '../helpers/sessao';
 import { User, AuthState } from '../tipos/modelos';
 
@@ -43,6 +44,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => { ativo = false; };
   }, []);
 
+  // Troca de usuário ou de empresa (por qualquer caminho): o cache da sessão anterior não vale.
+  // Só quando já havia alguém e agora é OUTRA pessoa/empresa (ou ninguém). Entrar (null → usuário) não limpa aqui:
+  // login() já limpou antes, e limpar de novo derrubaria as buscas que as telas acabaram de iniciar.
+  const usuarioAnterior = useRef<{ id: number; empresa: number } | null>(null);
+  useEffect(() => {
+    const anterior = usuarioAnterior.current;
+    if (anterior && (anterior.id !== user?.id || anterior.empresa !== user?.company_id)) limparCache();
+    usuarioAnterior.current = user ? { id: user.id, empresa: user.company_id } : null;
+  }, [user?.id, user?.company_id]);
+
   // 401 em qualquer tela: a camada HTTP já limpou o storage; aqui a sessão some da UI na hora
   // (o AuthGuard então manda para o login).
   useEffect(() => {
@@ -55,6 +66,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   async function login(username: string, password: string) {
     const data = await fazerLogin(username, password);
+    // Dado em cache é da sessão anterior: some antes de a nova entrar (computador compartilhado).
+    limparCache();
 
     await Promise.all([
       AsyncStorage.setItem(TOKEN_KEY, data.token),
@@ -67,6 +80,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   async function loginWithToken(rawToken: string) {
     if (tokenExpirado(rawToken)) throw new Error('Token expirado');
+    limparCache();
     const payload = JSON.parse(atob(rawToken.split('.')[1]));
     const userData: User = {
       id:         payload.sub,
@@ -84,9 +98,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function logout() {
-    await limparSessao(AsyncStorage);
+    // Primeiro o usuário sai (as telas deixam de buscar), depois o cache é esquecido e o armazenamento limpo.
     setToken(null);
     setUser(null);
+    limparCache();
+    await limparSessao(AsyncStorage);
   }
 
   return (

@@ -23,6 +23,10 @@ export const ORIGEM = `http://127.0.0.1:${process.env.E2E_PORTA ?? 4173}`;
 /** Credenciais fictícias aceitas pelo login simulado. */
 export const CREDENCIAIS = { usuario: 'ana.rh', senha: 'senha-de-teste-123' } as const;
 
+/** Segundo usuário (outra pessoa no mesmo computador): serve para provar que o cache não vaza entre sessões. */
+export const CREDENCIAIS_OUTRO = { usuario: 'bia.rh', senha: 'senha-de-teste-123' } as const;
+export const USUARIO_OUTRO: User = { id: 2, company_id: 2, name: 'Beatriz Outra Empresa', email: 'bia@outra.test', role: 'rh' };
+
 export const USUARIO_RH: User = { id: 1, company_id: 1, name: 'Ana Paula RH', email: 'ana.rh@exemplo.test', role: 'rh' };
 export const USUARIO_SUPER: User = { id: 1, company_id: 1, name: 'Carlos Super', email: 'super@exemplo.test', role: 'super_admin' };
 
@@ -120,6 +124,12 @@ export class ApiSimulada {
   alertas: ProactiveAlert[] = [];
   /** Quantas chamadas do fechamento ainda respondem 500 antes de voltar ao normal (testa o "Tentar de novo"). */
   falhasDoFechamento = 0;
+  /** Atraso por endpoint (ms) para provar o que a tela mostra enquanto a API demora. */
+  atrasos: { metodo?: string; padrao: RegExp; ms: number }[] = [];
+  /** Falhas injetadas: as próximas `restantes` chamadas que casarem respondem com `status`. */
+  falhas: { metodo: string; padrao: RegExp; status: number; restantes: number }[] = [];
+  /** Chamadas que já foram RESPONDIDAS ("GET /api/notices"), para o teste esperar a resposta chegar. */
+  concluidas: string[] = [];
   /** true => POST /api/chat responde 502 (IA fora do ar). */
   chatIndisponivel = false;
   /** Toda requisição que chegou à API simulada ("GET /api/employees?page=1..."). */
@@ -338,6 +348,21 @@ export class ApiSimulada {
 
   // ── Roteamento ─────────────────────────────────────────────
 
+  /** Atrasa as chamadas que casam com o padrão (ex.: `atrasar(/^/api/employees/, 2000)`). */
+  atrasar(padrao: RegExp, ms: number, metodo?: string): void {
+    this.atrasos.push({ metodo, padrao, ms });
+  }
+
+  /** As próximas `vezes` chamadas (metodo + padrão) respondem com erro (500 por padrão). */
+  falharProximas(metodo: string, padrao: RegExp, vezes = 1, status = 500): void {
+    this.falhas.push({ metodo: metodo.toUpperCase(), padrao, status, restantes: vezes });
+  }
+
+  /** Quantas vezes a chamada (método + caminho com query, comparação exata do início) já chegou. */
+  contarChamadas(metodo: string, prefixo: string): number {
+    return this.chamadas.filter((c) => c.startsWith(`${metodo.toUpperCase()} ${prefixo}`)).length;
+  }
+
   async atender(route: Route, request: Request): Promise<void> {
     const url = new URL(request.url());
     const metodo = request.method().toUpperCase();
@@ -354,18 +379,34 @@ export class ApiSimulada {
       this.escritas.push({ metodo, caminho: caminho + url.search, corpo });
     }
 
-    const responder = (status: number, dados?: unknown) => route.fulfill({
-      status,
-      contentType: 'application/json; charset=utf-8',
-      body: dados === undefined ? '' : JSON.stringify(dados),
-    });
+    const assinatura = `${metodo} ${caminho}${url.search}`;
+    const responder = async (status: number, dados?: unknown): Promise<void> => {
+      await route.fulfill({
+        status,
+        contentType: 'application/json; charset=utf-8',
+        body: dados === undefined ? '' : JSON.stringify(dados),
+      });
+      this.concluidas.push(assinatura);
+    };
     const erro = (status: number, mensagem: string) => responder(status, { error: mensagem });
+
+    // Atraso e falha injetados pelo teste (antes de qualquer efeito no estado, como numa API lenta/instável).
+    const atraso = this.atrasos.find((a) => (!a.metodo || a.metodo.toUpperCase() === metodo) && a.padrao.test(caminho + url.search));
+    if (atraso) await new Promise((fim) => setTimeout(fim, atraso.ms));
+    const falha = this.falhas.find((f) => f.restantes > 0 && f.metodo === metodo && f.padrao.test(caminho + url.search));
+    if (falha) {
+      falha.restantes -= 1;
+      return erro(falha.status, 'Erro interno simulado');
+    }
 
     // ── Rotas públicas (sem token) ──
     if (caminho === '/api/auth/login' && metodo === 'POST') {
       const usuario = String(corpo.username ?? '').trim().toLowerCase();
       if (usuario === CREDENCIAIS.usuario && corpo.password === CREDENCIAIS.senha) {
         return responder(200, { token: gerarToken(this.usuarioLogado), user: this.usuarioLogado });
+      }
+      if (usuario === CREDENCIAIS_OUTRO.usuario && corpo.password === CREDENCIAIS_OUTRO.senha) {
+        return responder(200, { token: gerarToken(USUARIO_OUTRO), user: USUARIO_OUTRO });
       }
       return erro(401, 'Usuário ou senha incorretos');
     }

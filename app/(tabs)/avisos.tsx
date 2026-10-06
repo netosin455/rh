@@ -9,6 +9,9 @@ import { useAuth } from '../../contextos/Autenticacao';
 import { getNotices, createNotice, pinNotice, deleteNotice } from '../../conexoes/avisos';
 import { Notice, CreateNoticeData, NoticePriority, NOTICE_PRIORITY_LABELS } from '../../tipos/modelos';
 import { useToast } from '../../contextos/Toast';
+import { usarDados } from '../../contextos/usarDados';
+import { chaves } from '../../helpers/chavesCache';
+import { AvisoDesatualizado } from '../../componentes/AvisoDesatualizado';
 import { cores } from '../../estilo/cores';
 import { confirmAction } from '../../helpers/confirm';
 import { Badge } from '../../componentes/Badge';
@@ -70,32 +73,18 @@ export default function AvisosScreen() {
   const toast = useToast();
   const canManage = ['super_admin','admin','rh','adm'].includes(user?.role ?? '');
 
-  const [notices,    setNotices]    = useState<Notice[]>([]);
-  const [loading,    setLoading]    = useState(true);
+  // Dado em cache aparece na hora; a lista é atualizada em segundo plano.
+  const { dados, carregando: loading, erro, erroLeve, recarregar, definir: setNotices } = usarDados(chaves.avisos, () => getNotices());
+  const notices: Notice[] = dados ?? [];
   const [refreshing, setRefreshing] = useState(false);
   const [showModal,  setShowModal]  = useState(false);
   const [saving,     setSaving]     = useState(false);
   const [form,       setForm]       = useState(EMPTY_FORM);
   const [expanded,   setExpanded]   = useState<number | null>(null);
   const [formError,  setFormError]  = useState('');
-  const [loadError,  setLoadError]  = useState(false);
+  const loadError = erro !== null && dados === undefined;
 
-  const load = useCallback(async () => {
-    try {
-      setNotices(await getNotices());
-      setLoadError(false);
-    } catch (e) {
-      console.error('[Avisos]', e);
-      setLoadError(true);
-      toast.error('Não foi possível carregar os avisos.');
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [toast]);
-
-  useEffect(() => { load(); }, [load]);
-  const onRefresh = useCallback(() => { setRefreshing(true); load(); }, [load]);
+  const onRefresh = useCallback(() => { setRefreshing(true); void recarregar().finally(() => setRefreshing(false)); }, [recarregar]);
 
   function setF(field: string, value: any) {
     setForm(f => ({ ...f, [field]: value }));
@@ -144,12 +133,15 @@ export default function AvisosScreen() {
 
   function handleDelete(n: Notice) {
     confirmAction('Excluir aviso', `Excluir o aviso "${n.title}"?`, async () => {
+      // Otimista: o aviso sai da lista na hora; se a API recusar, volta exatamente como estava.
+      const anterior = notices;
+      setNotices((prev) => prev.filter((x) => x.id !== n.id));
       try {
         await deleteNotice(n.id);
-        setNotices(prev => prev.filter(x => x.id !== n.id));
         toast.success('Aviso excluído.');
       } catch (e: any) {
         console.error('[handleDelete]', e.message);
+        setNotices(() => anterior);
         toast.error(e.message || 'Não foi possível excluir o aviso.');
       }
     });
@@ -177,6 +169,7 @@ export default function AvisosScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={cores.accent.dourado} />}
       >
         <ScreenHeader title="Avisos" subtitle="Comunicados para manter toda a equipe informada." action={canManage ? <Button label="Novo aviso" icon="add" onPress={openModal} /> : undefined} />
+        <AvisoDesatualizado visivel={erroLeve} />
         {loadError ? <ErroComRetry mensagem="Não foi possível carregar os avisos." onTentarNovamente={onRefresh} carregando={refreshing} /> : null}
         {notices.length === 0 && !loadError ? (
           <Card><EmptyState icon="megaphone-outline" title="Nenhum aviso publicado" description={canManage ? 'Publique o primeiro aviso para a equipe.' : 'Quando houver um comunicado, ele aparecerá aqui.'} action={canManage ? <Button label="Publicar aviso" icon="add" onPress={openModal} /> : undefined} /></Card>

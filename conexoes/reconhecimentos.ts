@@ -1,4 +1,5 @@
 import { apiFetch } from './http';
+import { comInvalidacao } from '../helpers/invalidacaoCache';
 import { Recognition, RecognitionCategory } from '../tipos/modelos';
 
 export async function getRecognitions(toEmployeeId?: number): Promise<{ data: Recognition[]; total: number }> {
@@ -11,12 +12,12 @@ export async function createRecognition(data: {
   message: string;
   category: RecognitionCategory;
 }): Promise<Recognition> {
-  return apiFetch<Recognition>('/api/recognitions', {
+  return comInvalidacao('recognitions', apiFetch<Recognition>('/api/recognitions', {
     method: 'POST',
     body: JSON.stringify(data),
-  });
+  }));
 }
 
 export async function deleteRecognition(id: number): Promise<void> {
-  return apiFetch(`/api/recognitions/${id}`, { method: 'DELETE' });
+  return comInvalidacao('recognitions', apiFetch(`/api/recognitions/${id}`, { method: 'DELETE' }));
 }

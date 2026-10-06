@@ -8,6 +8,8 @@
 import { useRouter } from 'expo-router';
 import { deleteSurvey, duplicarPesquisa, encerrarPesquisaAgora } from '../conexoes/pesquisas';
 import { useToast } from '../contextos/Toast';
+import { atualizarCache, gravarCache, lerCache } from '../helpers/cacheDados';
+import { chaves } from '../helpers/chavesCache';
 import { confirmAction } from '../helpers/confirm';
 import { getTodayString } from '../helpers/datas';
 import { AREAS_PESQUISA, AreaPesquisa, textoExclusaoPesquisa } from '../helpers/pesquisa';
@@ -54,10 +56,15 @@ export function useAcoesPesquisa(area: AreaPesquisa, aposMudar: () => void) {
 
   function excluir(s: PesquisaResumo) {
     confirmAction(`Excluir "${s.title}"?`, textoExclusaoPesquisa(s.response_count ?? 0, substantivo), async () => {
+      // Otimista: a pesquisa sai da lista na hora; se a API recusar, a lista volta exatamente como estava.
+      const chave = chaves.pesquisas(cfg.audience);
+      const anterior = lerCache<PulseSurvey[]>(chave);
+      atualizarCache<PulseSurvey[]>(chave, (lista) => lista.filter((x) => x.id !== s.id));
       try {
         await deleteSurvey(s.id);
         aposMudar();
       } catch (e: unknown) {
+        if (anterior) gravarCache(chave, anterior.dados, anterior.atualizadoEm);
         toast.error(mensagem(e, `Erro ao excluir ${cfg.singular}`));
       }
     });

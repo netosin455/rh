@@ -12,6 +12,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { buscarNotificacoes, marcarLida, marcarTodasLidas, Notificacao } from '../conexoes/notificacoes';
 import { useContadoresShell } from '../contextos/Contadores';
+import { usarDados } from '../contextos/usarDados';
+import { chaves } from '../helpers/chavesCache';
+import { AvisoDesatualizado } from '../componentes/AvisoDesatualizado';
 import { useToast } from '../contextos/Toast';
 import { theme, cores } from '../estilo/cores';
 
@@ -36,32 +39,25 @@ export default function NotificacoesScreen() {
   const toast = useToast();
   // O sino do shell lê o contador daqui: depois de marcar como lida, pede para ele atualizar já.
   const { atualizar: atualizarContadores } = useContadoresShell();
-  const [items,      setItems]      = useState<Notificacao[]>([]);
-  const [unread,     setUnread]     = useState(0);
-  const [loading,    setLoading]    = useState(true);
+  // Dado em cache aparece na hora; atualiza em segundo plano.
+  const { dados, carregando: loading, erro, erroLeve, recarregar, definir } = usarDados(chaves.notificacoes, () => buscarNotificacoes());
+  const items: Notificacao[] = dados?.notifications ?? [];
+  const unread = dados?.unread ?? 0;
   const [refreshing, setRefreshing] = useState(false);
-
-  const load = useCallback(async () => {
-    try {
-      const data = await buscarNotificacoes();
-      setItems(data.notifications);
-      setUnread(data.unread);
-    } catch {
-      toast.error('Não foi possível carregar as notificações.');
-    }
-    finally { setLoading(false); setRefreshing(false); }
-  }, [toast]);
-
-  useEffect(() => { load(); }, [load]);
+  const load = useCallback(() => { void recarregar().finally(() => setRefreshing(false)); }, [recarregar]);
+  // Falha sem nada para mostrar: avisa uma vez (antes era um toast no carregamento).
+  useEffect(() => { if (erro && dados === undefined) toast.error('Não foi possível carregar as notificações.'); }, [erro, dados, toast]);
 
   async function handleTap(item: Notificacao) {
     if (!item.read) {
+      // Otimista: a notificação vira "lida" e o contador cai na hora; se a API recusar, volta ao que era.
+      const anterior = dados;
+      definir((d) => ({ notifications: d.notifications.map((n) => (n.id === item.id ? { ...n, read: true } : n)), unread: Math.max(0, d.unread - 1) }));
       try {
         await marcarLida(item.id);
-        setItems(prev => prev.map(n => n.id === item.id ? { ...n, read: true } : n));
-        setUnread(prev => Math.max(0, prev - 1));
         atualizarContadores();
       } catch {
+        if (anterior) definir(() => anterior);
         toast.error('Não foi possível marcar a notificação como lida.');
       }
     }
@@ -69,12 +65,13 @@ export default function NotificacoesScreen() {
   }
 
   async function handleMarcarTodas() {
+    const anterior = dados;
+    definir((d) => ({ notifications: d.notifications.map((n) => ({ ...n, read: true })), unread: 0 }));
     try {
       await marcarTodasLidas();
-      setItems(prev => prev.map(n => ({ ...n, read: true })));
-      setUnread(0);
       atualizarContadores();
     } catch {
+      if (anterior) definir(() => anterior);
       toast.error('Não foi possível marcar as notificações como lidas.');
     }
   }
@@ -102,6 +99,7 @@ export default function NotificacoesScreen() {
         )}
       </View>
 
+      <AvisoDesatualizado visivel={erroLeve} />
       <ScrollView
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={theme.gold} />}
