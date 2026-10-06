@@ -3,6 +3,7 @@
 // ============================================================
 
 import React, { useCallback, useEffect, useState } from 'react';
+import { Revelar } from '../../componentes/Revelar';
 import { KeyboardAvoidingView, Platform, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contextos/Autenticacao';
@@ -12,6 +13,8 @@ import { useToast } from '../../contextos/Toast';
 import { usarDados } from '../../contextos/usarDados';
 import { chaves } from '../../helpers/chavesCache';
 import { AvisoDesatualizado } from '../../componentes/AvisoDesatualizado';
+import { EntradaItem } from '../../componentes/EntradaItem';
+import { usarRevelacao } from '../../contextos/usarRevelacao';
 import { cores } from '../../estilo/cores';
 import { confirmAction } from '../../helpers/confirm';
 import { Badge } from '../../componentes/Badge';
@@ -76,6 +79,7 @@ export default function AvisosScreen() {
   // Dado em cache aparece na hora; a lista é atualizada em segundo plano.
   const { dados, carregando: loading, erro, erroLeve, recarregar, definir: setNotices } = usarDados(chaves.avisos, () => getNotices());
   const notices: Notice[] = dados ?? [];
+  const modo = usarRevelacao(loading, dados !== undefined);
   const [refreshing, setRefreshing] = useState(false);
   const [showModal,  setShowModal]  = useState(false);
   const [saving,     setSaving]     = useState(false);
@@ -147,8 +151,7 @@ export default function AvisosScreen() {
     });
   }
 
-  if (loading) {
-    return (
+  const esqueleto = (
       <View style={styles.container}>
         <View style={styles.loadingContent}>
           <Skeleton height={espaco.tela} />
@@ -156,13 +159,12 @@ export default function AvisosScreen() {
           <Skeleton height={espaco.tela} />
         </View>
       </View>
-    );
-  }
+  );
 
   const pinned   = notices.filter(n => n.pinned);
   const unpinned = notices.filter(n => !n.pinned);
 
-  return (
+  const principal = (
     <View style={styles.container}>
       <ScrollView
         contentContainerStyle={styles.content}
@@ -176,11 +178,11 @@ export default function AvisosScreen() {
         ) : (
           <>
             {pinned.length > 0 && (
-              <Section title="Fixados" description={`${pinned.length} aviso${pinned.length === 1 ? '' : 's'} prioritário${pinned.length === 1 ? '' : 's'}`}><View style={styles.noticeList}>{pinned.map((notice) => <NoticeRow key={notice.id} notice={notice} expanded={expanded === notice.id} canManage={canManage} onToggle={() => setExpanded((current) => current === notice.id ? null : notice.id)} onPin={() => handlePin(notice)} onDelete={() => handleDelete(notice)} />)}</View></Section>
+              <Section title="Fixados" description={`${pinned.length} aviso${pinned.length === 1 ? '' : 's'} prioritário${pinned.length === 1 ? '' : 's'}`}><View style={styles.noticeList}>{pinned.map((notice, i) => <EntradaItem indice={i} key={notice.id} modo={modo} total={pinned.length}><NoticeRow notice={notice} expanded={expanded === notice.id} canManage={canManage} onToggle={() => setExpanded((current) => current === notice.id ? null : notice.id)} onPin={() => handlePin(notice)} onDelete={() => handleDelete(notice)} /></EntradaItem>)}</View></Section>
             )}
 
             {unpinned.length > 0 && (
-              <Section title={pinned.length > 0 ? 'Todos os avisos' : 'Avisos'} description={`${unpinned.length} comunicado${unpinned.length === 1 ? '' : 's'} publicado${unpinned.length === 1 ? '' : 's'}`}><View style={styles.noticeList}>{unpinned.map((notice) => <NoticeRow key={notice.id} notice={notice} expanded={expanded === notice.id} canManage={canManage} onToggle={() => setExpanded((current) => current === notice.id ? null : notice.id)} onPin={() => handlePin(notice)} onDelete={() => handleDelete(notice)} />)}</View></Section>
+              <Section title={pinned.length > 0 ? 'Todos os avisos' : 'Avisos'} description={`${unpinned.length} comunicado${unpinned.length === 1 ? '' : 's'} publicado${unpinned.length === 1 ? '' : 's'}`}><View style={styles.noticeList}>{unpinned.map((notice, i) => <EntradaItem indice={i} key={notice.id} modo={modo} total={unpinned.length}><NoticeRow notice={notice} expanded={expanded === notice.id} canManage={canManage} onToggle={() => setExpanded((current) => current === notice.id ? null : notice.id)} onPin={() => handlePin(notice)} onDelete={() => handleDelete(notice)} /></EntradaItem>)}</View></Section>
             )}
           </>
         )}
@@ -197,6 +199,11 @@ export default function AvisosScreen() {
         </ScrollView></KeyboardAvoidingView>
       </Modal>
     </View>
+  );
+  return (
+    <Revelar carregando={loading} esqueleto={esqueleto}>
+      {principal}
+    </Revelar>
   );
 }
 

@@ -27,6 +27,7 @@ const pedidos = new Map<string, Pedido>();
 const ultimoPrefetch = new Map<string, number>();
 const ouvintes = new Set<() => void>();
 const ouvintesDeInvalidacao = new Set<{ prefixo: string; chamar: () => void }>();
+const ouvintesDeLimpeza = new Set<() => void>();
 let versao = 0;
 
 function avisar(): void {
@@ -121,6 +122,13 @@ export function limpar(): void {
   pedidos.clear();
   ultimoPrefetch.clear();
   avisar();
+  ouvintesDeLimpeza.forEach((fn) => fn());
+}
+
+/** Roda quando a sessão é esquecida (logout, 401, troca de usuário): quem guarda estado da sessão zera o seu. */
+export function aoLimpar(fn: () => void): () => void {
+  ouvintesDeLimpeza.add(fn);
+  return () => { ouvintesDeLimpeza.delete(fn); };
 }
 
 /** Para o hook reagir a mudanças. Devolve a função de cancelar. */

@@ -3,6 +3,7 @@
 // ============================================================
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Revelar } from '../../componentes/Revelar';
 import { KeyboardAvoidingView, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useToast } from '../../contextos/Toast';
@@ -12,6 +13,8 @@ import { usarDados } from '../../contextos/usarDados';
 import { chaves } from '../../helpers/chavesCache';
 import { obterDados } from '../../helpers/cacheDados';
 import { AvisoDesatualizado } from '../../componentes/AvisoDesatualizado';
+import { EntradaItem } from '../../componentes/EntradaItem';
+import { usarRevelacao } from '../../contextos/usarRevelacao';
 import { getEmployees } from '../../conexoes/colaboradores';
 import { Recognition, Employee, RECOGNITION_CATEGORIES, RecognitionCategory } from '../../tipos/modelos';
 import { useAuth } from '../../contextos/Autenticacao';
@@ -56,6 +59,7 @@ export default function RecognitionsScreen() {
   const { dados, carregando: loading, erro, erroLeve, recarregar: load, definir } = usarDados(chaves.reconhecimentos, () => getRecognitions());
   const items: Recognition[] = dados?.data ?? [];
   const total = dados?.total ?? 0;
+  const modo = usarRevelacao(loading, dados !== undefined);
   const loadError = erro !== null && dados === undefined;
   const [refreshing, setRefreshing] = useState(false);
 
@@ -150,11 +154,11 @@ export default function RecognitionsScreen() {
     });
   }
 
-  if (loading) {
-    return <View style={styles.container}><View style={styles.loadingContent}><Skeleton height={espaco.tela} /><Skeleton height={espaco.tela} /><Skeleton height={espaco.tela} /></View></View>;
-  }
+  const esqueleto = (
+    <View style={styles.container}><View style={styles.loadingContent}><Skeleton height={espaco.tela} /><Skeleton height={espaco.tela} /><Skeleton height={espaco.tela} /></View></View>
+  );
 
-  return (
+  const principal = (
     <View style={styles.container}>
       <ScrollView
         contentContainerStyle={styles.content}
@@ -176,15 +180,17 @@ export default function RecognitionsScreen() {
         {items.length === 0 && !loadError ? (
           <Card><EmptyState icon="trophy-outline" title="Nenhum reconhecimento ainda" description="Seja a primeira pessoa a celebrar alguém da equipe." action={<Button label="Dar kudos" icon="add" onPress={openModal} />} /></Card>
         ) : (
-          <Section title="Mural" description="Mensagens enviadas pela equipe."><View style={styles.recognitionList}>{items.map((recognition) => {
+          <Section title="Mural" description="Mensagens enviadas pela equipe."><View style={styles.recognitionList}>{items.map((recognition, indice) => {
             const cat = RECOGNITION_CATEGORIES[recognition.category] ?? RECOGNITION_CATEGORIES.outro;
             const canDelete = ['super_admin', 'admin', 'rh', 'adm'].includes(user?.role ?? '') || recognition.from_user_id === (user as any)?.id;
             return (
-              <Card key={recognition.id} padded={false}>
+              <EntradaItem indice={indice} key={recognition.id} modo={modo} total={items.length}>
+              <Card padded={false}>
                 <ListRow title={`${recognition.from_name} reconheceu ${recognition.to_name}`} description={[recognition.to_role, timeAgo(recognition.created_at)].filter(Boolean).join(' · ')} leading={<Avatar name={recognition.from_name} size="small" />} trailing={<View style={styles.recognitionTrailing}><Badge label={cat.label} tone="gold" /><Avatar name={recognition.to_name} size="small" /></View>} />
                 <Text style={styles.message}>“{recognition.message}”</Text>
                 {canDelete ? <View style={styles.recognitionActions}><Button label="Remover" icon="trash-outline" variant="danger" onPress={() => handleDelete(recognition)} /></View> : null}
               </Card>
+              </EntradaItem>
             );
           })}</View></Section>
         )}
@@ -196,6 +202,11 @@ export default function RecognitionsScreen() {
         </ScrollView></KeyboardAvoidingView>
       </Modal>
     </View>
+  );
+  return (
+    <Revelar carregando={loading} esqueleto={esqueleto}>
+      {principal}
+    </Revelar>
   );
 }
 

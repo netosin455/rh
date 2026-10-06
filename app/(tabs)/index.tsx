@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { Revelar } from '../../componentes/Revelar';
 import { useCallback, useEffect, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
@@ -21,6 +22,8 @@ import { getUpcomingEvents } from '../../conexoes/eventos';
 import { buscarInsights, Insight } from '../../conexoes/insights';
 import { ErroComRetry } from '../../componentes/ErroComRetry';
 import { AvisoDesatualizado } from '../../componentes/AvisoDesatualizado';
+import { EntradaItem } from '../../componentes/EntradaItem';
+import { usarRevelacao } from '../../contextos/usarRevelacao';
 import { usarDados } from '../../contextos/usarDados';
 import { chaves } from '../../helpers/chavesCache';
 import { gravarCache } from '../../helpers/cacheDados';
@@ -116,6 +119,8 @@ export default function DashboardScreen() {
   const insightsLoading = resumoIA.carregando || insightsForcando;
   const insightsErro = insightsErroForcado || (resumoIA.erro !== null && resumoIA.dados === undefined);
   const loading = colaboradores.carregando || proximosEventos.carregando || avisos.carregando;
+  // Seções entram escalonadas SÓ quando vêm do esqueleto; com cache aparecem no 1º frame.
+  const modo = usarRevelacao(loading, colaboradores.dados !== undefined);
   const blocos: [string, { erro: Error | null; dados: unknown }][] = [
     ['colaboradores', colaboradores], ['agenda', proximosEventos], ['avisos', avisos], ['alertas', alertasApi],
     ['faltas do mês', faltasDoMes], ['férias pendentes', pendentes],
@@ -219,9 +224,11 @@ export default function DashboardScreen() {
     opacity: insightsProgress.value,
   }));
 
-  if (loading) return <DashboardLoading />;
+  const esqueleto = (
+    <DashboardLoading />
+  );
 
-  return (
+  const principal = (
     <ScrollView
       contentContainerStyle={styles.content}
       refreshControl={<RefreshControl onRefresh={onRefresh} refreshing={refreshing} tintColor={cores.accent.dourado} />}
@@ -241,6 +248,7 @@ export default function DashboardScreen() {
         />
       ) : null}
 
+      <EntradaItem indice={0} modo={modo} saida={false} total={4}>
       <View style={[styles.overviewRow, compact && styles.overviewRowCompact]}>
         <Card accessibilityLabel={`Equipe hoje: ${activeEmployees} de ${employees.length} disponíveis. Ver quem está disponível.`} onPress={() => router.navigate(rotaEquipe('ativo') as never)} style={styles.overviewCard}>
           <View style={styles.overviewHeader}>
@@ -261,8 +269,10 @@ export default function DashboardScreen() {
           <Button label="Revisar" onPress={() => router.navigate(reviewRoute as never)} style={styles.reviewAction} variant="ghost" />
         </Card>
       </View>
+      </EntradaItem>
 
       {attentionItems.length > 0 ? (
+        <EntradaItem indice={1} modo={modo} saida={false} total={4}>
         <Section title="Precisa de atenção">
           <Card padded={false} style={styles.listCard}>
             {attentionItems.map((item) => {
@@ -271,8 +281,10 @@ export default function DashboardScreen() {
             })}
           </Card>
         </Section>
+        </EntradaItem>
       ) : null}
 
+      <EntradaItem indice={2} modo={modo} saida={false} total={4}>
       <View style={[styles.dualColumns, compact && styles.dualColumnsCompact]}>
         <View style={styles.dualColumn}>
           <Section action={<Button accessibilityLabel="Abrir agenda" label="Ver agenda" onPress={() => router.navigate('/(tabs)/agenda')} variant="ghost" />} title="Próximos eventos">
@@ -293,7 +305,9 @@ export default function DashboardScreen() {
           </Section>
         </View>
       </View>
+      </EntradaItem>
 
+      <EntradaItem indice={3} modo={modo} saida={false} total={4}>
       <Section action={<Button accessibilityLabel="Abrir equipe" label="Ver equipe" onPress={() => router.navigate('/(tabs)/colaboradores')} variant="ghost" />} title="Equipe">
         <Card padded={false} style={styles.listCard}>
           {employees.length === 0 ? <EmptyState description="Adicione a primeira pessoa à sua equipe." icon="people-outline" title="Nenhum colaborador cadastrado" /> : employees.slice(0, 4).map((employee) => (
@@ -309,6 +323,7 @@ export default function DashboardScreen() {
           ))}
         </Card>
       </Section>
+      </EntradaItem>
 
       {canSeeInsights && (insightsLoading || insightsErro || insights.length > 0) ? (
         <Section
@@ -353,6 +368,11 @@ export default function DashboardScreen() {
         </Section>
       ) : null}
     </ScrollView>
+  );
+  return (
+    <Revelar carregando={loading} esqueleto={esqueleto}>
+      {principal}
+    </Revelar>
   );
 }
 

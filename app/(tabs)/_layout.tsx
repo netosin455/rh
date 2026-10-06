@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Tabs, useRouter } from 'expo-router';
 import { Platform, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { Button } from '../../componentes/Button';
+import { EntradaTela } from '../../componentes/EntradaTela';
 import { useAuth } from '../../contextos/Autenticacao';
 import { useContadoresShell } from '../../contextos/Contadores';
 import { cores } from '../../estilo/cores';
@@ -84,6 +85,7 @@ export default function TabLayout() {
 
   return (
     <Tabs
+      screenLayout={({ route, navigation, children }) => <EntradaTela navigation={navigation} nomeRota={`tabs/${route.name}`}>{children}</EntradaTela>}
       // Em web larga a sidebar vive no layout raiz (ShellSidebar); aqui a tabBar não renderiza nada.
       tabBar={isWideWeb ? () => null : undefined}
       screenOptions={({ route }) => ({

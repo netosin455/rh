@@ -132,3 +132,80 @@ export async function medirAteConteudo(page: Page, acao: () => Promise<void>, se
   await acao();
   return page.evaluate(() => (window as unknown as { __medida: Promise<number> }).__medida);
 }
+
+/** Código que roda NA página: opacidade efetiva (produto das opacidades dos ancestrais) e se há transform de movimento. */
+export const FUNCOES_DE_MOVIMENTO = `
+  window.__opacidadeEfetiva = (el) => { let o = 1; for (let n = el; n && n !== document.documentElement; n = n.parentElement) { o *= parseFloat(getComputedStyle(n).opacity); } return o; };
+  window.__deslocamento = (el) => { let max = 0; for (let n = el; n && n !== document.documentElement; n = n.parentElement) { const t = getComputedStyle(n).transform; if (t && t !== 'none') { const m = new DOMMatrixReadOnly(t); max = Math.max(max, Math.abs(m.m42)); } } return max; };
+`;
+
+/**
+ * Amostra, a cada quadro (requestAnimationFrame), quando os elementos do seletor ficam visíveis e quando todos
+ * chegam a opacidade efetiva 1 e sem deslocamento. O relógio começa no clique (ou no carregamento da página).
+ * Chame `iniciarAmostragem` ANTES da ação e `lerAmostragem` depois.
+ */
+export async function iniciarAmostragem(page: Page, seletor: string, minimo: number, aPartirDoClique: boolean, exigirAnimacao = false): Promise<void> {
+  await page.evaluate(({ funcoes, sel, min, doClique, exigir }) => {
+    // eslint-disable-next-line no-new-func
+    new Function(funcoes)();
+    const w = window as unknown as Record<string, unknown> & { __opacidadeEfetiva: (e: Element) => number; __deslocamento: (e: Element) => number };
+    const resultado = { visivelMs: -1, opacoMs: -1, quadros: 0, opacidadesDoUltimo: [] as number[] };
+    let viuIntermediario = false;
+    let inicio = doClique ? -1 : performance.now();
+    if (doClique) document.addEventListener('click', () => { inicio = performance.now(); }, { capture: true, once: true });
+    const quadro = () => {
+      if (inicio >= 0 && resultado.opacoMs < 0) {
+        const els = Array.from(document.querySelectorAll(sel)).filter((e) => e.getClientRects().length > 0);
+        resultado.quadros += 1;
+        if (els.length >= min) {
+          const agora = performance.now() - inicio;
+          if (resultado.visivelMs < 0) resultado.visivelMs = agora;
+          const ultimo = els[els.length - 1];
+          resultado.opacidadesDoUltimo.push(Math.round(w.__opacidadeEfetiva(ultimo) * 100) / 100);
+          const ultimaOp = resultado.opacidadesDoUltimo[resultado.opacidadesDoUltimo.length - 1];
+          if (ultimaOp < 0.99) viuIntermediario = true;
+          // No 1º quadro da entrada a animação ainda não começou (tudo opaco): só vale "opaco" depois de ver o movimento (ou 400 ms).
+          if (els.every((e) => w.__opacidadeEfetiva(e) >= 0.999 && w.__deslocamento(e) < 0.5) && (!exigir || viuIntermediario || agora - resultado.visivelMs > 400)) resultado.opacoMs = agora;
+        }
+      }
+      if (resultado.opacoMs < 0 && performance.now() - Math.max(inicio, 0) < 5000) requestAnimationFrame(quadro); else (w as Record<string, unknown>).__amostra = resultado;
+    };
+    requestAnimationFrame(quadro);
+    (w as Record<string, unknown>).__amostra = resultado;
+  }, { funcoes: FUNCOES_DE_MOVIMENTO, sel: seletor, min: minimo, doClique: aPartirDoClique, exigir: exigirAnimacao });
+}
+
+export async function lerAmostragem(page: Page): Promise<{ visivelMs: number; opacoMs: number; quadros: number; opacidadesDoUltimo: number[] }> {
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __amostra: { opacoMs: number } }).__amostra.opacoMs), { timeout: 6_000 }).toBeGreaterThanOrEqual(0);
+  return page.evaluate(() => (window as unknown as { __amostra: { visivelMs: number; opacoMs: number; quadros: number; opacidadesDoUltimo: number[] } }).__amostra);
+}
+
+/** Igual a `iniciarAmostragem`, mas liga ANTES da navegação (mede a 1ª carga da página). Chame antes do page.goto. */
+export async function amostrarNoCarregamento(page: Page, seletor: string, minimo: number, exigirAnimacao = false): Promise<void> {
+  await page.addInitScript(({ funcoes, sel, min, exigir }) => {
+    // eslint-disable-next-line no-new-func
+    new Function(funcoes)();
+    const w = window as unknown as Record<string, unknown> & { __opacidadeEfetiva: (e: Element) => number; __deslocamento: (e: Element) => number };
+    const resultado = { visivelMs: -1, opacoMs: -1, quadros: 0, opacidadesDoUltimo: [] as number[] };
+    let viuIntermediario = false;
+    const inicio = performance.now();
+    w.__amostra = resultado;
+    const quadro = () => {
+      if (resultado.opacoMs < 0) {
+        const els = Array.from(document.querySelectorAll(sel)).filter((e) => e.getClientRects().length > 0);
+        resultado.quadros += 1;
+        if (els.length >= min) {
+          const agora = performance.now() - inicio;
+          if (resultado.visivelMs < 0) resultado.visivelMs = agora;
+          resultado.opacidadesDoUltimo.push(Math.round(w.__opacidadeEfetiva(els[els.length - 1]) * 100) / 100);
+          const ultimaOp = resultado.opacidadesDoUltimo[resultado.opacidadesDoUltimo.length - 1];
+          if (ultimaOp < 0.99) viuIntermediario = true;
+          // No 1º quadro da entrada a animação ainda não começou (tudo opaco): só vale "opaco" depois de ver o movimento (ou 400 ms).
+          if (els.every((e) => w.__opacidadeEfetiva(e) >= 0.999 && w.__deslocamento(e) < 0.5) && (!exigir || viuIntermediario || agora - resultado.visivelMs > 400)) resultado.opacoMs = agora;
+        }
+        if (resultado.opacoMs < 0 && performance.now() - inicio < 8000) requestAnimationFrame(quadro);
+      }
+    };
+    requestAnimationFrame(quadro);
+  }, { funcoes: FUNCOES_DE_MOVIMENTO, sel: seletor, min: minimo, exigir: exigirAnimacao });
+}

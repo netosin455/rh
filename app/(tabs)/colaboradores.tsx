@@ -3,11 +3,14 @@ import {
   View, Text, ScrollView, TextInput, Pressable,
   StyleSheet, RefreshControl, Platform,
 } from 'react-native';
+import { Revelar } from '../../componentes/Revelar';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAuth } from '../../contextos/Autenticacao';
 import { usarDados } from '../../contextos/usarDados';
 import { chaves } from '../../helpers/chavesCache';
 import { AvisoDesatualizado } from '../../componentes/AvisoDesatualizado';
+import { EntradaItem } from '../../componentes/EntradaItem';
+import { usarRevelacao } from '../../contextos/usarRevelacao';
 import { Ionicons } from '@expo/vector-icons';
 import { getEmployees, createEmployee } from '../../conexoes/colaboradores';
 import { Employee, EmployeeStatus, LegalArea, STATUS_LABELS, CreateEmployeeData } from '../../tipos/modelos';
@@ -104,6 +107,9 @@ export default function ColaboradoresScreen() {
   // Voltar à Equipe mostra a lista na hora (cache) e atualiza em segundo plano.
   const { dados, carregando: loading, erro, erroLeve, desatualizado, recarregar, definir: setEmployees } = usarDados(chaves.colaboradores, () => getEmployees());
   const employees: Employee[] = dados ?? [];
+  const modoEntrada = usarRevelacao(loading, dados !== undefined);
+  // Busca e filtro mexem na lista a cada tecla: depois da 1ª entrada, os itens que reaparecem não animam.
+  const modo = modoEntrada === 'rapido' ? 'nenhum' : modoEntrada;
   const loadError = erro !== null && dados === undefined;
   const [refreshing, setRefreshing] = useState(false);
   const [search,     setSearch]     = useState('');
@@ -187,8 +193,7 @@ export default function ColaboradoresScreen() {
     }
   }
 
-  if (loading) {
-    return (
+  const esqueleto = (
       <View style={styles.container}>
         <View style={styles.loadingContent}>
           <Skeleton height={espaco.tela} />
@@ -196,10 +201,9 @@ export default function ColaboradoresScreen() {
           <Skeleton height={espaco.tela * 3} />
         </View>
       </View>
-    );
-  }
+  );
 
-  return (
+  const principal = (
     <View style={styles.container}>
       <View style={styles.headerArea}>
         <ScreenHeader
@@ -252,12 +256,13 @@ export default function ColaboradoresScreen() {
             title="Nenhum colaborador"
           />
         ) : (
-          filtered.map(emp => (
+          filtered.map((emp, indice) => (
             // Sem ListRow aqui de propósito: as ações rápidas do trailing são botões
             // próprios, e ListRow com onPress embrulha tudo (incluindo o trailing) num
             // <button>, o que aninhava botão dentro de botão (HTML inválido, quebra o
             // clique e confunde leitor de tela). Só a área de navegação é pressionável.
-            <View key={emp.id} style={[styles.row, hoveredEmployeeId === emp.id && styles.rowHover]}>
+            <EntradaItem indice={indice} key={emp.id} modo={modo} saida={false} total={filtered.length}>
+            <View style={[styles.row, hoveredEmployeeId === emp.id && styles.rowHover]}>
               <Pressable
                 accessibilityLabel={`Abrir perfil de ${emp.name}`}
                 accessibilityRole="button"
@@ -287,6 +292,7 @@ export default function ColaboradoresScreen() {
                 )}
               </View>
             </View>
+            </EntradaItem>
           ))
         )}
         <View style={{ height: espaco.tela }} />
@@ -354,6 +360,11 @@ export default function ColaboradoresScreen() {
         visible={lancar !== null}
       />
     </View>
+  );
+  return (
+    <Revelar carregando={loading} esqueleto={esqueleto}>
+      {principal}
+    </Revelar>
   );
 }
 

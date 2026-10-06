@@ -1,5 +1,17 @@
 # Changelog — SuperRH
 
+## [2026-10-06] — Fluidez F2: entrada e saída de conteúdo (movimento sutil)
+
+- **Regra de ouro:** conteúdo que já está no cache nunca é atrasado. Só anima o que vem de esqueleto; revisita = no máximo 120 ms de fade da tela.
+- **Transição de tela** (`componentes/EntradaTela.tsx`): fade + 6→0 px (180 ms) no foco, via `screenLayout` do Stack e das Tabs (nenhuma tela editada); sidebar fixa.
+- **Lista escalonada** (`helpers/entradaLista.ts` + `componentes/EntradaItem.tsx`): ≤ 8 itens × 30 ms, ≤ 8 px, só opacity/transform; sem animação com > 50 itens. Aplicada em Equipe, Férias, Avisos, Pesquisas, NPS, Feedbacks, Notificações, Reconhecimentos, Dashboard e Agenda.
+- **Esqueleto → conteúdo** (`componentes/Revelar.tsx`): crossfade de 150 ms mantendo a altura (CLS ≈ 0).
+- **Remoção** com fade + colapso (e a mesma transição no rollback do otimismo da F1).
+- **CLS:** na carga direta a sidebar aparecia após restaurar a sessão e empurrava o conteúdo 256 px (CLS ≈ 0,2); o AuthGuard agora renderiza vazio enquanto carrega (CLS ≈ 0,001).
+- **Reduzir movimento:** tudo instantâneo. `playwright.config.ts` roda a suíte com `reducedMotion: 'reduce'`; o projeto `movimento` (specs `NN-movimento-*`) liga as animações.
+- Removido `conexoes/legacy.ts`. Novos: specs 31–34, `tests/entradaLista.test.ts`.
+- Reanimated web: `layout` + `entering` atrasado no MESMO elemento deixa um vão após remover; por isso `EntradaItem` usa duas camadas (externa: layout/exiting; interna: escalonamento).
+
 ## [2026-10-06] — Fluidez F1: cache com revalidação, invalidação nas escritas, pré-carregamento e otimismo
 
 ### Adicionado

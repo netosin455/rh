@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Revelar } from '../../componentes/Revelar';
 import { KeyboardAvoidingView, Platform, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,6 +19,8 @@ import { useAuth } from '../../contextos/Autenticacao';
 import { usarDados } from '../../contextos/usarDados';
 import { chaves } from '../../helpers/chavesCache';
 import { AvisoDesatualizado } from '../../componentes/AvisoDesatualizado';
+import { EntradaItem } from '../../componentes/EntradaItem';
+import { usarRevelacao } from '../../contextos/usarRevelacao';
 import { Avatar } from '../../componentes/Avatar';
 import { Badge } from '../../componentes/Badge';
 import { Button } from '../../componentes/Button';
@@ -147,6 +150,9 @@ export default function FeriasScreen() {
   const empNames = useMemo(() => Object.fromEntries(employees.map((e) => [e.id, e.name])) as Record<number, string>, [employees]);
   const loading = carregandoAbs || carregandoEmps || carregandoPend;
   const erroLeveGeral = leveAbs || leveEmps || levePend;
+  const modo = usarRevelacao(loading, absDados !== undefined);
+  // Registros mudam a cada troca de aba (filtro): depois da 1ª entrada, o que reaparece não anima.
+  const modoLista = modo === 'rapido' ? 'nenhum' : modo;
   const [refreshing, setRefreshing] = useState(false);
   // A aba mora na URL (/ferias?tab=falta): o card de faltas do Dashboard leva para cá já filtrado.
   const router = useRouter();
@@ -314,8 +320,7 @@ export default function FeriasScreen() {
     }
   }
 
-  if (loading) {
-    return (
+  const esqueleto = (
       <View style={styles.container}>
         <View style={styles.loadingContent}>
           <Skeleton height={espaco.tela} />
@@ -324,10 +329,9 @@ export default function FeriasScreen() {
           <Skeleton height={espaco.tela} />
         </View>
       </View>
-    );
-  }
+  );
 
-  return (
+  const principal = (
     <View style={styles.container}>
       <ScrollView
         contentContainerStyle={styles.content}
@@ -339,11 +343,12 @@ export default function FeriasScreen() {
         {canApprove && pendentes.length > 0 ? (
           <Section title="Aguardando aprovação" description={`${pendentes.length} solicitação${pendentes.length === 1 ? '' : 'ões'} requer${pendentes.length === 1 ? '' : 'em'} decisão.`}>
             <View style={styles.pendingList}>
-              {pendentes.map((absence) => {
+              {pendentes.map((absence, indice) => {
                 const employeeName = absence.employee_name || empNames[absence.employee_id] || `Colaborador #${absence.employee_id}`;
                 const isProcessing = approvingId === absence.id;
                 return (
-                  <Card key={absence.id} style={styles.pendingCard}>
+                  <EntradaItem indice={indice} key={absence.id} modo={modo} total={pendentes.length}>
+                  <Card style={styles.pendingCard}>
                     <View style={styles.pendingHeader}>
                       <View style={styles.pendingCopy}><Text style={styles.employeeName}>{employeeName}</Text><Text style={styles.period}>{absencePeriod(absence)}</Text></View>
                       <AbsenceStatusBadge status={absence.status} />
@@ -355,6 +360,7 @@ export default function FeriasScreen() {
                       <Button label="Aprovar" icon="checkmark" loading={isProcessing} onPress={() => handleApprove(absence.id, true)} style={styles.actionButton} />
                     </View>
                   </Card>
+                  </EntradaItem>
                 );
               })}
             </View>
@@ -374,15 +380,17 @@ export default function FeriasScreen() {
             <Card><EmptyState icon="umbrella-outline" title="Nenhum registro" description="Não há lançamentos para este filtro." action={<Button label="Lançar" icon="add" onPress={() => setShowLancar(true)} />} /></Card>
           ) : (
             <View style={styles.recordList}>
-              {filtered.map((absence) => {
+              {filtered.map((absence, indice) => {
                 const employeeName = empNames[absence.employee_id] || absence.employee_name || `Colaborador #${absence.employee_id}`;
                 const isEditable = (absence.status === 'pendente' || absence.status === 'aprovado') && canManage;
                 return (
-                  <Card key={absence.id} padded={false}>
+                  <EntradaItem indice={indice} key={absence.id} modo={modoLista} saida={false} total={filtered.length}>
+                  <Card padded={false}>
                     <ListRow title={employeeName} description={absencePeriod(absence)} onPress={isEditable ? () => openModal(absence) : undefined} accessibilityLabel={isEditable ? `Editar ${ABSENCE_TYPE_LABELS[absence.type]} de ${employeeName}` : `${ABSENCE_TYPE_LABELS[absence.type]} de ${employeeName}`} leading={<Avatar name={employeeName} size="small" />} trailing={<View style={styles.rowTrailing}><Badge label={ABSENCE_TYPE_LABELS[absence.type]} tone={absenceTone[absence.type]} /><Text style={styles.duration}>{absenceDuration(absence)}</Text><AbsenceStatusBadge status={absence.status} /></View>} />
                     {absence.reason ? <Text numberOfLines={2} style={styles.recordReason}>{absence.reason}</Text> : null}
                     {isEditable ? <View style={styles.recordActions}><Button label="Editar" icon="pencil-outline" variant="ghost" onPress={() => openModal(absence)} /><Button label="Excluir" icon="trash-outline" variant="danger" onPress={() => confirmAction('Excluir lançamento', `Excluir ${ABSENCE_TYPE_LABELS[absence.type]} de ${employeeName}? ${efeitoDaExclusao(absence, saldoVelho ? undefined : employees.find((e) => e.id === absence.employee_id))}`, () => handleDeleteAbsence(absence.id))} /></View> : null}
                   </Card>
+                  </EntradaItem>
                 );
               })}
             </View>
@@ -430,6 +438,11 @@ export default function FeriasScreen() {
         </KeyboardAvoidingView>
       </Modal>
     </View>
+  );
+  return (
+    <Revelar carregando={loading} esqueleto={esqueleto}>
+      {principal}
+    </Revelar>
   );
 }
 

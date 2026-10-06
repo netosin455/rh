@@ -13,6 +13,8 @@ import { useAuth } from '../../contextos/Autenticacao';
 import { usarDados } from '../../contextos/usarDados';
 import { chaves } from '../../helpers/chavesCache';
 import { AvisoDesatualizado } from '../../componentes/AvisoDesatualizado';
+import { EntradaItem } from '../../componentes/EntradaItem';
+import { usarRevelacao } from '../../contextos/usarRevelacao';
 import { normalizarTexto } from '../../helpers/buscaColaborador';
 import { mensagemFeedback } from '../../helpers/whatsapp';
 import { useToast } from '../../contextos/Toast';
@@ -113,6 +115,9 @@ export default function FeedbacksScreen() {
   // Dado em cache aparece na hora; só busca se o perfil pode gerenciar feedbacks (senão a API recusaria).
   const { dados, carregando: loading, erro: erroBusca, erroLeve, recarregar: load } = usarDados(chaves.feedbacks, () => getFeedbacks(), { ativo: RH_ROLES.includes(user?.role ?? '') });
   const feedbacks: Feedback[] = dados ?? [];
+  const modoEntrada = usarRevelacao(loading, dados !== undefined);
+  // Busca e filtro mexem na lista a cada tecla: depois da 1ª entrada, os itens que reaparecem não animam.
+  const modo = modoEntrada === 'rapido' ? 'nenhum' : modoEntrada;
   const error = erroBusca !== null && dados === undefined ? (erroBusca.message || 'Não foi possível carregar feedbacks.') : '';
   const [refreshing, setRefreshing] = useState(false);
   const [query, setQuery] = useState('');
@@ -178,16 +183,17 @@ export default function FeedbacksScreen() {
         {!loading && !error && feedbacks.length ? (
           <View style={styles.table}>
             {wide ? <View style={styles.tableHeader}><Text style={[styles.columnLabel, styles.personHeader]}>Colaborador</Text><Text style={[styles.columnLabel, styles.titleHeader]}>Feedback</Text><Text style={[styles.columnLabel, styles.dateHeader]}>Enviado</Text><Text style={[styles.columnLabel, styles.statusHeader]}>Status</Text></View> : null}
-            {visibleFeedbacks.map((feedback) => (
+            {visibleFeedbacks.map((feedback, indice) => (
+              <EntradaItem indice={indice} key={feedback.id} modo={modo} saida={false} total={visibleFeedbacks.length}>
               <FeedbackRow
                 feedback={feedback}
-                key={feedback.id}
                 onCopy={() => copyLink(feedback)}
                 onManage={() => router.push(`/feedbacks/${feedback.id}` as never)}
                 onOpen={() => feedback.public_token && feedback.status !== 'revoked' ? openUrl(feedbackPublicUrl(feedback.public_token)) : router.push(`/feedbacks/${feedback.id}` as never)}
                 onPdf={() => feedback.public_token ? openUrl(feedbackPdfUrl(feedback.public_token)) : undefined}
                 wide={wide}
               />
+              </EntradaItem>
             ))}
             {!visibleFeedbacks.length ? <View style={styles.noResults}><Text style={styles.noResultsText}>Nenhum feedback encontrado para este filtro.</Text></View> : null}
           </View>

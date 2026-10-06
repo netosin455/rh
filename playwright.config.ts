@@ -26,6 +26,8 @@ export default defineConfig({
     locale: 'pt-BR',
     timezoneId: 'America/Sao_Paulo',
     viewport: { width: 1280, height: 800 },
+    // Toda a suíte roda com "reduzir movimento": nada anima (sem flakiness). Só o projeto "movimento" liga as animações.
+    reducedMotion: 'reduce',
     // Local: Chrome instalado na máquina. CI: Chromium baixado por `npm run e2e:install`.
     ...(emCI ? {} : { channel: 'chrome' }),
     trace: 'on-first-retry',
@@ -34,7 +36,9 @@ export default defineConfig({
   },
   projects: [
     // Telas de computador (sidebar fixa, 1280x800): tudo, menos os specs de celular.
-    { name: 'desktop', testIgnore: /-celular.*\.spec\.ts/ },
+    { name: 'desktop', testIgnore: /-(celular|movimento).*\.spec\.ts/ },
+    // Animações de verdade (fase F2): só os specs NN-movimento-* (entrada, saída, CLS). Desktop, mesmo servidor.
+    { name: 'movimento', testMatch: /-movimento.*\.spec\.ts/, use: { reducedMotion: 'no-preference' } },
     // Celular (390x844, toque): só os specs NN-celular-*. Mesmo servidor e mesma API simulada.
     {
       name: 'celular',

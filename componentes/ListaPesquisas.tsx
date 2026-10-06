@@ -28,7 +28,9 @@ import { ListRow } from './ListRow';
 import { MetricCard } from './MetricCard';
 import { usarDados } from '../contextos/usarDados';
 import { chaves } from '../helpers/chavesCache';
+import { usarRevelacao } from '../contextos/usarRevelacao';
 import { AvisoDesatualizado } from './AvisoDesatualizado';
+import { EntradaItem } from './EntradaItem';
 import { BotaoWhatsApp } from './BotaoWhatsApp';
 import { QrCodeModal } from './QrCodeModal';
 import { useAcoesPesquisa } from './useAcoesPesquisa';
@@ -62,6 +64,7 @@ export function ListaPesquisas({ area }: { area: AreaPesquisa }) {
     return lista.filter((s) => (s.audience ?? 'employees') === cfg.audience);
   });
   const surveys: PulseSurvey[] = dados ?? [];
+  const modo = usarRevelacao(loading, dados !== undefined);
   const loadError = erro !== null && dados === undefined ? (erro.message || `Não foi possível carregar ${cfg.plural}`) : '';
   const [refreshing, setRefreshing] = useState(false);
   // Campanha cujo QR code está aberto (só na área NPS).
@@ -128,11 +131,11 @@ export function ListaPesquisas({ area }: { area: AreaPesquisa }) {
             />
           ) : (
             <View style={styles.surveyList}>
-              {surveys.map((survey) => {
+              {surveys.map((survey, indice) => {
                 const expired = Boolean(survey.expires_at && new Date(survey.expires_at) < new Date());
                 const responseCount = survey.response_count ?? 0;
                 return (
-                  <Animated.View entering={entrando} key={survey.id}>
+                  <EntradaItem indice={indice} key={survey.id} modo={modo} total={surveys.length}>
                     <Card padded={false} style={expired ? styles.expiredCard : undefined}>
                       <ListRow
                         accessibilityLabel={`Ver resultados de ${survey.title}`}
@@ -168,7 +171,7 @@ export function ListaPesquisas({ area }: { area: AreaPesquisa }) {
                         <Button accessibilityLabel={`Excluir ${survey.title}`} icon="trash-outline" onPress={() => excluir(survey)} variant="danger" />
                       </View>
                     </Card>
-                  </Animated.View>
+                  </EntradaItem>
                 );
               })}
             </View>

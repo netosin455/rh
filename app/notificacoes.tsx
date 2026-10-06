@@ -7,7 +7,8 @@ import {
   View, Text, ScrollView, TouchableOpacity,
   StyleSheet, ActivityIndicator, RefreshControl,
 } from 'react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import { EntradaItem } from '../componentes/EntradaItem';
+import { usarRevelacao } from '../contextos/usarRevelacao';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { buscarNotificacoes, marcarLida, marcarTodasLidas, Notificacao } from '../conexoes/notificacoes';
@@ -43,6 +44,7 @@ export default function NotificacoesScreen() {
   const { dados, carregando: loading, erro, erroLeve, recarregar, definir } = usarDados(chaves.notificacoes, () => buscarNotificacoes());
   const items: Notificacao[] = dados?.notifications ?? [];
   const unread = dados?.unread ?? 0;
+  const modo = usarRevelacao(loading, dados !== undefined);
   const [refreshing, setRefreshing] = useState(false);
   const load = useCallback(() => { void recarregar().finally(() => setRefreshing(false)); }, [recarregar]);
   // Falha sem nada para mostrar: avisa uma vez (antes era um toast no carregamento).
@@ -114,7 +116,7 @@ export default function NotificacoesScreen() {
           items.map((item, i) => {
             const meta = TYPE_ICONS[item.type ?? ''] ?? { icon: 'notifications-outline', color: theme.textMuted };
             return (
-              <Animated.View key={item.id} entering={FadeInDown.delay(i * 30).duration(280)}>
+              <EntradaItem indice={i} key={item.id} modo={modo} total={items.length}>
                 <TouchableOpacity
                   accessibilityLabel={`${item.title}${item.read ? '' : ', não lida'}`}
                   accessibilityRole="button"
@@ -138,7 +140,7 @@ export default function NotificacoesScreen() {
                   </View>
                   {!item.read && <View style={styles.dot} />}
                 </TouchableOpacity>
-              </Animated.View>
+              </EntradaItem>
             );
           })
         )}

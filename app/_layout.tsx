@@ -11,6 +11,7 @@ import { CormorantGaramond_600SemiBold } from '@expo-google-fonts/cormorant-gara
 import { AuthProvider, useAuth } from '../contextos/Autenticacao';
 import { ContadoresProvider } from '../contextos/Contadores';
 import { ToastProvider } from '../contextos/Toast';
+import { EntradaTela } from '../componentes/EntradaTela';
 import { ShellSidebar } from '../componentes/ShellSidebar';
 import { deveMostrarShell } from '../helpers/navegacao';
 import { PushProvider } from '../componentes/PushProvider';
@@ -71,12 +72,20 @@ function AuthGuard() {
     }
   }, [user, loading, segments]);
 
+  // Enquanto a sessão está sendo restaurada, não desenha nada: sem isso a página nascia sem sidebar e, ao saber
+  // quem está logado, empurrava TODO o conteúdo 256 px para a direita (layout shift de ~0,2 em toda carga direta).
+  if (loading) return <View style={styles.raiz} />;
+
   // A estrutura (row > sidebar? + Stack) é sempre a mesma: só a sidebar entra e sai, sem remontar o Stack.
   return (
     <View style={styles.raiz}>
       {mostrarSidebar ? <ShellSidebar /> : null}
       <View style={styles.conteudo}>
-    <Stack screenOptions={{ headerShown: false }}>
+    {/* Transição entre telas (fade + 6 px) aplicada num lugar só; o grupo (tabs) tem a sua própria, por aba. */}
+    <Stack
+      screenLayout={({ route, navigation, children }) => (route.name === '(tabs)' ? <>{children}</> : <EntradaTela navigation={navigation} nomeRota={route.name}>{children}</EntradaTela>)}
+      screenOptions={{ headerShown: false }}
+    >
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="login" options={{ headerShown: false }} />
       <Stack.Screen name="colaborador/[id]" options={{ headerShown: false }} />
