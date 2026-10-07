@@ -28,7 +28,8 @@ import { ListRow } from '../../componentes/ListRow';
 import { Modal } from '../../componentes/Modal';
 import { ScreenHeader } from '../../componentes/ScreenHeader';
 import { Section } from '../../componentes/Section';
-import { Skeleton } from '../../componentes/Skeleton';
+import { EsqueletoCabecalho, EsqueletoCartaoTexto, EsqueletoGrupo, EsqueletoSecao } from '../../componentes/Esqueletos';
+
 import { borda, espaco, largura, raio, tamanho } from '../../estilo/espaco';
 import { tipografia } from '../../estilo/tipografia';
 
@@ -151,14 +152,16 @@ export default function AvisosScreen() {
     });
   }
 
+  // Esqueleto com o desenho do conteúdo: cabeçalho e cartões de aviso (linha + texto + rodapé).
   const esqueleto = (
-      <View style={styles.container}>
-        <View style={styles.loadingContent}>
-          <Skeleton height={espaco.tela} />
-          <Skeleton height={espaco.tela} />
-          <Skeleton height={espaco.tela} />
+    <EsqueletoGrupo rotulo="Carregando avisos" style={styles.loadingContent}>
+      <EsqueletoCabecalho larguraSubtitulo="56%" larguraTitulo="22%" />
+      <EsqueletoSecao descricao largura="24%">
+        <View style={styles.noticeList}>
+          {[0, 1, 2].map((i) => <EsqueletoCartaoTexto alturaMinima={166} key={i} />)}
         </View>
-      </View>
+      </EsqueletoSecao>
+    </EsqueletoGrupo>
   );
 
   const pinned   = notices.filter(n => n.pinned);
@@ -235,7 +238,7 @@ function NoticeRow({
 const styles = StyleSheet.create({
   container: { backgroundColor: cores.superficie.pagina, flex: 1 },
   content: { gap: espaco.secao, padding: espaco.xl, paddingBottom: espaco.tela },
-  loadingContent: { gap: espaco.lg, padding: espaco.xl },
+  loadingContent: { gap: espaco.secao, padding: espaco.xl },
   noticeList: { gap: espaco.sm },
   urgentNotice: { backgroundColor: cores.status.erro.superficie, borderColor: cores.status.erro.borda },
   priorityIcon: { alignItems: 'center', backgroundColor: cores.superficie.sutil, borderRadius: raio.pill, height: tamanho.avatarPequeno, justifyContent: 'center', width: tamanho.avatarPequeno },

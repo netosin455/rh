@@ -4,6 +4,7 @@ import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-na
 import { theme } from '../estilo/cores';
 import { borda, espaco, raio, tamanho } from '../estilo/espaco';
 import { movimento, useMotion } from '../estilo/movimento';
+import { elevacaoDoRealce, useRealce } from './realce';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -18,9 +19,10 @@ export function Card({ children, style, padded = true, onPress, accessibilityLab
   const motion = useMotion();
   const pressed = useSharedValue(0);
   const [focused, setFocused] = useState(false);
+  const realce = useRealce(raio.cartao);
   const pressDuration = motion.duracao('instant');
   const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: withTiming(pressed.value && !motion.reduzMovimento ? movimento.deslocamento.press : 1, {
+    transform: [{ translateY: elevacaoDoRealce(realce.hover) }, { scale: withTiming(pressed.value && !motion.reduzMovimento ? movimento.deslocamento.press : 1, {
       duration: pressDuration,
       easing: motion.entrada,
     }) }],
@@ -39,8 +41,11 @@ export function Card({ children, style, padded = true, onPress, accessibilityLab
         onPressOut={() => { pressed.value = 0; }}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
+        onHoverIn={realce.onHoverIn}
+        onHoverOut={realce.onHoverOut}
         style={[cardStyle, animatedStyle]}
       >
+        {realce.camada}
         {children}
       </AnimatedPressable>
     );

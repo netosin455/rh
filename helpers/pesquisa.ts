@@ -597,6 +597,14 @@ export function calcularNps(c: ContagemNps): number | null {
 }
 
 /** "+42", "−15", "0" ou "Sem dados". */
+/** Zona do NPS (referência de mercado): negativo = crítica; 0 a 49 = em evolução; 50 ou mais = excelente. */
+export type ZonaNps = 'critica' | 'evolucao' | 'excelente';
+export function zonaDoNps(nps: number | null | undefined): ZonaNps | null {
+  if (nps == null || !Number.isFinite(nps)) return null;
+  if (nps < 0) return 'critica';
+  return nps >= 50 ? 'excelente' : 'evolucao';
+}
+
 export function formatarNps(nps: number | null | undefined): string {
   if (nps == null) return 'Sem dados';
   if (nps > 0) return `+${nps}`;

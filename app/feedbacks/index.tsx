@@ -7,7 +7,7 @@ import { BotaoWhatsApp } from '../../componentes/BotaoWhatsApp';
 import { Button } from '../../componentes/Button';
 import { EmptyState } from '../../componentes/EmptyState';
 import { Input } from '../../componentes/Input';
-import { Skeleton } from '../../componentes/Skeleton';
+import { EsqueletoGrupo, EsqueletoLinha } from '../../componentes/Esqueletos';
 import { feedbackPdfUrl, feedbackPublicUrl, getFeedbacks } from '../../conexoes/feedbacks';
 import { useAuth } from '../../contextos/Autenticacao';
 import { usarDados } from '../../contextos/usarDados';
@@ -177,7 +177,11 @@ export default function FeedbacksScreen() {
         </View>
 
         <AvisoDesatualizado visivel={erroLeve} />
-        {loading ? <View style={styles.loadingList}><Skeleton accessibilityLabel="Carregando feedbacks" style={styles.skeleton} /><Skeleton accessibilityLabel="Carregando feedbacks" style={styles.skeleton} /><Skeleton accessibilityLabel="Carregando feedbacks" style={styles.skeleton} /></View> : null}
+        {loading ? (
+          <EsqueletoGrupo rotulo="Carregando feedbacks" style={styles.table}>
+            {Array.from({ length: 5 }, (_, i) => <View key={i} style={styles.esqueletoLinha}><EsqueletoLinha avatar={false} borda={false} horizontal={0} /></View>)}
+          </EsqueletoGrupo>
+        ) : null}
         {!loading && error ? <EmptyState icon="alert-circle-outline" title="Não foi possível carregar feedbacks" description={error} action={<Button icon="refresh-outline" label="Tentar novamente" onPress={load} />} /> : null}
         {!loading && !error && !feedbacks.length ? <EmptyState icon="chatbox-ellipses-outline" title="Nenhum feedback criado" description="Crie um rascunho para começar." action={<Button icon="add-outline" label="Novo feedback" onPress={() => router.push('/feedbacks/novo' as never)} />} /> : null}
         {!loading && !error && feedbacks.length ? (
@@ -223,6 +227,8 @@ const styles = StyleSheet.create({
   loadingList: { marginTop: espaco.md },
   skeleton: { height: tamanho.toqueMinimo + espaco.xxl, marginBottom: borda.fina },
   table: { marginTop: espaco.sm },
+  // Mesma altura mínima e borda superior das linhas reais da tabela.
+  esqueletoLinha: { borderTopColor: cores.borda.sutil, borderTopWidth: borda.fina, minHeight: tamanho.toqueMinimo + espaco.xxl, justifyContent: 'center', paddingHorizontal: espaco.md },
   tableHeader: { alignItems: 'center', flexDirection: 'row', minHeight: espaco.xxxl, paddingHorizontal: espaco.md },
   columnLabel: { ...tipografia.rotulo, color: cores.texto.discreto, textTransform: 'uppercase' },
   personHeader: { flex: 1.35 },

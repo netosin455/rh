@@ -13,6 +13,7 @@ import { ContadoresProvider } from '../contextos/Contadores';
 import { ToastProvider } from '../contextos/Toast';
 import { EntradaTela } from '../componentes/EntradaTela';
 import { ShellSidebar } from '../componentes/ShellSidebar';
+import { aquecerCache } from '../helpers/aquecerCache';
 import { deveMostrarShell } from '../helpers/navegacao';
 import { PushProvider } from '../componentes/PushProvider';
 
@@ -31,6 +32,16 @@ function AuthGuard() {
   const { width } = useWindowDimensions();
   // Sidebar persistente só na web larga, com usuário logado e fora das rotas públicas.
   const mostrarSidebar = Platform.OS === 'web' && width >= 960 && Boolean(user) && deveMostrarShell(pathname);
+
+  // Aquecimento do cache (F3): com a sessão válida (login, restauração ou SSO), busca em segundo plano os dados das
+  // telas mais usadas, no máximo 3 pedidos por vez. A tela atual é lida na hora de disparar (não reinicia a cada navegação).
+  const pathnameAtual = useRef(pathname);
+  pathnameAtual.current = pathname;
+  useEffect(() => {
+    if (loading || !user) return undefined;
+    const fila = aquecerCache(user.role, pathnameAtual.current);
+    return () => fila.cancelar();
+  }, [loading, user?.id, user?.role]);
 
   // Detecta token / erro SSO Google na URL (/?sso_token=... ou /?sso_error=...)
   useEffect(() => {

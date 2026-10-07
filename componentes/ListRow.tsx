@@ -1,8 +1,12 @@
 import { ReactNode, useState } from 'react';
 import { Pressable, StyleProp, StyleSheet, Text, View, ViewStyle } from 'react-native';
+import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 import { theme } from '../estilo/cores';
-import { borda, espaco, tamanho } from '../estilo/espaco';
+import { borda, espaco, raio, tamanho } from '../estilo/espaco';
 import { tipografia } from '../estilo/tipografia';
+import { elevacaoDoRealce, useRealce } from './realce';
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 type ListRowProps = {
   title: string;
@@ -16,6 +20,8 @@ type ListRowProps = {
 
 export function ListRow({ title, description, leading, trailing, onPress, accessibilityLabel, style }: ListRowProps) {
   const [focused, setFocused] = useState(false);
+  const realce = useRealce(raio.controle);
+  const estiloRealce = useAnimatedStyle(() => ({ transform: [{ translateY: elevacaoDoRealce(realce.hover) }] }));
   const content = (
     <>
       {leading ? <View style={styles.leading}>{leading}</View> : null}
@@ -29,16 +35,19 @@ export function ListRow({ title, description, leading, trailing, onPress, access
 
   if (onPress) {
     return (
-      <Pressable
+      <AnimatedPressable
         accessibilityRole="button"
         accessibilityLabel={accessibilityLabel ?? [title, description].filter(Boolean).join('. ')}
         onBlur={() => setFocused(false)}
         onFocus={() => setFocused(true)}
+        onHoverIn={realce.onHoverIn}
+        onHoverOut={realce.onHoverOut}
         onPress={onPress}
-        style={[styles.row, styles.pressable, focused && styles.focus, style]}
+        style={[styles.row, styles.pressable, focused && styles.focus, style, estiloRealce]}
       >
+        {realce.camada}
         {content}
-      </Pressable>
+      </AnimatedPressable>
     );
   }
 

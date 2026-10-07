@@ -10,11 +10,15 @@ import { ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { apagarContato, getSurveyResults, linkPublicoPesquisa, marcarContatado } from '../conexoes/pesquisas';
 import { useToast } from '../contextos/Toast';
+import { VindoDeEsqueletoContexto, useVindoDeEsqueleto } from '../contextos/VindoDeEsqueleto';
+import { atrasoDaBarra } from '../helpers/contagem';
 import { confirmAction } from '../helpers/confirm';
 import { QuestionResult, SurveyContact, SurveyResults } from '../tipos/modelos';
 import { Badge } from './Badge';
 import { Button } from './Button';
 import { Card } from './Card';
+import { Crescer } from './Crescer';
+import { NumeroAnimado } from './NumeroAnimado';
 import { EmptyState } from './EmptyState';
 import { ErroComRetry } from './ErroComRetry';
 import { MetricCard } from './MetricCard';
@@ -38,6 +42,7 @@ import {
   grupoDoNps,
   percentuaisNps,
   poucasRespostasNps,
+  zonaDoNps,
   rotuloTipo,
   separarContatos,
   totalNps,
@@ -58,7 +63,7 @@ function plural(n: number, singular: string, pluralForma: string): string {
 }
 
 /** Barra de uma linha (nota ou opção): rótulo, contagem e percentual sobre quem respondeu a pergunta. */
-function LinhaBarra({ rotulo, contagem, respondidas, tom }: { rotulo: string; contagem: number; respondidas: number; tom?: 'accent' | 'success' | 'info' | 'danger' }) {
+function LinhaBarra({ rotulo, contagem, respondidas, tom, indice = 0 }: { rotulo: string; contagem: number; respondidas: number; tom?: 'accent' | 'success' | 'info' | 'danger'; indice?: number }) {
   const percentual = respondidas > 0 ? (contagem / respondidas) * 100 : 0;
   return (
     <View style={styles.linha}>
@@ -66,11 +71,13 @@ function LinhaBarra({ rotulo, contagem, respondidas, tom }: { rotulo: string; co
         <Text numberOfLines={2} style={styles.linhaRotulo}>{rotulo}</Text>
         <Text style={styles.linhaContagem}>{plural(contagem, 'resposta', 'respostas')} · {Math.round(percentual)}%</Text>
       </View>
-      <ProgressBar accessibilityLabel={`${rotulo}: ${contagem} de ${respondidas}`} tone={tom} value={percentual} />
+      <ProgressBar accessibilityLabel={`${rotulo}: ${contagem} de ${respondidas}`} atrasoMs={atrasoDaBarra(indice)} tone={tom} value={percentual} />
     </View>
   );
 }
 
+/** Cor do número do NPS por zona (a troca entre zonas é suave). */
+const COR_ZONA = { critica: cores.status.erro.forte, evolucao: cores.status.pendente.forte, excelente: cores.status.sucesso.forte } as const;
 const COR_GRUPO = { detrator: cores.status.erro.forte, neutro: cores.status.pendente.forte, promotor: cores.status.sucesso.forte } as const;
 
 /** Painel do NPS: número grande, faixa única promotores/neutros/detratores, contagens e distribuição de 0 a 10. */
@@ -90,7 +97,11 @@ function NpsResultado({ resultado }: { resultado: QuestionResult }) {
   return (
     <View style={styles.corpo}>
       <View style={styles.npsTopo}>
-        <Text accessibilityLabel={nps == null ? 'NPS: sem dados' : `NPS ${formatarNps(nps)}`} style={[styles.npsValor, nps == null && styles.npsSemDados]}>{formatarNps(nps)}</Text>
+        {nps == null ? (
+          <Text accessibilityLabel="NPS: sem dados" style={[styles.npsValor, styles.npsSemDados]}>{formatarNps(nps)}</Text>
+        ) : (
+          <NumeroAnimado cor={COR_ZONA[zonaDoNps(nps) ?? 'evolucao']} formato={{ sinal: true }} rotulo={`NPS ${formatarNps(nps)}`} style={styles.npsValor} testID="numero-nps" valor={nps} />
+        )}
         <Text style={styles.meta}>{nps == null ? 'Ainda não há respostas para calcular o NPS.' : 'NPS: % de promotores menos % de detratores (de −100 a +100).'}</Text>
       </View>
       {poucasRespostasNps(total) ? (
@@ -99,7 +110,10 @@ function NpsResultado({ resultado }: { resultado: QuestionResult }) {
 
       {/* Faixa única: o tamanho de cada trecho é a parte de cada grupo. */}
       <View accessibilityLabel={`Detratores ${contagem.detractors}, neutros ${contagem.passives}, promotores ${contagem.promoters}`} accessibilityRole="image" style={styles.faixa}>
-        {total === 0 ? <View style={[styles.faixaTrecho, { backgroundColor: cores.borda.sutil, flex: 1 }]} /> : [...grupos].reverse().map((g) => (g.n > 0 ? <View key={g.chave} style={[styles.faixaTrecho, { backgroundColor: COR_GRUPO[g.chave], flex: g.n }]} /> : null))}
+        {/* A faixa se preenche da esquerda para a direita (scaleX); o tamanho de layout já é o final. */}
+        <Crescer eixo="x" style={styles.faixaInterna} testID="faixa-nps">
+          {total === 0 ? <View style={[styles.faixaTrecho, { backgroundColor: cores.borda.sutil, flex: 1 }]} /> : [...grupos].reverse().map((g) => (g.n > 0 ? <View key={g.chave} style={[styles.faixaTrecho, { backgroundColor: COR_GRUPO[g.chave], flex: g.n }]} /> : null))}
+        </Crescer>
       </View>
       <View style={styles.legenda}>
         {grupos.map((g) => (
@@ -115,7 +129,7 @@ function NpsResultado({ resultado }: { resultado: QuestionResult }) {
         {dist.map((n, nota) => (
           <View key={nota} style={styles.coluna}>
             <Text style={styles.colunaContagem}>{n}</Text>
-            <View style={[styles.colunaBarra, { backgroundColor: COR_GRUPO[grupoDoNps(nota)], height: Math.max(3, (n / maior) * 72) }]} />
+            <Crescer atrasoMs={atrasoDaBarra(nota)} eixo="y" testID={`barra-nps-${nota}`} style={[styles.colunaBarra, { backgroundColor: COR_GRUPO[grupoDoNps(nota)], height: Math.max(3, (n / maior) * 72) }]} />
             <Text style={styles.colunaNota}>{nota}</Text>
           </View>
         ))}
@@ -189,18 +203,18 @@ function ResultadoPergunta({ resultado, total }: { resultado: QuestionResult; to
         <View style={styles.corpo}>
           {resultado.avg !== undefined ? (
             <View style={styles.media}>
-              <Text style={styles.mediaValor}>{resultado.avg.toFixed(1).replace('.', ',')}</Text>
+              <NumeroAnimado formato={{ decimais: 1 }} style={styles.mediaValor} valor={resultado.avg} />
               <Text style={styles.meta}>média em uma escala de 1 a 5</Text>
             </View>
           ) : null}
-          {[5, 4, 3, 2, 1].map((nota) => (
-            <LinhaBarra contagem={distribuicao[String(nota)] ?? 0} key={nota} respondidas={respondidas} rotulo={`${nota} — ${ROTULOS_NOTA[nota]}`} tom={tomDaNota(nota)} />
+          {[5, 4, 3, 2, 1].map((nota, indice) => (
+            <LinhaBarra contagem={distribuicao[String(nota)] ?? 0} indice={indice} key={nota} respondidas={respondidas} rotulo={`${nota} — ${ROTULOS_NOTA[nota]}`} tom={tomDaNota(nota)} />
           ))}
         </View>
       ) : resultado.type === 'choice' ? (
         <View style={styles.corpo}>
-          {Object.entries(distribuicao).map(([opcao, contagem]) => (
-            <LinhaBarra contagem={contagem} key={opcao} respondidas={respondidas} rotulo={opcao} />
+          {Object.entries(distribuicao).map(([opcao, contagem], indice) => (
+            <LinhaBarra contagem={contagem} indice={indice} key={opcao} respondidas={respondidas} rotulo={opcao} />
           ))}
         </View>
       ) : (
@@ -227,6 +241,8 @@ export function TelaResultados({ area }: { area: AreaPesquisa }) {
   const [dados, setDados] = useState<SurveyResults | null>(null);
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
+  // Números e barras só animam quando os resultados acabaram de sair do esqueleto.
+  const vindoDeEsqueleto = useVindoDeEsqueleto(loading || !dados);
 
   const carregar = useCallback(() => {
     setLoading(true);
@@ -323,6 +339,7 @@ export function TelaResultados({ area }: { area: AreaPesquisa }) {
   };
 
   return (
+    <VindoDeEsqueletoContexto.Provider value={vindoDeEsqueleto}>
     <ScrollView contentContainerStyle={styles.conteudo} style={styles.tela}>
       <View style={styles.pagina}>
         <ScreenHeader
@@ -379,6 +396,7 @@ export function TelaResultados({ area }: { area: AreaPesquisa }) {
         {cliente ? <QrCodeModal link={linkPublicoPesquisa(survey.id)} onClose={() => setQrAberto(false)} titulo={survey.title} visible={qrAberto} /> : null}
       </View>
     </ScrollView>
+    </VindoDeEsqueletoContexto.Provider>
   );
 }
 
@@ -416,6 +434,7 @@ const styles = StyleSheet.create({
   npsAviso: { backgroundColor: cores.status.pendente.superficie, borderColor: cores.status.pendente.borda, borderRadius: raio.controle, borderWidth: borda.fina, padding: espaco.md },
   npsAvisoTexto: { ...tipografia.corpo, color: cores.texto.primario },
   faixa: { borderRadius: raio.pill, flexDirection: 'row', height: 16, overflow: 'hidden' },
+  faixaInterna: { flex: 1, flexDirection: 'row' },
   faixaTrecho: { height: 16 },
   legenda: { gap: espaco.xs },
   legendaItem: { alignItems: 'center', flexDirection: 'row', gap: espaco.sm },

@@ -134,6 +134,9 @@ export class ApiSimulada {
   chatIndisponivel = false;
   /** Toda requisição que chegou à API simulada ("GET /api/employees?page=1..."). */
   chamadas: string[] = [];
+  /** Chamadas /api/ em andamento agora e o maior número simultâneo já visto. */
+  emAndamento = 0;
+  picoSimultaneo = 0;
   private proximoIdFeedback = 1;
   private proximoIdReconhecimento = 1;
   private proximoIdContato = 1;
@@ -168,9 +171,10 @@ export class ApiSimulada {
   /** Níveis de risco: Ana = alto; Bruno e Carla = médio; Diego e Elisa = baixo. */
   private analytics(): AnalyticsOverview {
     const [ana, bruno, carla, diego, elisa] = this.employees;
-    const alto = [risco(ana, 400, 4, 3.0)];
-    const medio = [risco(bruno, 500, 2, 4.2), risco(carla, 300, 0, 3.2)];
-    const baixo = [risco(diego, 700, 0, 4.5), risco(elisa, 800, 1, null)];
+    // Sem colaboradores (ou com poucos) as listas de risco ficam vazias em vez de quebrar a simulação.
+    const alto = ana ? [risco(ana, 400, 4, 3.0)] : [];
+    const medio = [bruno && risco(bruno, 500, 2, 4.2), carla && risco(carla, 300, 0, 3.2)].filter((r): r is EmployeeAtRisk => Boolean(r));
+    const baixo = [diego && risco(diego, 700, 0, 4.5), elisa && risco(elisa, 800, 1, null)].filter((r): r is EmployeeAtRisk => Boolean(r));
     return {
       summary: { total: 5, ativo: 4, ferias: 1, licenca: 0, afastado: 0, desligado: 0 },
       headcount_by_dept: [{ department: 'Jurídico', count: 5 }],
@@ -217,6 +221,13 @@ export class ApiSimulada {
     const e = { id: `ev-${this.proximoIdEvento++}`, company_id: 1, user_id: 1, color: '#8A887F', category: 'outro', is_all_day: false, created_at: agoraIso(), updated_at: agoraIso(), ...dados } as Event;
     this.events.push(e);
     return e;
+  }
+
+  /** Resposta anônima já recebida (para a tela de resultados ter números e barras). `answers` no formato do corpo do POST público. */
+  semearResposta(pesquisaId: number, answers: { question_id: number; score?: number; choice?: string; text?: string }[]): void {
+    this.respostasRecebidas.push({ pesquisa: pesquisaId, corpo: { answers } });
+    const s = this.surveys.find((x) => x.id === pesquisaId);
+    if (s) s.response_count = (s.response_count ?? 0) + 1;
   }
 
   /** Cliente que aceitou ser contatado numa campanha NPS. */
@@ -742,7 +753,10 @@ export class ApiSimulada {
         return;
       }
       if (url.pathname.startsWith('/api/')) {
-        await this.atender(route, request);
+        // Simultaneidade medida: quantas chamadas /api/ estão em andamento ao mesmo tempo (aquecimento do cache ≤ 3 + a da tela).
+        this.emAndamento += 1;
+        this.picoSimultaneo = Math.max(this.picoSimultaneo, this.emAndamento);
+        try { await this.atender(route, request); } finally { this.emAndamento -= 1; }
         return;
       }
       await route.continue();

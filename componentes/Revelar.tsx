@@ -11,6 +11,7 @@
 import { PropsWithChildren, ReactNode, useRef } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
+import { VindoDeEsqueletoContexto } from '../contextos/VindoDeEsqueleto';
 import { useMotion } from '../estilo/movimento';
 
 const DURACAO_CROSSFADE_MS = 150;
@@ -30,6 +31,7 @@ export function Revelar({ carregando, esqueleto, preencher = true, alturaMinima,
   const anima = !motion.reduzMovimento;
 
   return (
+    <VindoDeEsqueletoContexto.Provider value={viuEsqueleto.current}>
     <View style={[preencher ? styles.preencher : null, alturaMinima ? { minHeight: alturaMinima } : null]}>
       {!carregando ? (
         <Animated.View entering={anima && viuEsqueleto.current ? FadeIn.duration(DURACAO_CROSSFADE_MS) : undefined} style={preencher ? styles.preencher : null}>
@@ -42,6 +44,7 @@ export function Revelar({ carregando, esqueleto, preencher = true, alturaMinima,
         </Animated.View>
       ) : null}
     </View>
+    </VindoDeEsqueletoContexto.Provider>
   );
 }
 

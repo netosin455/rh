@@ -15,6 +15,7 @@ import {
   estaRespondida,
   formatarNps,
   grupoDoNps,
+  zonaDoNps,
   modeloSatisfacaoCliente,
   montarContato,
   montarPesquisa,
@@ -174,6 +175,14 @@ describe('NPS', () => {
     expect(formatarNps(42)).toBe('+42');
     expect(formatarNps(-15)).toBe('−15');
     expect(formatarNps(100)).toBe('+100');
+  });
+
+  it('zona do NPS (cor do medidor): negativo crítica, 0 a 49 em evolução, 50+ excelente, sem dado = null', () => {
+    expect([-100, -1].map(zonaDoNps)).toEqual(['critica', 'critica']);
+    expect([0, 49].map(zonaDoNps)).toEqual(['evolucao', 'evolucao']);
+    expect([50, 100].map(zonaDoNps)).toEqual(['excelente', 'excelente']);
+    expect(zonaDoNps(null)).toBeNull();
+    expect(zonaDoNps(undefined)).toBeNull();
   });
 
   it('aviso de poucas respostas: de 1 a 9', () => {

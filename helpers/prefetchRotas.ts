@@ -5,19 +5,30 @@
 // (helpers/chavesCache.ts), então a tela encontra o dado em cache. No máximo 1 busca por destino por TTL.
 // ============================================================
 
-import { getAnalyticsOverview, getAlerts } from '../conexoes/analytics';
+import { getAnalyticsOverview } from '../conexoes/analytics';
 import { countAbsences, countPendentes, getAbsences, getPendingAbsences } from '../conexoes/ausencias';
 import { getNotices } from '../conexoes/avisos';
 import { getEmployees } from '../conexoes/colaboradores';
 import { getEventsByMonth, getUpcomingEvents } from '../conexoes/eventos';
 import { getFeedbacks } from '../conexoes/feedbacks';
+import { buscarNotificacoes } from '../conexoes/notificacoes';
 import { getFechamento } from '../conexoes/fechamento';
 import { getSurveys } from '../conexoes/pesquisas';
 import { getRecognitions } from '../conexoes/reconhecimentos';
-import { prefetch } from './cacheDados';
+import { obterDados, prefetch } from './cacheDados';
 import { chaves } from './chavesCache';
 import { getTodayString } from './datas';
+import type { ProactiveAlert } from '../tipos/modelos';
 import { CAN_APPROVE } from './shellNav';
+
+/**
+ * Alertas do Dashboard. Vêm dentro da visão geral (`/api/analytics`), então usam o MESMO pedido e a mesma chave
+ * dela: Dashboard, Analytics e aquecimento do cache fazem 1 chamada em vez de 2.
+ */
+export async function buscarAlertas(): Promise<ProactiveAlert[]> {
+  const visao = await obterDados(chaves.analytics, () => getAnalyticsOverview());
+  return visao.alerts ?? [];
+}
 
 export interface TarefaDePrefetch {
   chave: string;
@@ -34,7 +45,7 @@ export function tarefasDaRota(href: string, papel?: string): TarefaDePrefetch[] 
         { chave: chaves.colaboradores, buscar: () => getEmployees() },
         { chave: chaves.proximosEventos(5), buscar: () => getUpcomingEvents(5) },
         { chave: chaves.avisos, buscar: () => getNotices() },
-        { chave: chaves.alertas, buscar: () => getAlerts() },
+        { chave: chaves.alertas, buscar: () => buscarAlertas() },
         { chave: chaves.contagemFaltas(mes), buscar: () => countAbsences('falta', mes) },
         ...(podeAprovar ? [{ chave: chaves.contagemPendentes, buscar: () => countPendentes() }] : []),
       ];
@@ -63,6 +74,8 @@ export function tarefasDaRota(href: string, papel?: string): TarefaDePrefetch[] 
       return [{ chave: chaves.pesquisas('employees'), buscar: async () => (await getSurveys('employees')).filter((s) => (s.audience ?? 'employees') === 'employees') }];
     case '/nps':
       return [{ chave: chaves.pesquisas('customers'), buscar: async () => (await getSurveys('customers')).filter((s) => (s.audience ?? 'employees') === 'customers') }];
+    case '/notificacoes':
+      return [{ chave: chaves.notificacoes, buscar: () => buscarNotificacoes() }];
     case '/feedbacks':
       return [{ chave: chaves.feedbacks, buscar: () => getFeedbacks() }];
     default:

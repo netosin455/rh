@@ -35,7 +35,8 @@ import { MetricCard } from '../../componentes/MetricCard';
 import { Modal } from '../../componentes/Modal';
 import { ScreenHeader } from '../../componentes/ScreenHeader';
 import { Section } from '../../componentes/Section';
-import { Skeleton } from '../../componentes/Skeleton';
+import { EsqueletoCabecalho, EsqueletoCartaoLista, EsqueletoMetrica, EsqueletoGrupo, EsqueletoSecao } from '../../componentes/Esqueletos';
+
 import { StatusPill } from '../../componentes/StatusPill';
 import { borda, espaco, largura, raio, tamanho } from '../../estilo/espaco';
 import { useMotion } from '../../estilo/movimento';
@@ -320,15 +321,20 @@ export default function FeriasScreen() {
     }
   }
 
+  // Esqueleto com o desenho do conteúdo: cabeçalho, visão geral (2 indicadores) e lista de registros.
   const esqueleto = (
-      <View style={styles.container}>
-        <View style={styles.loadingContent}>
-          <Skeleton height={espaco.tela} />
-          <Skeleton height={tamanho.toqueMinimo} />
-          <Skeleton height={espaco.tela} />
-          <Skeleton height={espaco.tela} />
+    <EsqueletoGrupo rotulo="Carregando férias e ausências" style={styles.loadingContent}>
+      <EsqueletoCabecalho larguraSubtitulo="64%" larguraTitulo="36%" />
+      <EsqueletoSecao largura="22%">
+        <View style={styles.metrics}>
+          <EsqueletoMetrica />
+          <EsqueletoMetrica />
         </View>
-      </View>
+      </EsqueletoSecao>
+      <EsqueletoSecao largura="26%">
+        <EsqueletoCartaoLista linhas={4} />
+      </EsqueletoSecao>
+    </EsqueletoGrupo>
   );
 
   const principal = (
@@ -449,7 +455,7 @@ export default function FeriasScreen() {
 const styles = StyleSheet.create({
   container: { backgroundColor: cores.superficie.pagina, flex: 1 },
   content: { gap: espaco.secao, padding: espaco.xl, paddingBottom: espaco.tela },
-  loadingContent: { gap: espaco.lg, padding: espaco.xl },
+  loadingContent: { gap: espaco.secao, padding: espaco.xl },
   pendingList: { gap: espaco.md },
   pendingCard: { backgroundColor: cores.status.pendente.superficie, borderColor: cores.status.pendente.borda },
   pendingHeader: { alignItems: 'flex-start', flexDirection: 'row', gap: espaco.md, justifyContent: 'space-between' },

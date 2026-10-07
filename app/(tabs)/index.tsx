@@ -9,12 +9,13 @@ import { Button } from '../../componentes/Button';
 import { Card } from '../../componentes/Card';
 import { EmptyState } from '../../componentes/EmptyState';
 import { ListRow } from '../../componentes/ListRow';
+import { EsqueletoCabecalho, EsqueletoCartaoIndicador, EsqueletoCartaoLista, EsqueletoGrupo, EsqueletoSecao } from '../../componentes/Esqueletos';
+import { NumeroAnimado } from '../../componentes/NumeroAnimado';
 import { ProgressBar } from '../../componentes/ProgressBar';
 import { ScreenHeader } from '../../componentes/ScreenHeader';
 import { Section } from '../../componentes/Section';
 import { Skeleton } from '../../componentes/Skeleton';
 import { StatusPill } from '../../componentes/StatusPill';
-import { getAlerts } from '../../conexoes/analytics';
 import { countAbsences, countPendentes } from '../../conexoes/ausencias';
 import { getNotices } from '../../conexoes/avisos';
 import { getEmployees } from '../../conexoes/colaboradores';
@@ -26,6 +27,7 @@ import { EntradaItem } from '../../componentes/EntradaItem';
 import { usarRevelacao } from '../../contextos/usarRevelacao';
 import { usarDados } from '../../contextos/usarDados';
 import { chaves } from '../../helpers/chavesCache';
+import { buscarAlertas } from '../../helpers/prefetchRotas';
 import { gravarCache } from '../../helpers/cacheDados';
 import { useAuth } from '../../contextos/Autenticacao';
 import { cores } from '../../estilo/cores';
@@ -70,16 +72,24 @@ function insightColor(severity: Insight['severity']) {
   return cores.status.informacao.forte;
 }
 
-function DashboardLoading() {
+/** Esqueleto com o desenho do Dashboard: saudação, 2 indicadores, lista de atenção e as duas colunas. */
+function DashboardLoading({ compact }: { compact: boolean }) {
   return (
-    <ScrollView contentContainerStyle={styles.loadingContent} style={styles.screen}>
-      <Skeleton height={espaco.tela} />
-      <Skeleton height={tamanho.toqueMinimo} />
-      <View style={styles.skeletonMetrics}>
-        <Skeleton height={espaco.tela * 2} />
-        <Skeleton height={espaco.tela * 2} />
-      </View>
-      <Skeleton height={espaco.tela * 3} />
+    <ScrollView contentContainerStyle={styles.content} scrollEnabled={false} style={styles.screen}>
+      <EsqueletoGrupo rotulo="Carregando o painel" style={styles.skeletonPagina}>
+        <EsqueletoCabecalho larguraSubtitulo="30%" larguraTitulo="26%" />
+        <View style={[styles.overviewRow, compact && styles.overviewRowCompact]}>
+          <EsqueletoCartaoIndicador />
+          <EsqueletoCartaoIndicador comBarra={false} />
+        </View>
+        <EsqueletoSecao largura="28%">
+          <EsqueletoCartaoLista linhas={3} />
+        </EsqueletoSecao>
+        <View style={[styles.dualColumns, compact && styles.dualColumnsCompact]}>
+          <View style={styles.dualColumn}><EsqueletoSecao largura="40%"><EsqueletoCartaoLista linhas={3} /></EsqueletoSecao></View>
+          <View style={styles.dualColumn}><EsqueletoSecao largura="34%"><EsqueletoCartaoLista linhas={3} /></EsqueletoSecao></View>
+        </View>
+      </EsqueletoGrupo>
     </ScrollView>
   );
 }
@@ -101,7 +111,7 @@ export default function DashboardScreen() {
   const colaboradores = usarDados(chaves.colaboradores, () => getEmployees(), { ativo: logado });
   const proximosEventos = usarDados(chaves.proximosEventos(5), () => getUpcomingEvents(5), { ativo: logado });
   const avisos = usarDados(chaves.avisos, () => getNotices(), { ativo: logado });
-  const alertasApi = usarDados(chaves.alertas, () => getAlerts(), { ativo: logado });
+  const alertasApi = usarDados(chaves.alertas, () => buscarAlertas(), { ativo: logado });
   const faltasDoMes = usarDados(chaves.contagemFaltas(mesAtual), () => countAbsences('falta', mesAtual), { ativo: logado });
   const pendentes = usarDados(chaves.contagemPendentes, () => countPendentes(), { ativo: logado && podeAprovar });
   const resumoIA = usarDados(chaves.insights, () => buscarInsights(false), { ativo: logado && canSeeInsights });
@@ -225,7 +235,7 @@ export default function DashboardScreen() {
   }));
 
   const esqueleto = (
-    <DashboardLoading />
+    <DashboardLoading compact={compact} />
   );
 
   const principal = (
@@ -255,7 +265,7 @@ export default function DashboardScreen() {
             <Text style={styles.overviewTitle}>Equipe hoje</Text>
             <StatusPill label={`${availabilityPercentage}% disponível`} status="ativo" />
           </View>
-          <Text style={styles.overviewValue}>{employees.length}</Text>
+          <NumeroAnimado style={styles.overviewValue} testID="numero-equipe-hoje" valor={employees.length} />
           <Text style={styles.overviewDescription}>{activeEmployees} pessoa{activeEmployees === 1 ? '' : 's'} disponível{activeEmployees === 1 ? '' : 'eis'} hoje</Text>
           <ProgressBar accessibilityLabel={`${availabilityPercentage}% da equipe disponível hoje`} tone="success" value={availabilityPercentage} />
         </Card>
@@ -264,7 +274,7 @@ export default function DashboardScreen() {
             <Text style={styles.overviewTitle}>Precisa de você</Text>
             <StatusPill label={attentionItems.length > 0 ? 'Revisar' : 'Em dia'} status={attentionItems.length > 0 ? 'pendente' : 'ativo'} />
           </View>
-          <Text style={styles.overviewValue}>{attentionItems.length}</Text>
+          <NumeroAnimado style={styles.overviewValue} testID="numero-pendencias" valor={attentionItems.length} />
           <Text style={styles.overviewDescription}>pendência{attentionItems.length === 1 ? '' : 's'} para acompanhar</Text>
           <Button label="Revisar" onPress={() => router.navigate(reviewRoute as never)} style={styles.reviewAction} variant="ghost" />
         </Card>
@@ -379,8 +389,7 @@ export default function DashboardScreen() {
 const styles = StyleSheet.create({
   screen: { backgroundColor: cores.superficie.pagina, flex: 1 },
   content: { gap: espaco.xxxl, padding: espaco.lg, paddingBottom: espaco.tela },
-  loadingContent: { gap: espaco.lg, padding: espaco.lg, paddingBottom: espaco.tela },
-  skeletonMetrics: { flexDirection: 'row', gap: espaco.md },
+  skeletonPagina: { gap: espaco.xxxl },
   overviewRow: { flexDirection: 'row', gap: espaco.md },
   overviewRowCompact: { flexDirection: 'column' },
   overviewCard: { flex: 1, gap: espaco.md },

@@ -1,5 +1,17 @@
 # Changelog — SuperRH
 
+## [2026-10-07] — Fluidez F3: aquecimento do cache, intensidade média, números e barras vivos, esqueletos no formato do conteúdo
+
+- **Aquecimento do cache** (`helpers/aquecerCache.ts`, disparado no `AuthGuard`): com a sessão válida (login, restauração, SSO) busca em segundo plano os dados das telas mais usadas (Dashboard, Equipe, Férias + pendências, Avisos, Agenda, Notificações, Pesquisas, Feedbacks, Analytics), **só o que o perfil acessa** (mesmas regras do `shellNav`), **no máximo 3 pedidos em paralelo**, começando pela tela atual e pelo Dashboard. Dado fresco ou pedido em andamento não é refeito; erro é silencioso; cancela no logout/401/troca de usuário (`aoLimpar`). Só leitura.
+- **Menos chamadas duplicadas:** alertas do Dashboard e Analytics agora compartilham o mesmo pedido de `/api/analytics`; os contadores do menu (pendências e notificações) passam por `buscarComCache` (juntam com pedido igual em andamento e alimentam o cache).
+- **Dial de intensidade** (`estilo/dial.ts`, reexportado por `estilo/movimento.ts`): intensidade MÉDIA — entrada de item 12 px / 240 ms / 40 ms de intervalo (máx. 8 itens), tela 10 px / 220 ms, easing `entradaMarcada` (bezier quint). Tetos fixos em teste: entrada ≤ 250 ms e ≤ 12 px.
+- **Hover** em `Card` e `ListRow` clicáveis (web): sobe 1 px + sombra maior em 140 ms (`componentes/realce.tsx`; só transform e opacity; a sombra é uma camada com `pointerEvents: none`). Sem efeito em movimento reduzido.
+- **Números vivos** (`helpers/contagem.ts`, `componentes/NumeroAnimado.tsx`): contagem de 500 ms (ease-out) no Dashboard, MetricCard (Analytics, Resultados, Férias...), média e **NPS com sinal e cor por zona** (troca suave de cor). Só anima na 1ª aparição vinda de esqueleto ou quando o valor muda — nunca em revisita com cache. Formatação pt-BR exata; o leitor de tela recebe o valor final (`aria-label` fixo, texto animado `aria-hidden`).
+- **Barras** (`ProgressBar`, `componentes/Crescer.tsx`): crescem do zero em 450 ms, escalonadas (50 ms, até 8), só com `transform: scale` nas colunas e na faixa do NPS (o layout já nasce no tamanho final). Revisita nasce pronta.
+- **Esqueletos no formato do conteúdo** (`componentes/Esqueletos.tsx`): Dashboard, Equipe, Férias, Avisos, Pesquisas/NPS e Feedbacks, com brilho suave (opacidade 100%↔60%, parado em movimento reduzido) e um único "Carregando" para o leitor de tela.
+- **Fechamento NÃO anima:** a tabela é conferência de folha; os totais aparecem exatos e imediatos.
+- Testes: Vitest (`contagem`, `dial`, `aquecerCache`, zonas do NPS) e E2E 35–40 (aquecimento, contagem, barras, hover, esqueleto, movimento reduzido).
+
 ## [2026-10-07] — IA fora do ar (modelo do Groq aposentado) e título "em pé" no celular
 
 ### Corrigido

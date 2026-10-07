@@ -33,6 +33,8 @@ import { Input } from '../../componentes/Input';
 import { Modal } from '../../componentes/Modal';
 import { ScreenHeader } from '../../componentes/ScreenHeader';
 import { Skeleton } from '../../componentes/Skeleton';
+import { EsqueletoCabecalho, EsqueletoGrupo, EsqueletoLinha, EsqueletoTexto } from '../../componentes/Esqueletos';
+
 import { StatusPill } from '../../componentes/StatusPill';
 
 // Mesmo mapeamento de tom usado no Dashboard: estado real comunicado por cor semantica.
@@ -193,14 +195,17 @@ export default function ColaboradoresScreen() {
     }
   }
 
+  // Esqueleto com o desenho do conteúdo: cabeçalho, busca, filtros, contagem e linhas com avatar.
   const esqueleto = (
-      <View style={styles.container}>
-        <View style={styles.loadingContent}>
-          <Skeleton height={espaco.tela} />
-          <Skeleton height={tamanho.toqueMinimo} />
-          <Skeleton height={espaco.tela * 3} />
-        </View>
+    <EsqueletoGrupo rotulo="Carregando equipe" style={styles.container}>
+      <View style={styles.headerArea}>
+        <EsqueletoCabecalho larguraSubtitulo="52%" larguraTitulo="22%" />
+        <Skeleton borderRadius={raio.controle} decorativo height={tamanho.toqueMinimo} />
+        <View style={styles.filterContent}>{[56, 72, 64, 84, 76].map((l, i) => <Skeleton borderRadius={raio.pill} decorativo height={28} key={i} width={l} />)}</View>
+        <EsqueletoTexto largura="18%" linha="legenda" />
       </View>
+      {Array.from({ length: 6 }, (_, i) => <EsqueletoLinha comBotao key={i} />)}
+    </EsqueletoGrupo>
   );
 
   const principal = (

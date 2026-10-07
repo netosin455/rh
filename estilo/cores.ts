@@ -50,6 +50,8 @@ export const cores = {
   },
   elevacao: {
     sombra: 'rgba(16,24,40,0.06)',
+    /** Sombra do realce ao passar o mouse em Card/ListRow (web). */
+    realce: 'rgba(16,24,40,0.14)',
     backdrop: 'rgba(16,24,40,0.45)',
   },
   categoria: {

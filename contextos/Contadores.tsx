@@ -7,7 +7,8 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { countPendentes } from '../conexoes/ausencias';
 import { buscarNotificacoes } from '../conexoes/notificacoes';
-import { aoInvalidar } from '../helpers/cacheDados';
+import { aoInvalidar, buscarComCache } from '../helpers/cacheDados';
+import { chaves } from '../helpers/chavesCache';
 import { CAN_APPROVE } from '../helpers/shellNav';
 import { useAuth } from './Autenticacao';
 
@@ -35,7 +36,8 @@ export function ContadoresProvider({ children }: { children: React.ReactNode }) 
       return;
     }
     // Badge é conveniência: falha aqui não deve incomodar, só é registrada.
-    const buscar = () => countPendentes().then(setPendentes).catch((erro: unknown) => console.warn('[Contadores] pendentes:', erro));
+    // buscarComCache: junta com o pedido igual que o Dashboard/aquecimento já tenha em andamento (1 chamada só) e alimenta o cache.
+    const buscar = () => buscarComCache(chaves.contagemPendentes, () => countPendentes()).then(setPendentes).catch((erro: unknown) => console.warn('[Contadores] pendentes:', erro));
     buscar();
     const timer = setInterval(buscar, INTERVALO_MS);
     // Qualquer escrita em ausência (aprovar, lançar, excluir) muda a fila: o badge do menu atualiza na hora.
@@ -44,7 +46,7 @@ export function ContadoresProvider({ children }: { children: React.ReactNode }) 
   }, [role]);
 
   const buscarNaoLidas = useCallback(
-    () => buscarNotificacoes().then((r) => setNaoLidas(r.unread)).catch((erro: unknown) => console.warn('[Contadores] notificações:', erro)),
+    () => buscarComCache(chaves.notificacoes, () => buscarNotificacoes()).then((r) => setNaoLidas(r.unread)).catch((erro: unknown) => console.warn('[Contadores] notificações:', erro)),
     [],
   );
 

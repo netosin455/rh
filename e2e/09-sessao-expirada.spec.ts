@@ -11,8 +11,11 @@ test('401 no meio do uso limpa a sessão e leva ao login sem recarregar', async 
   await page.evaluate(() => { (window as unknown as { __semRecarga: boolean }).__semRecarga = true; });
 
   // A API passa a recusar o token; qualquer ação que busque dados dispara o 401.
+  // (Férias já foi aquecida em segundo plano e abre do cache sem chamada: usa Kudos, que ainda não foi buscada.)
+  // O aquecimento do cache pode ainda estar buscando dados e levar o 401 ANTES do clique: o app já terá voltado
+  // ao login e o botão do menu não existe mais. Vale qualquer chamada que pegue o 401; o que se prova é o resultado.
   api.sessaoExpirada = true;
-  await page.getByRole('tab', { name: /^Abrir Férias/ }).click();
+  await page.getByRole('tab', { name: /^Abrir Kudos/ }).click({ timeout: 3_000 }).catch(() => undefined);
 
   await expect(page).toHaveURL(/\/login/);
   await expect(page.getByRole('button', { name: /^Entrar/ })).toBeVisible();

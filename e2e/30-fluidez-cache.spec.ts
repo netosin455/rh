@@ -277,24 +277,26 @@ test.describe('otimismo com rollback', () => {
 });
 
 test('prefetch: passar o mouse no menu faz 1 chamada e a tela abre sem esqueleto', async ({ page, api }, info) => {
-  api.atrasar(/^\/api\/notices/, 800, 'GET');
+  // NPS (clientes) é uma tela que o aquecimento do cache NÃO busca: sobra só o prefetch do hover para testar.
+  api.semearPesquisa('Satisfação do cliente', 'customers', [{ question: 'Nota?', type: 'nps', required: true }]);
+  api.atrasar(/^\/api\/surveys/, 800, 'GET');
   await entrarComoRh(page);
   await page.goto('/colaboradores');
   await expect(page.locator(LINHAS_DA_EQUIPE)).toHaveCount(5);
-  expect(api.contarChamadas('GET', '/api/notices')).toBe(0);
+  expect(api.contarChamadas('GET', '/api/surveys?audience=customers')).toBe(0);
 
-  const itemAvisos = itemDaSidebar(page, 'Avisos');
-  await itemAvisos.hover();
-  await expect.poll(() => api.contarChamadas('GET', '/api/notices')).toBe(1);
-  await expect.poll(() => api.concluidas.some((c) => c.startsWith('GET /api/notices'))).toBe(true);
+  const itemNps = itemDaSidebar(page, 'NPS');
+  await itemNps.hover();
+  await expect.poll(() => api.contarChamadas('GET', '/api/surveys?audience=customers')).toBe(1);
+  await expect.poll(() => api.concluidas.some((c) => c.startsWith('GET /api/surveys?audience=customers'))).toBe(true);
 
   // Passar o mouse de novo (ou focar) não repete a chamada.
   await page.getByRole('tab', { name: /^Abrir Equipe/ }).hover();
-  await itemAvisos.hover();
-  expect(api.contarChamadas('GET', '/api/notices')).toBe(1);
+  await itemNps.hover();
+  expect(api.contarChamadas('GET', '/api/surveys?audience=customers')).toBe(1);
 
-  const ms = await medirAteConteudo(page, () => itemAvisos.click(), '[aria-label^="Expandir aviso"]', 1);
-  info.annotations.push({ type: 'tempo', description: `Avisos aberta depois do prefetch: ${Math.round(ms)} ms` });
-  expect(ms, `abrir Avisos levou ${Math.round(ms)} ms`).toBeLessThan(400);
-  expect(api.contarChamadas('GET', '/api/notices')).toBe(1); // dado fresco: a tela não buscou de novo
+  const ms = await medirAteConteudo(page, () => itemNps.click(), '[aria-label^="Ver resultados de"]', 1);
+  info.annotations.push({ type: 'tempo', description: `NPS aberta depois do prefetch: ${Math.round(ms)} ms` });
+  expect(ms, `abrir NPS levou ${Math.round(ms)} ms`).toBeLessThan(400);
+  expect(api.contarChamadas('GET', '/api/surveys?audience=customers')).toBe(1); // dado fresco: a tela não buscou de novo
 });

@@ -1,7 +1,7 @@
 // ============================================================
 // componentes/EntradaItem.tsx — SuperRH
-// Envolve UM item de lista com entrada, saída e reacomodação suaves (fluidez F2, intensidade sutil).
-//  - entrada: opacity 0→1 e deslocamento vertical de no máximo 8 px, 200 ms, escalonada (helpers/entradaLista.ts);
+// Envolve UM item de lista com entrada, saída e reacomodação suaves (fluidez F2/F3, intensidade média).
+//  - entrada: opacity 0→1 e deslocamento vertical do dial (estilo/dial.ts, ≤ 12 px, ≤ 250 ms), escalonada (helpers/entradaLista.ts);
 //  - saída (excluir/aprovar/marcar lida): fade de 160 ms; os vizinhos sobem com LinearTransition de 200 ms;
 //  - o item é interativo desde o 1º frame (só opacity/transform, sem overlay);
 //  - com "reduzir movimento" nada anima.
@@ -10,7 +10,7 @@
 
 import { PropsWithChildren, useEffect, useMemo } from 'react';
 import { StyleProp, ViewStyle } from 'react-native';
-import Animated, { Easing, FadeIn, FadeOut, LinearTransition, useAnimatedStyle, useSharedValue, withDelay, withTiming } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeOut, LinearTransition, useAnimatedStyle, useSharedValue, withDelay, withTiming } from 'react-native-reanimated';
 import { ModoEntrada } from '../contextos/usarRevelacao';
 import { DESLOCAMENTO_ENTRADA_PX, DURACAO_ENTRADA_ITEM_MS, atrasoDeEntrada } from '../helpers/entradaLista';
 import { movimento, useMotion } from '../estilo/movimento';
@@ -41,7 +41,7 @@ export function EntradaItem({ indice, total, modo, saida = true, style, children
 
   useEffect(() => {
     // Só no momento em que o item aparece (montagem): mudar o modo depois não reanima um item que já está na tela.
-    if (atraso !== null) progresso.value = withDelay(atraso, withTiming(1, { duration: DURACAO_ENTRADA_ITEM_MS, easing: Easing.out(Easing.cubic) }));
+    if (atraso !== null) progresso.value = withDelay(atraso, withTiming(1, { duration: DURACAO_ENTRADA_ITEM_MS, easing: movimento.curva.entradaMarcada }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

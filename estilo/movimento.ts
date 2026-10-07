@@ -1,5 +1,8 @@
 import { useMemo } from 'react';
 import { Easing, useReducedMotion } from 'react-native-reanimated';
+import { dial } from './dial';
+
+export { dial } from './dial';
 
 export const movimento = {
   duracao: {
@@ -11,6 +14,8 @@ export const movimento = {
   curva: {
     entrada: Easing.out(Easing.cubic),
     saida: Easing.in(Easing.cubic),
+    /** Ease-out um pouco mais marcado (entradas de conteúdo, F3). */
+    entradaMarcada: Easing.bezier(...dial.curvaMarcada),
   },
   deslocamento: {
     press: 0.98,

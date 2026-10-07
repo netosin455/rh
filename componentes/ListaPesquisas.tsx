@@ -10,12 +10,10 @@ import * as Clipboard from 'expo-clipboard';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { RefreshControl, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
-import Animated, { FadeIn } from 'react-native-reanimated';
 import { getSurveys, linkPublicoPesquisa } from '../conexoes/pesquisas';
 import { useToast } from '../contextos/Toast';
 import { cores } from '../estilo/cores';
 import { espaco } from '../estilo/espaco';
-import { useMotion } from '../estilo/movimento';
 import { tipografia } from '../estilo/tipografia';
 import { AREAS_PESQUISA, AreaPesquisa } from '../helpers/pesquisa';
 import { mensagemNps, mensagemPesquisa } from '../helpers/whatsapp';
@@ -36,7 +34,7 @@ import { QrCodeModal } from './QrCodeModal';
 import { useAcoesPesquisa } from './useAcoesPesquisa';
 import { ScreenHeader } from './ScreenHeader';
 import { Section } from './Section';
-import { Skeleton } from './Skeleton';
+import { EsqueletoCartaoTexto, EsqueletoGrupo } from './Esqueletos';
 import { StatusPill } from './StatusPill';
 
 function quantidadePerguntas(s: PulseSurvey): number {
@@ -56,7 +54,6 @@ export function ListaPesquisas({ area }: { area: AreaPesquisa }) {
   const cliente = area === 'nps';
   const router = useRouter();
   const toast = useToast();
-  const motion = useMotion();
   // Uma chave por área (pesquisas dos colaboradores x NPS): voltar à lista mostra na hora e atualiza por baixo.
   const { dados, carregando: loading, erro, erroLeve, recarregar } = usarDados(chaves.pesquisas(cfg.audience), async () => {
     const lista = await getSurveys(cfg.audience);
@@ -71,7 +68,6 @@ export function ListaPesquisas({ area }: { area: AreaPesquisa }) {
   const [qrDe, setQrDe] = useState<PulseSurvey | null>(null);
 
   const ativas = surveys.filter((s) => !s.expires_at || new Date(s.expires_at) >= new Date()).length;
-  const entrando = useMemo(() => FadeIn.duration(motion.duracao('normal')), [motion]);
 
   const load = recarregar;
   const onRefresh = () => { setRefreshing(true); void recarregar().finally(() => setRefreshing(false)); };
@@ -110,11 +106,9 @@ export function ListaPesquisas({ area }: { area: AreaPesquisa }) {
 
         <Section description={cfg.descricaoLista} title={cfg.tituloLista}>
           {loading ? (
-            <Card padded={false} style={styles.listCard}>
-              <Skeleton accessibilityLabel="Carregando" style={styles.skeleton} />
-              <Skeleton accessibilityLabel="Carregando" style={styles.skeleton} />
-              <Skeleton accessibilityLabel="Carregando" style={styles.skeleton} />
-            </Card>
+            <EsqueletoGrupo rotulo="Carregando" style={styles.surveyList}>
+              {[0, 1, 2].map((i) => <EsqueletoCartaoTexto alturaMinima={158} key={i} linhas={2} />)}
+            </EsqueletoGrupo>
           ) : loadError ? (
             <EmptyState
               action={<Button icon="refresh-outline" label="Tentar novamente" onPress={() => { void load(); }} />}

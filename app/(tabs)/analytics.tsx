@@ -8,6 +8,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { getAnalyticsOverview } from '../../conexoes/analytics';
 import { usarDados } from '../../contextos/usarDados';
+import { VindoDeEsqueletoContexto, useVindoDeEsqueleto } from '../../contextos/VindoDeEsqueleto';
+import { FormatoContagem, atrasoDaBarra } from '../../helpers/contagem';
 import { chaves } from '../../helpers/chavesCache';
 import { AvisoDesatualizado } from '../../componentes/AvisoDesatualizado';
 import {
@@ -33,6 +35,8 @@ import { rotaEquipe, rotaFerias } from '../../helpers/filtros';
 import { NIVEIS_RISCO, NivelRisco, ROTULO_RISCO, lerFiltroRisco, motivosParaNivel, tituloDaLista } from '../../helpers/risco';
 
 // ── Helpers ──────────────────────────────────────────────────
+
+const FORMATO_PERCENTUAL: FormatoContagem = { decimais: 1, sufixo: '%' };
 
 const statusPill: Record<string, 'ativo' | 'info' | 'pendente' | 'inativo'> = {
   ativo: 'ativo',
@@ -79,6 +83,8 @@ export default function AnalyticsScreen() {
   const filtroRisco = lerFiltroRisco(params.risco);
   // Dado em cache aparece na hora; atualiza em segundo plano.
   const { dados, carregando: loading, erro, erroLeve, recarregar: load } = usarDados(chaves.analytics, () => getAnalyticsOverview());
+  // Números e barras só animam quando a tela acabou de sair do esqueleto (nunca em revisita com cache).
+  const vindoDeEsqueleto = useVindoDeEsqueleto(loading);
   const data: AnalyticsOverview | null = dados ?? null;
   const loadError = erro !== null && dados === undefined ? (erro.message || 'Erro ao carregar analytics') : null;
   const [refreshing, setRefreshing] = useState(false);
@@ -124,6 +130,7 @@ export default function AnalyticsScreen() {
   const absTrend = absenteeism.current.pct - absenteeism.prev.pct;
 
   return (
+    <VindoDeEsqueletoContexto.Provider value={vindoDeEsqueleto}>
     <ScrollView
       style={styles.container}
       contentContainerStyle={styles.content}
@@ -137,13 +144,13 @@ export default function AnalyticsScreen() {
 
       <Section title="Distribuição de status" description="Colaboradores ativos no sistema."><Card padded={false}>{(['ativo', 'ferias', 'licenca', 'afastado', 'desligado'] as const).map((status) => <ListRow key={status} title={STATUS_LABELS[status]} description={`${summary[status]} colaborador${summary[status] === 1 ? '' : 'es'}`} trailing={<StatusPill label={STATUS_LABELS[status]} status={statusPill[status]} />} onPress={() => router.push(rotaEquipe(status) as never)} accessibilityLabel={`${STATUS_LABELS[status]}: ${summary[status]}. Ver na equipe.`} />)}</Card></Section>
 
-      <Section title="Headcount por departamento" description="Colaboradores ativos."><Card>{headcount_by_dept.map((department: DeptHeadcount) => <View key={department.department} style={styles.progressItem}><View style={styles.progressHeader}><Text style={styles.progressLabel} numberOfLines={1}>{department.department}</Text><Text style={styles.progressValue}>{department.count}</Text></View><ProgressBar value={maxDept > 0 ? Math.round((department.count / maxDept) * 100) : 0} tone="info" accessibilityLabel={`${department.department}: ${department.count} colaboradores`} /></View>)}</Card></Section>
+      <Section title="Headcount por departamento" description="Colaboradores ativos."><Card>{headcount_by_dept.map((department: DeptHeadcount, indice: number) => <View key={department.department} style={styles.progressItem}><View style={styles.progressHeader}><Text style={styles.progressLabel} numberOfLines={1}>{department.department}</Text><Text style={styles.progressValue}>{department.count}</Text></View><ProgressBar atrasoMs={atrasoDaBarra(indice)} value={maxDept > 0 ? Math.round((department.count / maxDept) * 100) : 0} tone="info" accessibilityLabel={`${department.department}: ${department.count} colaboradores`} /></View>)}</Card></Section>
 
-      <Section title="Absenteísmo" description="Dias de ausência aprovados."><View style={styles.metricGrid}><MetricCard accessibilityLabel={`Absenteísmo do mês atual: ${absenteeism.current.pct.toFixed(1)}%. Abrir as ausências.`} onPress={() => router.push(rotaFerias() as never)} label="Mês atual" value={`${absenteeism.current.pct.toFixed(1)}%`} detail={pluralDias(absenteeism.current.days)} indicator={<StatusPill label={absTrend > 0 ? 'Subiu' : absTrend < 0 ? 'Caiu' : 'Estável'} status={absTrend > 0 ? 'erro' : absTrend < 0 ? 'ativo' : 'inativo'} />} /><MetricCard label="Mês anterior" value={`${absenteeism.prev.pct.toFixed(1)}%`} detail={pluralDias(absenteeism.prev.days)} /></View><Text style={styles.note}>Base: 22 dias úteis × colaboradores ativos.</Text></Section>
+      <Section title="Absenteísmo" description="Dias de ausência aprovados."><View style={styles.metricGrid}><MetricCard accessibilityLabel={`Absenteísmo do mês atual: ${absenteeism.current.pct.toFixed(1)}%. Abrir as ausências.`} onPress={() => router.push(rotaFerias() as never)} label="Mês atual" formato={FORMATO_PERCENTUAL} numero={absenteeism.current.pct} value={`${absenteeism.current.pct.toFixed(1)}%`} detail={pluralDias(absenteeism.current.days)} indicator={<StatusPill label={absTrend > 0 ? 'Subiu' : absTrend < 0 ? 'Caiu' : 'Estável'} status={absTrend > 0 ? 'erro' : absTrend < 0 ? 'ativo' : 'inativo'} />} /><MetricCard label="Mês anterior" formato={FORMATO_PERCENTUAL} numero={absenteeism.prev.pct} value={`${absenteeism.prev.pct.toFixed(1)}%`} detail={pluralDias(absenteeism.prev.days)} /></View><Text style={styles.note}>Base: 22 dias úteis × colaboradores ativos.</Text></Section>
 
       {/* Clima Organizacional */}
       {climate_history.length > 0 && (
-        <Section title="Clima organizacional" description="Média das pesquisas de pulso — últimos seis meses." action={<Button accessibilityLabel="Ver pesquisas de pulso" label="Ver pesquisas" onPress={() => router.push('/pesquisas' as never)} variant="ghost" />}><Card>{climate_history.map((climate: ClimateHistory) => <View key={climate.month} style={styles.progressItem}><View style={styles.progressHeader}><Text style={styles.progressLabel}>{formatMonth(climate.month)}</Text><Text style={styles.progressValue}>{climate.avg_score.toFixed(1)}/5 · {climate.response_count} respostas</Text></View><ProgressBar value={Math.round((climate.avg_score / 5) * 100)} tone={climateTone(climate.avg_score)} accessibilityLabel={`${formatMonth(climate.month)}: ${climate.avg_score.toFixed(1)} de 5`} /></View>)}</Card></Section>
+        <Section title="Clima organizacional" description="Média das pesquisas de pulso — últimos seis meses." action={<Button accessibilityLabel="Ver pesquisas de pulso" label="Ver pesquisas" onPress={() => router.push('/pesquisas' as never)} variant="ghost" />}><Card>{climate_history.map((climate: ClimateHistory, indice: number) => <View key={climate.month} style={styles.progressItem}><View style={styles.progressHeader}><Text style={styles.progressLabel}>{formatMonth(climate.month)}</Text><Text style={styles.progressValue}>{climate.avg_score.toFixed(1)}/5 · {climate.response_count} respostas</Text></View><ProgressBar atrasoMs={atrasoDaBarra(indice)} value={Math.round((climate.avg_score / 5) * 100)} tone={climateTone(climate.avg_score)} accessibilityLabel={`${formatMonth(climate.month)}: ${climate.avg_score.toFixed(1)} de 5`} /></View>)}</Card></Section>
       )}
 
       <Section title="Risco de turnover" description="Últimos 90 dias e engajamento. Toque em um card para ver só aquele nível.">
@@ -196,6 +203,7 @@ export default function AnalyticsScreen() {
 
       <Section title="Próximas ações"><Card padded={false}><ListRow title="Onboarding digital" description="Acompanhar checklists e progresso." leading={<View style={styles.actionIcon}><Ionicons name="rocket-outline" size={tamanho.iconeMedio} color={cores.status.informacao.forte} /></View>} trailing={<Ionicons name="chevron-forward" size={tamanho.iconeMedio} color={cores.texto.discreto} />} onPress={() => router.push('/onboarding' as never)} accessibilityLabel="Ver onboardings ativos" /><ListRow title="Pesquisas de pulso" description="Criar, compartilhar e ver resultados." leading={<View style={styles.actionIcon}><Ionicons name="clipboard-outline" size={tamanho.iconeMedio} color={cores.accent.douradoProfundo} /></View>} trailing={<Ionicons name="chevron-forward" size={tamanho.iconeMedio} color={cores.texto.discreto} />} onPress={() => router.push('/pesquisas' as never)} accessibilityLabel="Gerenciar pesquisas" /></Card></Section>
     </ScrollView>
+    </VindoDeEsqueletoContexto.Provider>
   );
 }
 

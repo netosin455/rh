@@ -1,6 +1,8 @@
 import { ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Card } from './Card';
+import { NumeroAnimado } from './NumeroAnimado';
+import { FormatoContagem, formatarContagem } from '../helpers/contagem';
 import { theme } from '../estilo/cores';
 import { espaco, tamanho } from '../estilo/espaco';
 import { tipografia } from '../estilo/tipografia';
@@ -8,6 +10,9 @@ import { tipografia } from '../estilo/tipografia';
 type MetricCardProps = {
   label: string;
   value: string | number;
+  /** Valor numérico que conta até o final (F3). Padrão: o próprio `value` quando ele já é número. */
+  numero?: number;
+  formato?: FormatoContagem;
   detail?: string;
   indicator?: ReactNode;
   onPress?: () => void;
@@ -17,8 +22,11 @@ type MetricCardProps = {
 };
 
 /** Métrica leve: hierarquia por tipografia, não por sombra ou caixa pesada. */
-export function MetricCard({ label, value, detail, indicator, onPress, accessibilityLabel, selecionado }: MetricCardProps) {
-  const summary = accessibilityLabel ?? [label, String(value), detail].filter(Boolean).join('. ');
+export function MetricCard({ label, value, numero, formato, detail, indicator, onPress, accessibilityLabel, selecionado }: MetricCardProps) {
+  const numeroFinal = numero ?? (typeof value === 'number' ? value : undefined);
+  // O rótulo para leitor de tela já nasce com o valor FINAL (o texto que conta é escondido dele).
+  const textoFinal = numeroFinal !== undefined ? formatarContagem(numeroFinal, formato) : String(value);
+  const summary = accessibilityLabel ?? [label, textoFinal, detail].filter(Boolean).join('. ');
 
   return (
     <Card
@@ -33,7 +41,7 @@ export function MetricCard({ label, value, detail, indicator, onPress, accessibi
           <Text style={styles.label}>{label}</Text>
           {indicator}
         </View>
-        <Text style={styles.value}>{value}</Text>
+        {numeroFinal !== undefined ? <NumeroAnimado formato={formato} style={styles.value} valor={numeroFinal} /> : <Text style={styles.value}>{value}</Text>}
         {detail ? <Text style={styles.detail}>{detail}</Text> : null}
       </View>
     </Card>
