@@ -1,5 +1,14 @@
 # Changelog — SuperRH
 
+## [2026-10-07] — IA fora do ar (modelo do Groq aposentado) e título "em pé" no celular
+
+### Corrigido
+- **Insights, Assistente de IA e relatório semanal estavam fora do ar:** o Groq desligou o modelo `llama-3.3-70b-versatile` em 16/08/2026 (descontinuado em 17/06/2026) e toda chamada voltava 404 `model_not_found` (visto nos registros de produção; a chave estava válida). Novo `api/_groq.ts` com lista de modelos em ordem de preferência (`openai/gpt-oss-120b`, `qwen/qwen3.6-27b`, `llama-3.3-70b-versatile`) e queda automática para o próximo quando o modelo não existe mais; outros erros (chave inválida, limite, rede) NÃO trocam de modelo. Modelos de raciocínio ganham folga de tokens e o texto é limpo de `<think>`. Insights que voltam vazios não apagam mais os guardados (502 em vez de gravar lista vazia). Os modelos novos NÃO foram testados com a chave real de produção (ela é secreta na Vercel): confirmar abrindo o Dashboard.
+- **Título em pé no celular:** em telas estreitas, `ScreenHeader` deixava a área de botões ocupar a largura toda e o título ("Satisfação do cliente" nos resultados do NPS) ficava uma letra por linha. Agora os botões descem para baixo do título quando não cabem; afeta todas as telas com cabeçalho e botões. Linha de botões da lista de campanhas deixou de sobrepor textos no celular (`flex: 1` virou `flexGrow: 1`).
+
+### Verificado
+- `tsc` limpo, 462 testes unitários (10 novos do seletor de modelo), E2E 112 testes (1 falha de CLS por oscilação sob falta de memória, 3 rodadas seguidas depois: 8/8).
+
 ## [2026-10-06] — Fluidez F2: entrada e saída de conteúdo (movimento sutil)
 
 - **Regra de ouro:** conteúdo que já está no cache nunca é atrasado. Só anima o que vem de esqueleto; revisita = no máximo 120 ms de fade da tela.

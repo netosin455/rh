@@ -10,6 +10,7 @@ import {
   CAN_APPROVE_ABSENCES, ABSENCE_VALID_TYPES,
   createAbsenceRecord, resolveAbsenceApproval,
 } from './_lib';
+import { limparTextoDoModelo, pedirAoGroq } from './_groq';
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
@@ -272,8 +273,7 @@ Quando identificar riscos (alto turnover, atraso no onboarding, score baixo em p
   try {
     // Loop curto: o modelo pode encadear até 3 chamadas de ferramenta (ex: listar → aprovar) antes da resposta final
     for (let round = 0; round < 4; round++) {
-      const completion = await groq.chat.completions.create({
-        model: 'llama-3.3-70b-versatile',
+      const completion = await pedirAoGroq(groq, {
         messages: convo,
         temperature: 0.5,
         max_tokens: 900,
@@ -284,7 +284,7 @@ Quando identificar riscos (alto turnover, atraso no onboarding, score baixo em p
       if (!message) break;
 
       if (!message.tool_calls || message.tool_calls.length === 0) {
-        reply = message.content ?? reply;
+        reply = limparTextoDoModelo(message.content) || reply;
         break;
       }
 

@@ -7,6 +7,7 @@
 import type { Request as VercelRequest, Response as VercelResponse } from 'express';
 import { sql, cors, sendPush } from './_lib';
 import { sendEmail } from './_email';
+import { limparTextoDoModelo, pedirAoGroq } from './_groq';
 import Groq from 'groq-sdk';
 
 const CRON_SECRET   = process.env.CRON_SECRET     ?? '';
@@ -290,8 +291,7 @@ async function runWeeklyReport(): Promise<{ companies: number; emails_sent: numb
 
     const context = await buildWeeklyContext(company.id);
 
-    const chat = await groq.chat.completions.create({
-      model: 'llama-3.3-70b-versatile',
+    const chat = await pedirAoGroq(groq, {
       messages: [
         {
           role: 'system',
@@ -303,7 +303,7 @@ async function runWeeklyReport(): Promise<{ companies: number; emails_sent: numb
       temperature: 0.6,
     });
 
-    const summary   = chat.choices[0]?.message?.content ?? 'Resumo não disponível.';
+    const summary   = limparTextoDoModelo(chat.choices[0]?.message?.content) || 'Resumo não disponível.';
     const now       = new Date();
     const weekLabel = `Semana ${now.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}`;
 

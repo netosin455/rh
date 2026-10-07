@@ -195,5 +195,7 @@ const styles = StyleSheet.create({
   metaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: espaco.md, paddingHorizontal: espaco.lg, paddingVertical: espaco.sm },
   metaText: { ...tipografia.legenda, color: cores.texto.discreto },
   actions: { borderTopColor: cores.borda.sutil, borderTopWidth: 1, flexDirection: 'row', flexWrap: 'wrap', gap: espaco.xs, padding: espaco.sm },
-  actionButton: { flex: 1 },
+  // flexGrow sem flexBasis 0: cada botão tem o tamanho do próprio texto e a linha quebra; com `flex: 1` os
+  // 8 botões dividiam a largura por igual e, no celular, os textos se sobrepunham.
+  actionButton: { flexGrow: 1 },
 });

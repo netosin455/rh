@@ -6,6 +6,7 @@
 import type { Request as VercelRequest, Response as VercelResponse } from 'express';
 import Groq from 'groq-sdk';
 import { sql, cors, authenticate, err, IS_ADMIN } from '../_lib';
+import { limparTextoDoModelo, pedirAoGroq } from '../_groq';
 import type {
   ProactiveAlert, EmployeeAtRisk, DeptHeadcount, ClimateHistory,
 } from '../../tipos/modelos';
@@ -79,19 +80,22 @@ Clima (NPS 30d): ${climate > 0 ? climate.toFixed(1) : 'sem dados'}
 Onboardings ativos: ${Number((onbRow[0] as any)?.active_count ?? 0)}, atrasados: ${onbOver}
 Pesquisas abertas: ${Number((surveyRow[0] as any)?.total ?? 0)}, média respostas: ${Number((surveyRow[0] as any)?.avg_responses ?? 0)}`;
 
-  const completion = await groq.chat.completions.create({
-    model: 'llama-3.3-70b-versatile', temperature: 0.4, max_tokens: 600,
+  const completion = await pedirAoGroq(groq, {
+    temperature: 0.4, max_tokens: 600,
     messages: [
       { role: 'system', content: 'Gere exatamente 4 insights prioritários em JSON. Retorne APENAS um array JSON: [{"title":"...","description":"...","severity":"high|medium|low","action_route":"/(tabs)|/(tabs)/colaboradores|/(tabs)/ferias|/onboarding|/pesquisas"}]' },
       { role: 'user', content: context },
     ],
   });
 
-  const raw   = completion.choices[0]?.message?.content?.trim() ?? '[]';
+  const raw   = limparTextoDoModelo(completion.choices[0]?.message?.content) || '[]';
   const match = raw.match(/\[[\s\S]*\]/);
   const insights: Insight[] = match ? (JSON.parse(match[0]) as Insight[]).filter(
     i => typeof i.title === 'string' && ['high','medium','low'].includes(i.severity),
   ).slice(0, 4) : [];
+
+  // Resposta vazia (ex.: modelo de raciocínio que gastou os tokens pensando): não apaga os insights guardados.
+  if (insights.length === 0) return err(res, 502, 'A IA não retornou insights desta vez.');
 
   await sql`DELETE FROM ai_insights WHERE company_id = ${companyId}`;
   await sql`INSERT INTO ai_insights (company_id, insights) VALUES (${companyId}, ${JSON.stringify(insights)})`;

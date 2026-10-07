@@ -21,9 +21,11 @@ export function ScreenHeader({ title, subtitle, action }: ScreenHeaderProps) {
 }
 
 const styles = StyleSheet.create({
-  header: { alignItems: 'flex-start', flexDirection: 'row', gap: espaco.lg, justifyContent: 'space-between' },
-  copy: { flex: 1 },
+  // flexWrap + minWidth no título: quando os botões não cabem ao lado, eles descem para a linha de baixo
+  // em vez de espremer o título (antes sobrava uma coluna de 1 letra e o título ficava "em pé" no celular).
+  header: { alignItems: 'flex-start', flexDirection: 'row', flexWrap: 'wrap', gap: espaco.lg, justifyContent: 'space-between' },
+  copy: { flex: 1, minWidth: 220 },
   title: { ...tipografia.display, color: theme.texto.primario },
   subtitle: { ...tipografia.corpo, color: theme.texto.discreto, marginTop: espaco.xs },
-  action: { flexShrink: 0 },
+  action: { flexShrink: 1, maxWidth: '100%' },
 });
