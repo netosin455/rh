@@ -6,14 +6,18 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import * as Clipboard from 'expo-clipboard';
-import { ScrollView, Share, StyleSheet, Text, View } from 'react-native';
+import { Platform, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { apagarContato, getSurveyResults, linkPublicoPesquisa, marcarContatado } from '../conexoes/pesquisas';
 import { useToast } from '../contextos/Toast';
 import { VindoDeEsqueletoContexto, useVindoDeEsqueleto } from '../contextos/VindoDeEsqueleto';
+import { lerCache } from '../helpers/cacheDados';
+import { chaves } from '../helpers/chavesCache';
 import { atrasoDaBarra } from '../helpers/contagem';
+import { exportPesquisaPDF } from '../helpers/pdf';
+import { dadosDoRelatorio } from '../helpers/pdfPesquisa';
 import { confirmAction } from '../helpers/confirm';
-import { QuestionResult, SurveyContact, SurveyResults } from '../tipos/modelos';
+import { Employee, QuestionResult, SurveyContact, SurveyResults } from '../tipos/modelos';
 import { Badge } from './Badge';
 import { Button } from './Button';
 import { Card } from './Card';
@@ -329,6 +333,14 @@ export function TelaResultados({ area }: { area: AreaPesquisa }) {
   const encerrada = Boolean(survey.expires_at && new Date(survey.expires_at) < new Date());
   const rotuloValidade = survey.expires_at ? `${encerrada ? 'Encerrada em' : 'Encerra em'} ${new Date(survey.expires_at).toLocaleDateString('pt-BR')}` : null;
 
+  // Baixar PDF: usa só o que a tela já carregou. O total de colaboradores ativos vem do cache (sem buscar);
+  // sem ele o relatório mostra só o total de participações, sem porcentagem.
+  const baixarPdf = () => {
+    const equipe = cliente ? undefined : lerCache<Employee[]>(chaves.colaboradores)?.dados;
+    const ativos = equipe ? equipe.filter((e) => e.status === 'ativo').length : undefined;
+    exportPesquisaPDF(dadosDoRelatorio(dados, ativos));
+  };
+
   const compartilhar = () => {
     Share.share({ message: `${survey.title}\n\nResponda aqui (é anônimo): ${linkPublicoPesquisa(survey.id)}` });
   };
@@ -347,6 +359,7 @@ export function TelaResultados({ area }: { area: AreaPesquisa }) {
             <View style={styles.acoes}>
               <Button accessibilityLabel={cliente ? 'Voltar para NPS' : 'Voltar para pesquisas'} icon="arrow-back-outline" onPress={() => router.replace(cfg.rotaRaiz as never)} variant="ghost" />
               <BotaoWhatsApp mensagem={(cliente ? mensagemNps : mensagemPesquisa)(linkPublicoPesquisa(survey.id))} />
+              {Platform.OS === 'web' ? <Button accessibilityLabel={`Baixar PDF do relatório da ${cfg.singular}`} icon="download-outline" label="Baixar PDF" onPress={baixarPdf} variant="ghost" /> : null}
               <Button accessibilityLabel={`Editar ${cfg.singular}`} icon="create-outline" label="Editar" onPress={() => editar(survey)} variant="ghost" />
               <Button accessibilityLabel={`Duplicar ${cfg.singular}`} icon="duplicate-outline" label="Duplicar" onPress={() => { void duplicar(survey); }} variant="ghost" />
               {!encerrada ? <Button accessibilityLabel={`Encerrar ${cfg.singular} agora`} icon="stop-circle-outline" label="Encerrar agora" onPress={() => encerrarAgora(survey)} variant="ghost" /> : null}

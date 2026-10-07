@@ -5,6 +5,7 @@ import { Platform } from 'react-native';
 import type { Employee, Absence, AnalyticsOverview, FechamentoLinha, FechamentoValores } from '../tipos/modelos';
 import { AVISO_SALDO_BANCO, COLUNAS_FECHAMENTO, celula, rotuloDoMes } from './fechamento';
 import { ABSENCE_TYPE_LABELS, STATUS_LABELS } from '../tipos/modelos';
+import { DadosDoRelatorio, montarHtmlPesquisa } from './pdfPesquisa';
 
 const CSS = `
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -202,6 +203,15 @@ export function exportAnalyticsPDF(overview: AnalyticsOverview) {
 // ── Fechamento do mês ─────────────────────────────────────────
 function escaparHtml(texto: string): string {
   return texto.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+/**
+ * Relatório da pesquisa (anônimo, completo, com as respostas abertas). Recebe só os dados JÁ carregados na tela
+ * (use dadosDoRelatorio) — não faz chamada de API. Só web: no celular o helper de impressão não existe e nada acontece.
+ * O título do documento é o nome sugerido ao salvar (titulo-da-pesquisa-AAAA-MM-DD).
+ */
+export function exportPesquisaPDF(dados: DadosDoRelatorio) {
+  openPrint(montarHtmlPesquisa(dados));
 }
 
 /** Folha limpa só com a tabela do fechamento (e o aviso do saldo). Nomes são escapados: não confiamos no texto. */

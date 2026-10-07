@@ -1,5 +1,12 @@
 # Changelog — SuperRH
 
+## [2026-10-07] — Relatório em PDF dos resultados de pesquisa
+
+- Botão **Baixar PDF** na tela de resultados (Pesquisas e NPS), ao lado de Editar/Duplicar (só na web; no app nativo o botão não aparece, pois o gerador de PDF do projeto é web).
+- `helpers/pdfPesquisa.ts` (funções puras) monta o HTML A4 retrato: cabeçalho (título, público, criação, validade, geração em horário de São Paulo), participação (`X de N colaboradores ativos (Y%)` só se a lista de ativos já estava no cache; senão só o total), cada pergunta na ordem (barras em P&B para escolha/escala com média, NPS com sinal, grupos e distribuição 0..10 com aviso de poucas respostas, respostas abertas completas com quebra de linha) e rodapé `Respostas anônimas` em toda página. `exportPesquisaPDF` (em `helpers/pdf.ts`) reaproveita `openPrint`; nenhuma chamada nova à API.
+- **Anonimato:** o relatório só lê campos permitidos (`dadosDoRelatorio` descarta `contacts`, tokens e ids de participação); texto do banco é escapado; porcentagens por pergunta somam 100 (maior resto, em inteiros).
+- Testes: Vitest `tests/pdfPesquisa.test.ts` e E2E `e2e/41-pesquisa-pdf.spec.ts`.
+
 ## [2026-10-07] — Fluidez F3: aquecimento do cache, intensidade média, números e barras vivos, esqueletos no formato do conteúdo
 
 - **Aquecimento do cache** (`helpers/aquecerCache.ts`, disparado no `AuthGuard`): com a sessão válida (login, restauração, SSO) busca em segundo plano os dados das telas mais usadas (Dashboard, Equipe, Férias + pendências, Avisos, Agenda, Notificações, Pesquisas, Feedbacks, Analytics), **só o que o perfil acessa** (mesmas regras do `shellNav`), **no máximo 3 pedidos em paralelo**, começando pela tela atual e pelo Dashboard. Dado fresco ou pedido em andamento não é refeito; erro é silencioso; cancela no logout/401/troca de usuário (`aoLimpar`). Só leitura.
