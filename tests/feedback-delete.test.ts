@@ -1,5 +1,5 @@
 import type { Request as VercelRequest, Response as VercelResponse } from 'express';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mockSql = vi.fn();
 const mockAuthenticate = vi.fn();
@@ -24,8 +24,16 @@ function request(id: string): VercelRequest {
 }
 
 describe('DELETE /api/feedbacks/:id', () => {
+  // O primeiro import do handler compila TypeScript e, com a máquina ocupada, passava dos 5 s do teste.
+  // Importar uma vez aqui, com folga, deixa os testes instantâneos (mesmo remédio do teste de reconhecimentos).
+  beforeAll(async () => {
+    await import('../api/feedback/_handler');
+  }, 60_000);
+
   beforeEach(() => {
     vi.clearAllMocks();
+    // clearAllMocks não esvazia a fila de mockResolvedValueOnce: um teste que falha deixaria sobras no seguinte.
+    mockSql.mockReset();
     mockAuthenticate.mockReturnValue({ sub: 1, company_id: 10, role: 'rh' });
   });
 
