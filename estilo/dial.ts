@@ -37,6 +37,20 @@ export const dial = {
   /** Troca suave de cor (ex.: faixa do NPS). */
   corMs: 300,
   intervaloBarrasMs: 50,
+  /** Pressionar (F4): escala 0.98 em 100 ms; botões só de ícone e itens do menu afundam mais (0.94). */
+  pressEscala: 0.98,
+  pressEscalaIcone: 0.94,
+  pressMs: 100,
+  /** Indicador que desliza entre opções de filtro/aba. */
+  indicadorMs: 200,
+  /** "Salvo" no próprio botão: o check entra em 160 ms e o conjunto dura 320 ms antes de o modal fechar (teto 450; o fechamento do modal leva ~140 ms a mais). */
+  salvoEntradaMs: 160,
+  salvoMs: 320,
+  /** Sino: balanço de ±12° em ~400 ms; badge com "pop" de escala 1 → 1,15 → 1 em 220 ms. */
+  sinoMs: 400,
+  sinoGraus: 12,
+  popEscala: 1.15,
+  popMs: 220,
   /** Curva "ease-out" um pouco mais marcada que a cúbica: bezier de saída suave (quint). */
   curvaMarcada: [0.22, 1, 0.36, 1] as const,
 } as const;

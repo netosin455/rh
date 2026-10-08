@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, RefreshControl, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { confirmarSalvo } from '../../helpers/confirmacaoSalvo';
 import { Ionicons } from '@expo/vector-icons';
 import { getEventsByMonth, createEvent, updateEvent, deleteEvent } from '../../conexoes/eventos';
 import { confirmAction } from '../../helpers/confirm';
@@ -235,15 +236,17 @@ export default function AgendaScreen() {
         const atualizado = await updateEvent(editId, data);
         // A data pode ter mudado de mês: recarrega o mês aberto em vez de mexer na lista na mão.
         setEvents(prev => prev.map(e => (e.id === editId ? { ...e, ...atualizado } : e)));
-        setShowModal(false);
         toast.success('Evento atualizado!');
+        await confirmarSalvo(); // o botão mostra "Salvo" antes de o modal fechar
+        setShowModal(false);
         setEditId(null);
         return;
       }
       const created = await createEvent(data);
       setEvents(prev => [...prev, created]);
-      setShowModal(false);
       toast.success('Evento adicionado à agenda!');
+      await confirmarSalvo();
+      setShowModal(false);
       setForm({ title: '', date: today, start_time: '', end_time: '', category: 'outro', location: '', description: '', is_all_day: false });
     } catch (e: unknown) {
       setFormError(e instanceof Error && e.message ? e.message : 'Não foi possível salvar. Tente novamente.');

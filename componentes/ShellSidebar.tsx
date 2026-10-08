@@ -11,6 +11,7 @@ import { LayoutChangeEvent, Pressable, ScrollView, StyleSheet, Text, View } from
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useAuth } from '../contextos/Autenticacao';
 import { useContadoresShell } from '../contextos/Contadores';
+import { usarSubida } from '../contextos/usarSubida';
 import { cores } from '../estilo/cores';
 import { borda, espaco, raio, tamanho } from '../estilo/espaco';
 import { useMotion } from '../estilo/movimento';
@@ -18,7 +19,11 @@ import { tipografia } from '../estilo/tipografia';
 import { resolverItemAtivo } from '../helpers/navegacao';
 import { prefetchDaRota } from '../helpers/prefetchRotas';
 import { CAN_APPROVE, SHELL_GROUPS, ShellNavigationItem, canAccessNavigation } from '../helpers/shellNav';
+import { BadgeContador } from './BadgeContador';
 import { BrandMark } from './BrandMark';
+import { usePressEscala } from './pressionar';
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 type ItemLayout = { height: number; y: number };
 
@@ -29,6 +34,7 @@ function SidebarItem({
   onPress,
   onPrefetch,
   pendingCount = 0,
+  pulsoPendencias = 0,
 }: {
   active: boolean;
   item: ShellNavigationItem;
@@ -37,8 +43,11 @@ function SidebarItem({
   /** Passar o mouse ou focar: pré-carrega o dado da tela de destino (só leitura). */
   onPrefetch?: () => void;
   pendingCount?: number;
+  /** Muda quando o contador de pendências muda: o badge dá o "pop". */
+  pulsoPendencias?: number;
 }) {
   const [focused, setFocused] = useState(false);
+  const press = usePressEscala('icone');
   const motion = useMotion();
   const hoverOpacity = useSharedValue(0);
   const icon = (active ? item.icon : `${item.icon}-outline`) as keyof typeof Ionicons.glyphMap;
@@ -58,7 +67,7 @@ function SidebarItem({
   }
 
   return (
-    <Pressable
+    <AnimatedPressable
       accessibilityLabel={`Abrir ${item.title}${pendingCount > 0 ? `, ${pendingCount} pendências` : ''}`}
       accessibilityRole="tab"
       accessibilityState={{ selected: active }}
@@ -68,13 +77,15 @@ function SidebarItem({
       onHoverOut={() => setHovering(false)}
       onLayout={onLayout}
       onPress={onPress}
-      style={[styles.sidebarItem, active && styles.sidebarItemActive, focused && styles.sidebarItemFocused]}
+      onPressIn={press.onPressIn}
+      onPressOut={press.onPressOut}
+      style={[styles.sidebarItem, active && styles.sidebarItemActive, focused && styles.sidebarItemFocused, press.estilo]}
     >
       <Animated.View pointerEvents="none" style={[styles.sidebarItemHover, hoverStyle]} />
       <Ionicons color={active ? cores.sidebar.accent : cores.sidebar.textoInativo} name={icon} size={tamanho.iconeMedio} />
       <Text style={[styles.sidebarLabel, active && styles.sidebarLabelActive]}>{item.title}</Text>
-      {pendingCount > 0 ? <View style={styles.sidebarPendingBadge}><Text style={styles.sidebarPendingBadgeText}>{pendingCount > 9 ? '9+' : pendingCount}</Text></View> : null}
-    </Pressable>
+      {pendingCount > 0 ? <BadgeContador estilo={styles.sidebarPendingBadge} estiloTexto={styles.sidebarPendingBadgeText} pulso={pulsoPendencias} valor={pendingCount} /> : null}
+    </AnimatedPressable>
   );
 }
 
@@ -83,7 +94,8 @@ export function ShellSidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { user } = useAuth();
-  const { pendentes: pendentesCount } = useContadoresShell();
+  const { pendentes: pendentesCount, pendentesPronto } = useContadoresShell();
+  const pulsoPendencias = usarSubida(pendentesCount, pendentesPronto, false);
   // true enquanto a fita está posicionada: no 1º layout (ou ao voltar de "sem item") ela só posiciona, sem deslizar.
   const posicionada = useRef(false);
   // onLayout devolve y relativo ao PAI: guardamos o y do grupo e o do item separados
@@ -169,6 +181,7 @@ export function ShellSidebar() {
                 onPress={() => router.navigate(item.href as never)}
                 onPrefetch={() => prefetchDaRota(item.href, role)}
                 pendingCount={item.key === 'ferias' && CAN_APPROVE.includes(role ?? '') ? pendentesCount : 0}
+                pulsoPendencias={pulsoPendencias}
               />
             ))}
           </View>

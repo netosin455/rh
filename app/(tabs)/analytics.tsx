@@ -24,12 +24,13 @@ import { Card } from '../../componentes/Card';
 import { EmptyState } from '../../componentes/EmptyState';
 import { ListRow } from '../../componentes/ListRow';
 import { MetricCard } from '../../componentes/MetricCard';
+import { ItemDeslizante, SeletorDeslizante } from '../../componentes/SeletorDeslizante';
 import { ProgressBar } from '../../componentes/ProgressBar';
 import { ScreenHeader } from '../../componentes/ScreenHeader';
 import { Section } from '../../componentes/Section';
 import { Skeleton } from '../../componentes/Skeleton';
 import { StatusPill } from '../../componentes/StatusPill';
-import { espaco, tamanho } from '../../estilo/espaco';
+import { borda, espaco, raio, tamanho } from '../../estilo/espaco';
 import { tipografia } from '../../estilo/tipografia';
 import { rotaEquipe, rotaFerias } from '../../helpers/filtros';
 import { NIVEIS_RISCO, NivelRisco, ROTULO_RISCO, lerFiltroRisco, motivosParaNivel, tituloDaLista } from '../../helpers/risco';
@@ -154,8 +155,11 @@ export default function AnalyticsScreen() {
       )}
 
       <Section title="Risco de turnover" description="Últimos 90 dias e engajamento. Toque em um card para ver só aquele nível.">
-        <View accessibilityRole="toolbar" style={styles.metricGrid}>
+        <View accessibilityRole="toolbar">
+         {/* A moldura do card selecionado desliza de um nível de risco para o outro (F4). */}
+         <SeletorDeslizante estiloIndicador={styles.molduraRisco} modo="moldura" selecionado={filtroRisco} style={styles.metricGrid} testID="filtro-risco">
           {NIVEIS_RISCO.map((risk) => (
+            <ItemDeslizante chave={risk} key={risk}>
             <MetricCard
               accessibilityLabel={`Risco ${ROTULO_RISCO[risk].toLowerCase()}: ${turnover_risk[risk].count} colaborador${turnover_risk[risk].count === 1 ? '' : 'es'}. ${filtroRisco === risk ? 'Filtro ativo. Toque para limpar.' : 'Toque para ver a lista.'}`}
               detail="Colaboradores"
@@ -166,7 +170,9 @@ export default function AnalyticsScreen() {
               selecionado={filtroRisco === risk}
               value={turnover_risk[risk].count}
             />
+            </ItemDeslizante>
           ))}
+         </SeletorDeslizante>
         </View>
         <View style={styles.listaCabecalho}>
           <Text accessibilityLiveRegion="polite" accessibilityRole="header" style={styles.listaTitulo}>
@@ -214,6 +220,7 @@ const styles = StyleSheet.create({
   content: { gap: espaco.secao, padding: espaco.xl, paddingBottom: espaco.tela },
   centered: { alignItems: 'center', backgroundColor: cores.superficie.pagina, flex: 1, justifyContent: 'center', padding: espaco.xl },
   loadingContent: { gap: espaco.lg, width: '100%' },
+  molduraRisco: { borderColor: cores.accent.dourado, borderRadius: raio.cartao, borderWidth: borda.foco },
   metricGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: espaco.md },
   progressItem: { gap: espaco.xs, marginBottom: espaco.lg },
   progressHeader: { alignItems: 'center', flexDirection: 'row', gap: espaco.md, justifyContent: 'space-between' },

@@ -7,12 +7,21 @@
 // ============================================================
 
 import { ReactElement, useCallback } from 'react';
-import { Platform, StyleSheet } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
 import Animated, { SharedValue, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { cores } from '../estilo/cores';
 import { dial, movimento, useMotion } from '../estilo/movimento';
 
 const ehWeb = Platform.OS === 'web';
+
+/**
+ * Só existe realce quando há hover de verdade (mouse/trackpad): em tela de toque o primeiro toque "gruda" o hover
+ * e o item ficaria levantado. `(hover: hover)` é falso em celulares e tablets.
+ */
+export function haHoverReal(): boolean {
+  if (!ehWeb || typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false;
+  return window.matchMedia('(hover: hover)').matches;
+}
 
 export interface Realce {
   /** 0 = em repouso, 1 = com o mouse em cima. Já inclui a regra de movimento reduzido. */
@@ -28,7 +37,7 @@ export function useRealce(raio: number): Realce {
   const motion = useMotion();
   const hover = useSharedValue(0);
   const alvo = useCallback((valor: number) => {
-    if (!ehWeb) return;
+    if (!haHoverReal()) return;
     // Reduzir movimento: sem elevação nem sombra, nada a mostrar.
     if (motion.reduzMovimento) { hover.value = 0; return; }
     hover.value = withTiming(valor, { duration: dial.hoverMs, easing: movimento.curva.entrada });
@@ -38,7 +47,7 @@ export function useRealce(raio: number): Realce {
     hover,
     onHoverIn: () => alvo(1),
     onHoverOut: () => alvo(0),
-    camada: ehWeb ? <CamadaAnimada hover={hover} raio={raio} /> : null,
+    camada: haHoverReal() ? <><CamadaAnimada hover={hover} raio={raio} /><FaixaDeApoio /></> : null,
   };
 }
 
@@ -48,12 +57,22 @@ export function elevacaoDoRealce(hover: SharedValue<number>): number {
   return -dial.hoverElevacaoPx * hover.value;
 }
 
+/**
+ * Faixa transparente de 1 px colada na base do item. Ao subir 1 px o item deixa uma linha de pixels "vazia" embaixo;
+ * sem esta faixa o mouse parado nessa linha sai do item, ele desce, entra de novo, sobe... (tremida na borda).
+ * Como é filha do item, conta como "dentro" dele. Em repouso fica sob o vizinho de baixo (que vem depois e pinta por cima).
+ */
+function FaixaDeApoio() {
+  return <View style={styles.apoio} />;
+}
+
 function CamadaAnimada({ hover, raio }: { hover: SharedValue<number>; raio: number }) {
   const estilo = useAnimatedStyle(() => ({ opacity: hover.value }));
   return <Animated.View pointerEvents="none" style={[styles.sombra, { borderRadius: raio }, estilo]} />;
 }
 
 const styles = StyleSheet.create({
+  apoio: { bottom: -dial.hoverElevacaoPx, height: dial.hoverElevacaoPx, left: 0, position: 'absolute', right: 0 },
   // Sombra maior que só aparece no hover; fica atrás do conteúdo (1º filho) e dentro da área do item.
   sombra: {
     bottom: 0,

@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { KeyboardAvoidingView, Linking, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { confirmarSalvo } from '../../helpers/confirmacaoSalvo';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { getEmployeeById, updateEmployee, deleteEmployee } from '../../conexoes/colaboradores';
 import { startOnboarding } from '../../conexoes/onboarding';
@@ -81,7 +82,7 @@ export default function ColaboradorScreen() {
     const hireDate = brToIso(form.hire_date ?? ''); const birthDate = form.birth_date ? brToIso(form.birth_date) : '';
     if (!hireDate) return toast.warning('Admissão: use DD/MM/AAAA.'); if (form.birth_date && !birthDate) return toast.warning('Nascimento: use DD/MM/AAAA.');
     setSaving(true);
-    try { const salary = form.salary ? parseFloat(String(form.salary).replace(',', '.')) : undefined; const updated = await updateEmployee(Number(id), { name: form.name.trim(), role_title: form.role_title.trim(), hire_date: hireDate, status: form.status, phone: form.phone?.trim() || undefined, email: form.email?.trim() ?? '', cpf: form.cpf?.trim() || undefined, birth_date: birthDate || undefined, legal_area: form.legal_area, oab_number: form.oab_number?.trim() || undefined, vacation_days: form.vacation_days, folga_hours: form.folga_hours, salary: !isNaN(salary!) ? salary : undefined }); setEmployee(updated); setEditing(false); toast.success('Colaborador atualizado!'); }
+    try { const salary = form.salary ? parseFloat(String(form.salary).replace(',', '.')) : undefined; const updated = await updateEmployee(Number(id), { name: form.name.trim(), role_title: form.role_title.trim(), hire_date: hireDate, status: form.status, phone: form.phone?.trim() || undefined, email: form.email?.trim() ?? '', cpf: form.cpf?.trim() || undefined, birth_date: birthDate || undefined, legal_area: form.legal_area, oab_number: form.oab_number?.trim() || undefined, vacation_days: form.vacation_days, folga_hours: form.folga_hours, salary: !isNaN(salary!) ? salary : undefined }); setEmployee(updated); toast.success('Colaborador atualizado!'); await confirmarSalvo(); setEditing(false); }
     catch (cause: any) { toast.error(cause.message || 'Não foi possível salvar.'); } finally { setSaving(false); }
   }
   function removeEmployee() { confirmAction('Excluir colaborador', `Deseja excluir ${employee?.name}? Esta ação não pode ser desfeita.`, async () => { try { await deleteEmployee(Number(id)); router.back(); } catch (cause: any) { toast.error(cause.message || 'Não foi possível excluir.'); } }); }

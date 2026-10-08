@@ -49,7 +49,8 @@ export function MetricCard({ label, value, numero, formato, detail, indicator, o
 }
 
 const styles = StyleSheet.create({
-  selecionado: { backgroundColor: theme.accent.superficie, borderColor: theme.accent.dourado, borderWidth: 2 },
+  // A borda de destaque é a moldura que desliza (SeletorDeslizante); aqui só o fundo muda, sem alterar a espessura (nada se mexe).
+  selecionado: { backgroundColor: theme.accent.superficie, borderColor: theme.accent.dourado },
   content: { gap: espaco.xs, minHeight: tamanho.toqueMinimo },
   topRow: { alignItems: 'center', flexDirection: 'row', gap: espaco.sm, justifyContent: 'space-between' },
   label: { ...tipografia.legenda, color: theme.texto.discreto },

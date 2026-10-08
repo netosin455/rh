@@ -7,6 +7,7 @@
 // ============================================================
 
 import { Ionicons } from '@expo/vector-icons';
+import { confirmarSalvo } from '../helpers/confirmacaoSalvo';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { LayoutChangeEvent, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -137,11 +138,13 @@ export function EditorPesquisa({ area, pesquisaId }: EditorPesquisaProps) {
         setBloqueiosServidor([]);
         await updateSurvey(pesquisaId, montarEdicao(titulo, validade, perguntas));
         toast.success(cliente ? 'Campanha atualizada.' : 'Pesquisa atualizada.');
+        await confirmarSalvo(); // o botão mostra "Salvo" antes de voltar
         router.replace(cfg.rotaDetalhe(pesquisaId) as never);
         return;
       }
       await createSurvey(montarPesquisa(titulo, validade, perguntas, cfg.audience));
       toast.success(cliente ? 'Campanha criada. Na lista, copie o link ou mostre o QR code.' : 'Pesquisa criada. Já dá para compartilhar o link.');
+      await confirmarSalvo();
       router.replace(cfg.rotaRaiz as never);
     } catch (e: unknown) {
       // O servidor é a autoridade: se bloqueou a edição, mostra o motivo de cada bloqueio.

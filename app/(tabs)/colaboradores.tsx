@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import { confirmarSalvo } from '../../helpers/confirmacaoSalvo';
 import {
   View, Text, ScrollView, TextInput, Pressable,
   StyleSheet, RefreshControl, Platform,
@@ -33,6 +34,8 @@ import { Input } from '../../componentes/Input';
 import { Modal } from '../../componentes/Modal';
 import { ScreenHeader } from '../../componentes/ScreenHeader';
 import { Skeleton } from '../../componentes/Skeleton';
+import { ChipFiltro, estiloIndicadorDoChip } from '../../componentes/ChipFiltro';
+import { ItemDeslizante, SeletorDeslizante } from '../../componentes/SeletorDeslizante';
 import { EsqueletoCabecalho, EsqueletoGrupo, EsqueletoLinha, EsqueletoTexto } from '../../componentes/Esqueletos';
 
 import { StatusPill } from '../../componentes/StatusPill';
@@ -88,6 +91,7 @@ const EMPTY_FORM = {
   folga_hours:  0,
 };
 
+// Chip do formulário de cadastro (status/área): cada opção tem o próprio fundo; o filtro da lista usa ChipFiltro + indicador.
 function Chip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
   return (
     <Pressable
@@ -186,6 +190,7 @@ export default function ColaboradoresScreen() {
       };
       const created = await createEmployee(data);
       setEmployees(prev => [created, ...prev]);
+      await confirmarSalvo(); // o botão mostra "Salvo" antes de o modal fechar
       setShowModal(false);
       setForm(EMPTY_FORM);
     } catch (e: any) {
@@ -237,12 +242,15 @@ export default function ColaboradoresScreen() {
           )}
         </View>
 
-        <ScrollView contentContainerStyle={styles.filterContent} horizontal showsHorizontalScrollIndicator={false}>
-          {FILTERS.map(f => (
-            <Chip active={filter === f.key} key={f.key} label={f.label} onPress={() => escolherFiltro(f.key)} />
-          ))}
-          {/* Filtros que vêm de outras telas (ex.: "Em licença" do Analytics) só aparecem enquanto estão ativos. */}
-          {ROTULO_FILTRO_TEMPORARIO[filter] ? <Chip active key={filter} label={ROTULO_FILTRO_TEMPORARIO[filter] ?? ''} onPress={() => escolherFiltro('todos')} /> : null}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          {/* O fundo do chip selecionado é um indicador que desliza entre as opções (F4). */}
+          <SeletorDeslizante estiloIndicador={estiloIndicadorDoChip} selecionado={filter} style={styles.filterContent} testID="filtro-equipe">
+            {FILTERS.map(f => (
+              <ItemDeslizante chave={f.key} key={f.key}><ChipFiltro ativo={filter === f.key} label={f.label} onPress={() => escolherFiltro(f.key)} /></ItemDeslizante>
+            ))}
+            {/* Filtros que vêm de outras telas (ex.: "Em licença" do Analytics) só aparecem enquanto estão ativos. */}
+            {ROTULO_FILTRO_TEMPORARIO[filter] ? <ItemDeslizante chave={filter} key={filter}><ChipFiltro ativo label={ROTULO_FILTRO_TEMPORARIO[filter] ?? ''} onPress={() => escolherFiltro('todos')} /></ItemDeslizante> : null}
+          </SeletorDeslizante>
         </ScrollView>
 
         <Text style={styles.countLabel}>{filtered.length} colaborador{filtered.length !== 1 ? 'es' : ''}</Text>
