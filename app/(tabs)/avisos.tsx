@@ -3,6 +3,7 @@
 // ============================================================
 
 import React, { useCallback, useEffect, useState } from 'react';
+import { confirmarSalvo } from '../../helpers/confirmacaoSalvo';
 import { Revelar } from '../../componentes/Revelar';
 import { KeyboardAvoidingView, Platform, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -117,8 +118,9 @@ export default function AvisosScreen() {
       };
       const created = await createNotice(data);
       setNotices(prev => [created, ...prev]);
-      setShowModal(false);
       toast.success('Aviso publicado para a equipe!');
+      await confirmarSalvo(); // o botão mostra "Salvo" antes de o modal fechar
+      setShowModal(false);
       setForm(EMPTY_FORM);
     } catch (e: any) {
       setFormError(e.message || 'Não foi possível salvar. Tente novamente.');

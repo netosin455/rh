@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { confirmarSalvo } from '../../helpers/confirmacaoSalvo';
 import { Revelar } from '../../componentes/Revelar';
 import { KeyboardAvoidingView, Platform, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
@@ -35,6 +36,8 @@ import { MetricCard } from '../../componentes/MetricCard';
 import { Modal } from '../../componentes/Modal';
 import { ScreenHeader } from '../../componentes/ScreenHeader';
 import { Section } from '../../componentes/Section';
+import { ChipFiltro, estiloIndicadorDoChip } from '../../componentes/ChipFiltro';
+import { ItemDeslizante, SeletorDeslizante } from '../../componentes/SeletorDeslizante';
 import { EsqueletoCabecalho, EsqueletoCartaoLista, EsqueletoMetrica, EsqueletoGrupo, EsqueletoSecao } from '../../componentes/Esqueletos';
 
 import { StatusPill } from '../../componentes/StatusPill';
@@ -308,6 +311,7 @@ export default function FeriasScreen() {
         setAbsences(prev => [created, ...prev]);
         toast.success('Lançamento registrado com sucesso!');
       }
+      await confirmarSalvo(); // o botão mostra "Salvo" antes de o modal fechar
       setShowModal(false);
       setForm(EMPTY_FORM);
       setEmpSearch('');
@@ -379,8 +383,11 @@ export default function FeriasScreen() {
           </View>
         </Section>
         <Section title="Registros" description="Filtre por tipo de afastamento para consultar, editar ou excluir lançamentos pendentes e aprovados." action={Platform.OS === 'web' && filtered.length > 0 ? <Button label="Exportar PDF" icon="download-outline" variant="ghost" onPress={() => exportAbsencesPDF(filtered as any)} /> : undefined}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterTabs}>
-            {FILTER_TABS.map((tab) => <Button key={tab.key} label={tab.label} variant={activeTab === tab.key ? 'primary' : 'secondary'} accessibilityLabel={`Filtrar por ${tab.label}`} onPress={() => escolherAba(tab.key)} />)}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterTabsScroll}>
+            {/* O destaque da aba selecionada desliza entre as abas (F4); a URL (?tab=) e o estado continuam os mesmos. */}
+            <SeletorDeslizante estiloIndicador={estiloIndicadorDoChip} selecionado={activeTab} style={styles.filterTabs} testID="filtro-ferias">
+              {FILTER_TABS.map((tab) => <ItemDeslizante chave={tab.key} key={tab.key}><ChipFiltro accessibilityLabel={`Filtrar por ${tab.label}`} ativo={activeTab === tab.key} grande label={tab.label} onPress={() => escolherAba(tab.key)} /></ItemDeslizante>)}
+            </SeletorDeslizante>
           </ScrollView>
           {filtered.length === 0 && !loadError ? (
             <Card><EmptyState icon="umbrella-outline" title="Nenhum registro" description="Não há lançamentos para este filtro." action={<Button label="Lançar" icon="add" onPress={() => setShowLancar(true)} />} /></Card>
@@ -468,7 +475,8 @@ const styles = StyleSheet.create({
   pendingActions: { flexDirection: 'row', gap: espaco.sm, marginTop: espaco.lg },
   actionButton: { flex: 1 },
   metrics: { flexDirection: 'row', flexWrap: 'wrap', gap: espaco.md },
-  filterTabs: { gap: espaco.sm, paddingVertical: espaco.xs },
+  filterTabsScroll: { paddingVertical: espaco.xs },
+  filterTabs: { flexDirection: 'row', gap: espaco.sm },
   recordList: { gap: espaco.sm },
   rowTrailing: { alignItems: 'flex-end', gap: espaco.xs },
   statusBadge: { alignSelf: 'flex-start', borderRadius: raio.pill, borderWidth: borda.fina, paddingHorizontal: espaco.sm, paddingVertical: espaco.xs },

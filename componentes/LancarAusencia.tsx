@@ -6,6 +6,7 @@
 // ============================================================
 
 import { Ionicons } from '@expo/vector-icons';
+import { confirmarSalvo } from '../helpers/confirmacaoSalvo';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { createAbsence } from '../conexoes/ausencias';
@@ -151,6 +152,7 @@ export function LancarAusencia({ visible, onClose, employees, employeeId, onLanc
       }
       toast.success(descreverLancamento(resultado.payload, entrada, nome, resultado.previa));
       onLancado();
+      await confirmarSalvo(); // o botão mostra "Salvo" antes de o modal fechar
       onClose();
     } catch (e: unknown) {
       setErro(e instanceof Error && e.message ? e.message : 'Não foi possível lançar. Tente novamente.');

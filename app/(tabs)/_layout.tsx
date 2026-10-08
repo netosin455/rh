@@ -1,10 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs, useRouter } from 'expo-router';
 import { Platform, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { BadgeContador } from '../../componentes/BadgeContador';
+import { BotaoSino } from '../../componentes/BotaoSino';
 import { Button } from '../../componentes/Button';
 import { EntradaTela } from '../../componentes/EntradaTela';
 import { useAuth } from '../../contextos/Autenticacao';
 import { useContadoresShell } from '../../contextos/Contadores';
+import { usarSubida } from '../../contextos/usarSubida';
 import { cores } from '../../estilo/cores';
 import { borda, espaco, raio, tamanho } from '../../estilo/espaco';
 import { tipografia } from '../../estilo/tipografia';
@@ -43,22 +46,8 @@ function tabTitle(name: string) {
 // contador de férias pendentes.
 function NotificationsButton({ style, unreadCount }: { style?: object; unreadCount: number }) {
   const router = useRouter();
-  return (
-    <View style={styles.notificationsWrap}>
-      <Button
-        accessibilityLabel={unreadCount > 0 ? `Abrir notificações, ${unreadCount} não lidas` : 'Abrir notificações'}
-        icon="notifications-outline"
-        onPress={() => router.navigate('/notificacoes' as never)}
-        style={style}
-        variant="ghost"
-      />
-      {unreadCount > 0 ? (
-        <View style={styles.notificationsBadge}>
-          <Text style={styles.notificationsBadgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
-        </View>
-      ) : null}
-    </View>
-  );
+  const { naoLidasPronto } = useContadoresShell();
+  return <BotaoSino naoLidas={unreadCount} onPress={() => router.navigate('/notificacoes' as never)} pronto={naoLidasPronto} style={style} />;
 }
 
 function WideTopbar({ onLogout, title, unreadCount }: { onLogout: () => void; title: string; unreadCount: number }) {
@@ -76,7 +65,9 @@ function WideTopbar({ onLogout, title, unreadCount }: { onLogout: () => void; ti
 export default function TabLayout() {
   const { user, logout } = useAuth();
   const { width } = useWindowDimensions();
-  const { pendentes: pendentesCount, naoLidas: unreadCount } = useContadoresShell();
+  const { pendentes: pendentesCount, naoLidas: unreadCount, pendentesPronto } = useContadoresShell();
+  // O badge de pendências de Férias dá o "pop" quando o número muda (F4), nunca na 1ª leitura.
+  const pulsoPendentes = usarSubida(pendentesCount, pendentesPronto, false);
   const isWideWeb = Platform.OS === 'web' && width >= 960;
 
   function handleLogout() {
@@ -125,9 +116,7 @@ export default function TabLayout() {
                 <View>
                   <Ionicons color={color} name={icon} size={tamanho.iconeMedio} />
                   {tab.name === 'ferias' && pendentesCount > 0 && CAN_APPROVE.includes(user?.role ?? '') ? (
-                    <View style={styles.pendingBadge}>
-                      <Text style={styles.pendingBadgeText}>{pendentesCount > 9 ? '9+' : pendentesCount}</Text>
-                    </View>
+                    <BadgeContador estilo={styles.pendingBadge} estiloTexto={styles.pendingBadgeText} pulso={pulsoPendentes} valor={pendentesCount} />
                   ) : null}
                 </View>
               );

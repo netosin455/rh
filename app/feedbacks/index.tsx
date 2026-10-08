@@ -8,6 +8,7 @@ import { Button } from '../../componentes/Button';
 import { EmptyState } from '../../componentes/EmptyState';
 import { Input } from '../../componentes/Input';
 import { EsqueletoGrupo, EsqueletoLinha } from '../../componentes/Esqueletos';
+import { ItemDeslizante, SeletorDeslizante } from '../../componentes/SeletorDeslizante';
 import { feedbackPdfUrl, feedbackPublicUrl, getFeedbacks } from '../../conexoes/feedbacks';
 import { useAuth } from '../../contextos/Autenticacao';
 import { usarDados } from '../../contextos/usarDados';
@@ -164,17 +165,21 @@ export default function FeedbacksScreen() {
         <View style={[styles.toolbar, !wide && styles.toolbarNarrow]}>
           <Input containerStyle={styles.search} label="Buscar colaborador" onChangeText={setQuery} placeholder="Buscar colaborador..." value={query} />
         </View>
-        <View accessibilityRole="tablist" style={styles.filters}>
+        <SeletorDeslizante estiloIndicador={styles.filterIndicador} modo="linha" selecionado={filter} style={styles.filters}>
+         <View accessibilityRole="tablist" style={styles.filtersLinha}>
           {([
             ['all', 'Todos'],
             ['published', 'Aguardando'],
             ['acknowledged', 'Confirmados'],
           ] as [Filter, string][]).map(([value, label]) => (
-            <Pressable accessibilityRole="tab" accessibilityState={{ selected: filter === value }} key={value} onPress={() => setFilter(value)} style={[styles.filter, filter === value && styles.filterActive]}>
+            <ItemDeslizante chave={value} key={value}>
+            <Pressable accessibilityRole="tab" accessibilityState={{ selected: filter === value }} onPress={() => setFilter(value)} style={styles.filter}>
               <Text style={[styles.filterText, filter === value && styles.filterTextActive]}>{label} <Text style={styles.filterCount}>{counts[value]}</Text></Text>
             </Pressable>
+            </ItemDeslizante>
           ))}
-        </View>
+         </View>
+        </SeletorDeslizante>
 
         <AvisoDesatualizado visivel={erroLeve} />
         {loading ? (
@@ -218,9 +223,11 @@ const styles = StyleSheet.create({
   toolbar: { marginBottom: espaco.md, maxWidth: 360 },
   toolbarNarrow: { maxWidth: undefined },
   search: { width: '100%' },
-  filters: { alignItems: 'center', borderBottomColor: cores.borda.sutil, borderBottomWidth: borda.fina, flexDirection: 'row', gap: espaco.xl, marginBottom: espaco.xs },
+  filters: { borderBottomColor: cores.borda.sutil, borderBottomWidth: borda.fina, marginBottom: espaco.xs },
+  filtersLinha: { alignItems: 'center', flexDirection: 'row', gap: espaco.xl },
+  // O sublinhado da aba selecionada desliza entre as abas (SeletorDeslizante, modo linha).
+  filterIndicador: { backgroundColor: cores.accent.dourado, borderRadius: borda.foco },
   filter: { borderBottomColor: 'transparent', borderBottomWidth: borda.foco, paddingBottom: espaco.md },
-  filterActive: { borderBottomColor: cores.accent.dourado },
   filterText: { ...tipografia.corpoForte, color: cores.texto.discreto },
   filterTextActive: { color: cores.texto.primario },
   filterCount: { ...tipografia.legenda, color: cores.texto.discreto },

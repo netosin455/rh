@@ -45,7 +45,7 @@ export function hojeIso(deslocamentoDias = 0): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(d);
 }
 
-function agoraIso(): string {
+export function agoraIso(): string {
   return new Date().toISOString();
 }
 

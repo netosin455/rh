@@ -18,7 +18,7 @@ export const movimento = {
     entradaMarcada: Easing.bezier(...dial.curvaMarcada),
   },
   deslocamento: {
-    press: 0.98,
+    press: dial.pressEscala,
     modal: 0.98,
     toast: 32,
     drawer: 40,

@@ -3,6 +3,7 @@
 // ============================================================
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { confirmarSalvo } from '../../helpers/confirmacaoSalvo';
 import { Revelar } from '../../componentes/Revelar';
 import { KeyboardAvoidingView, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
@@ -132,9 +133,10 @@ export default function RecognitionsScreen() {
     setSaving(true);
     try {
       await createRecognition({ to_employee_id: selectedEmp.id, message: message.trim(), category });
-      setModalOpen(false);
       showPublishFeedback();
       toast.success('Reconhecimento publicado! 🏆');
+      await confirmarSalvo(); // o botão mostra "Salvo" antes de o modal fechar
+      setModalOpen(false);
     } catch (e: any) {
       toast.error(e?.message ?? 'Não foi possível publicar o reconhecimento');
     } finally {

@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
+import { confirmarSalvo } from '../../helpers/confirmacaoSalvo';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Button } from '../../componentes/Button';
@@ -37,6 +38,7 @@ export default function NewFeedbackScreen() {
     try {
       const feedback = await createFeedback(data);
       toast.success('Rascunho salvo.');
+      await confirmarSalvo();
       router.replace(`/feedbacks/${feedback.id}` as never);
     } catch (error: any) {
       toast.error(error?.message ?? 'Não foi possível criar o feedback.');
@@ -55,6 +57,7 @@ export default function NewFeedbackScreen() {
           const draft = await createFeedback(data);
           await publishFeedback(draft.id);
           toast.success('Feedback publicado.');
+          await confirmarSalvo();
           router.replace(`/feedbacks/${draft.id}` as never);
         } catch (error: any) {
           toast.error(error?.message ?? 'Não foi possível publicar o feedback.');

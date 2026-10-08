@@ -1,5 +1,6 @@
 import * as Clipboard from 'expo-clipboard';
 import { Ionicons } from '@expo/vector-icons';
+import { confirmarSalvo } from '../../helpers/confirmacaoSalvo';
 import { useCallback, useEffect, useState } from 'react';
 import { Linking, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -84,6 +85,7 @@ export default function FeedbackDetailScreen() {
       setFeedback((current) => current ? { ...current, ...updated } : updated);
       setForm({ employee_id: updated.employee_id, title: updated.title, content: updated.content });
       toast.success('Rascunho salvo.');
+      await confirmarSalvo();
     } catch (reason: any) { toast.error(reason?.message ?? 'Não foi possível salvar o rascunho.'); } finally { setSaving(false); }
   }
 
@@ -95,6 +97,7 @@ export default function FeedbackDetailScreen() {
         const published = await publishFeedback(id);
         setFeedback((current) => current ? { ...current, ...published } : published);
         toast.success('Feedback publicado. Copie o link para compartilhar.');
+        await confirmarSalvo();
       } catch (reason: any) { toast.error(reason?.message ?? 'Não foi possível publicar o feedback.'); }
       finally { setSaving(false); }
     });
