@@ -1,5 +1,20 @@
 # Changelog — SuperRH
 
+## [2026-10-09] — Velocidade real: região da API, cache dos arquivos do app e fontes fora do caminho crítico
+
+### Medido em produção (antes)
+- A função da Vercel rodava em **Washington (`iad1`)** e o banco Neon está em **São Paulo (`sa-east-1`)**: cada chamada de API levava ~0,25 s só de viagem (borda `gru1` → função `iad1` → borda) e cada consulta ao banco atravessava o continente (rota com 2-3 consultas: 0,47 a 0,68 s). Primeira chamada depois de ociosidade ("fria"): 0,75 a 0,88 s.
+- Pacote JS do app: 2,7 MB, **703 KB** comprimido (0,43 s). Servido com `max-age=0, must-revalidate`: o pacote e as fontes eram revalidados a cada abertura, apesar de o nome do arquivo já mudar a cada versão.
+- O app **não desenhava nada** até carregar 5 fontes (4 Inter + Cormorant, ~165-170 KB comprimidas cada).
+
+### Alterado
+- `vercel.json`: `"regions": ["gru1"]` (Hobby aceita uma região): função e banco na mesma região e perto de quem usa. Reverter = remover a linha.
+- `vercel.json`: `Cache-Control: public, max-age=31536000, immutable` em `/_expo/static/*` e `/assets/*` (nomes com hash do conteúdo): quem volta ao app não revalida o pacote nem as fontes. `index.html` continua revalidando (é ele que aponta para os arquivos novos).
+- `app/_layout.tsx`: a fonte da marca (Cormorant, só a logo) deixou de segurar a primeira tela; carrega depois das Inter. A logo troca de fonte quando ela chega.
+
+### Observação
+- Medidas locais de tempo ficam erradas quando o computador está sem memória (um 401 "levou 1,01 s" por causa disso): medir sempre com a máquina livre.
+
 ## [2026-10-07] — Relatório em PDF dos resultados de pesquisa
 
 - Botão **Baixar PDF** na tela de resultados (Pesquisas e NPS), ao lado de Editar/Duplicar (só na web; no app nativo o botão não aparece, pois o gerador de PDF do projeto é web).
