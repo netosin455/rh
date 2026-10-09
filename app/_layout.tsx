@@ -128,13 +128,24 @@ const styles = StyleSheet.create({
   conteudo: { flex: 1, minWidth: 0 },
 });
 
+/**
+ * A fonte da marca (Cormorant, 170 KB) só aparece na logo: não pode atrasar a primeira tela. Ela começa a
+ * carregar DEPOIS das fontes principais (montada só quando o app já está na tela) e a logo troca da fonte
+ * serifada do sistema para ela quando chegar. O `useFonts` do expo-font ignora mudanças de argumento depois
+ * da montagem; por isso um componente próprio, e não um `useFonts` condicional.
+ */
+function CarregarFonteDaMarca() {
+  useFonts({ CormorantGaramond_600SemiBold });
+  return null;
+}
+
 export default function RootLayout() {
+  // Só as fontes do texto corrente seguram a primeira tela (4 x ~165 KB comprimidas).
   const [fontsLoaded, fontError] = useFonts({
     Inter_400Regular,
     Inter_500Medium,
     Inter_600SemiBold,
     Inter_700Bold,
-    CormorantGaramond_600SemiBold,
   });
   // Fonte é acabamento visual: nunca pode travar o app. Com erro ou demora,
   // segue com a fonte do sistema em vez de ficar em tela branca.
@@ -155,6 +166,7 @@ export default function RootLayout() {
         <PushProvider>
           <ContadoresProvider>
             <StatusBar style="dark" />
+            <CarregarFonteDaMarca />
             <AuthGuard />
           </ContadoresProvider>
         </PushProvider>
